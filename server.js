@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -27,8 +28,8 @@ const RESERVED = ['www', 'app', 'api', 'admin', 'p', 'mail', 'static'];
 
 const app = express();
 app.set('trust proxy', 1);
+app.use(cors({ origin: true, credentials: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
 
-/* ---------- helpers ---------- */
 const now = () => Date.now();
 const uid = () => crypto.randomBytes(8).toString('hex');
 const expiry = u => Math.max(u.trialEndsAt || 0, u.paidUntil || 0);
@@ -49,20 +50,15 @@ function limiter(max, windowMs) {
 }
 setInterval(() => { for (const [k, h] of hits) if (now() > h.r) hits.delete(k); }, 600000);
 
-/* ---------- email ---------- */
-const mailer = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
- ? nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } })
-  : null;
+const mailer = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD? nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } }) : null;
+if (!mailer) console.log('WARNING: GMAIL not set - codes will show in Logs only');
+
 async function sendCode(email, code) {
+  console.log(`[CODE] for ${email}: ${code}`);
   if (!mailer) { console.log(`[DEV] Verification code for ${email}: ${code}`); return; }
-  await mailer.sendMail({
-    from: `"MtaaniHost" <${process.env.GMAIL_USER}>`, to: email,
-    subject: `Your MtaaniHost Code: ${code}`,
-    html: `<div style="font-family:sans-serif"><h2>Welcome to MtaaniHost</h2><p>Your account verification code:</p><p style="font-size:32px;letter-spacing:6px;font-weight:bold">${code}</p><p>Expires after 15 minutes.</p></div>`
-  });
+  await mailer.sendMail({ from: `"MtaaniHost" <${process.env.GMAIL_USER}>`, to: email, subject: `Your MtaaniHost Code: ${code}`, html: `<div style="font-family:sans-serif"><h2>Welcome to MtaaniHost</h2><p>Your account verification code:</p><p style="font-size:32px;letter-spacing:6px;font-weight:bold">${code}</p><p>Expires after 15 minutes.</p></div>` });
 }
 
-/* ---------- billing: Paystack ---------- */
 async function creditPayment(reference) {
   if (db.payments.find(p => p.reference === reference)) return true;
   const r = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(reference), { headers: { Authorization: 'Bearer ' + PSK } });
@@ -74,18 +70,13 @@ async function creditPayment(reference) {
   if (db.payments.find(p => p.reference === reference)) return true;
   user.paidUntil = Math.max(now(), user.paidUntil || 0) + 30 * DAY;
   db.payments.push({ reference, userId, email: user.email, amount: d.amount / 100, currency: d.currency, channel: d.channel, at: now() });
-  save();
-  resumeUserBots(user.id);
-  syncSites();
-  return true;
+  save(); resumeUserBots(user.id); syncSites(); return true;
 }
 function resumeUserBots(userId) {
   const o = db.users.find(x => x.id === userId);
   if (!o ||!isActive(o)) return;
   db.projects.filter(p => p.userId === userId && p.type === 'bot' && p.desired === 'running' &&!p.adminSuspended).forEach(p => runner.start(p));
 }
-
-// webhook (raw body required for signature) - must be before express.json()
 app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res) => {
   try {
     const sig = crypto.createHmac('sha512', PSK || '').update(req.body).digest('hex');
@@ -95,8 +86,6 @@ app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res)
     res.sendStatus(200);
   } catch (e) { console.error('webhook', e); res.sendStatus(500); }
 });
-
-/* ---------- hosting: static sites (local fallback) ---------- */
 function blockedPage(res, name) {
   res.status(402).send(`<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#000;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center"><div><h1>This site has been suspended</h1><p style="color:#aaa">The owner of <b>${String(name).replace(/[<>&"]/g, '')}</b> needs to pay to keep it running.</p><a style="color:#4ade80" href="${BASE_URL}">MtaaniHost</a></div>`);
 }
@@ -111,7 +100,6 @@ function serveSite(slug, req, res, next) {
     res.status(404).send('Not found');
   });
 }
-// subdomain hosting: name.BASE_DOMAIN
 app.use((req, res, next) => {
   if (!BASE_DOMAIN) return next();
   const host = (req.hostname || '').toLowerCase();
@@ -121,12 +109,8 @@ app.use((req, res, next) => {
   }
   next();
 });
-// path hosting: /p/name
 app.use('/p/:slug', (req, res, next) => serveSite(req.params.slug, req, res, next));
-
 app.use(express.json({ limit: '100kb' }));
-
-/* ---------- auth ---------- */
 function auth(req, res, next) {
   try {
     const t = (req.headers.authorization || '').replace('Bearer ', '');
@@ -145,7 +129,6 @@ function adminAuth(req, res, next) {
   } catch { res.status(401).json({ error: 'Admin only' }); }
 }
 const authLimit = limiter(20, 15 * 60000);
-
 app.post('/api/auth/signup', authLimit, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
@@ -185,9 +168,30 @@ app.post('/api/auth/login', authLimit, async (req, res) => {
   if (u.blocked) return res.status(403).json({ error: 'Your account has been blocked. Contact admin.' });
   res.json({ token: jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' }), user: publicUser(u) });
 });
+app.post('/api/auth/forgot', authLimit, async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const u = db.users.find(x => x.email === email);
+  if (!u) return res.json({ ok: true });
+  const code = String(crypto.randomInt(100000, 1000000));
+  u.resetCode = code; u.resetExp = now() + 15 * 60000; u.resetTries = 0; save();
+  try {
+    if (!mailer) { console.log(`[RESET CODE for ${email}]: ${code}`); }
+    else { await mailer.sendMail({ from: `"MtaaniHost" <${process.env.GMAIL_USER}>`, to: email, subject: `Reset your MtaaniHost password: ${code}`, html: `<div style="font-family:sans-serif"><h2>Password Reset</h2><p>Your reset code:</p><p style="font-size:32px;letter-spacing:6px;font-weight:bold">${code}</p><p>Expires in 15 minutes.</p></div>` }); }
+    res.json({ ok: true });
+  } catch (e) { console.error('forgot mail error', e.message); res.status(500).json({ error: 'Failed to send reset email' }); }
+});
+app.post('/api/auth/reset', authLimit, async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const code = String(req.body.code || '').trim();
+  const password = String(req.body.password || '');
+  const u = db.users.find(x => x.email === email);
+  if (!u ||!u.resetCode) return res.status(400).json({ error: 'Invalid reset code' });
+  if (now() > u.resetExp) return res.status(400).json({ error: 'Code expired. Request new one.' });
+  if (!safeEq(u.resetCode, code)) return res.status(400).json({ error: 'Invalid code' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  u.passHash = await bcrypt.hash(password, 10); u.resetCode = null; u.resetExp = 0; save(); res.json({ ok: true });
+});
 app.get('/api/me', auth, (req, res) => res.json(publicUser(req.user)));
-
-/* ---------- projects ---------- */
 function projectView(p) {
   const owner = db.users.find(u => u.id === p.userId);
   const active = owner && isActive(owner) &&!p.adminSuspended;
@@ -216,13 +220,13 @@ function extractZip(zipPath, dest) {
   for (const e of entries) {
     if (e.entryName.startsWith('__MACOSX') || e.entryName.includes('..')) continue;
     const target = path.resolve(dest, e.entryName);
-    if (!target.startsWith(path.resolve(dest) + path.sep)) continue; // zip-slip protection
+    if (!target.startsWith(path.resolve(dest) + path.sep)) continue;
     if (e.isDirectory) fs.mkdirSync(target, { recursive: true });
     else { fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, e.getData()); }
   }
   flatten(dest);
 }
-function flatten(dir) { // if zip contains only one folder inside, lift contents to top level
+function flatten(dir) {
   const items = fs.readdirSync(dir).filter(n => n!== '__MACOSX');
   if (items.length === 1 && fs.statSync(path.join(dir, items[0])).isDirectory()) {
     const inner = path.join(dir, items[0]);
@@ -233,16 +237,13 @@ function flatten(dir) { // if zip contains only one folder inside, lift contents
 const upload = multer({ dest: path.join(os.tmpdir(), 'mh-uploads'), limits: { fileSize: 50 * 1024 * 1024 } });
 const rm = p => { try { fs.rmSync(p, { recursive: true, force: true }); } catch {} };
 const gitClone = (url, dest) => new Promise((ok, no) => execFile('git', ['clone', '--depth', '1', url, dest], { timeout: 120000 }, e => e? no(new Error('Git clone failed. Make sure the repo is public.')) : ok()));
-
 function checkCanDeploy(req, res) {
   if (!isActive(req.user)) { res.status(402).json({ error: 'Your trial has expired. Please pay to continue deploying.' }); return false; }
   if (db.projects.filter(p => p.userId === req.user.id).length >= MAX_PROJECTS) { res.status(400).json({ error: `Max projects is ${MAX_PROJECTS}` }); return false; }
   return true;
 }
 function cleanName(n) { return String(n || '').trim().slice(0, 40); }
-
 app.get('/api/projects', auth, (req, res) => res.json(db.projects.filter(p => p.userId === req.user.id).map(projectView)));
-
 app.post('/api/projects/website', auth, upload.single('file'), async (req, res) => {
   const tmp = req.file && req.file.path;
   try {
@@ -268,7 +269,6 @@ app.post('/api/projects/website', auth, upload.single('file'), async (req, res) 
     res.json(projectView(p));
   } finally { if (tmp) rm(tmp); }
 });
-
 app.post('/api/projects/bot', auth, upload.single('file'), async (req, res) => {
   const tmp = req.file && req.file.path;
   try {
@@ -290,11 +290,10 @@ app.post('/api/projects/bot', auth, upload.single('file'), async (req, res) => {
     } catch (e) { rm(dir); return res.status(400).json({ error: e.message }); }
     const p = { id, userId: req.user.id, type: 'bot', botType, name, slug: slugify(name), dir, env, desired: 'running', createdAt: now() };
     db.projects.push(p); save();
-    runner.start(p); // continues in background (npm install + start)
+    runner.start(p);
     res.json(projectView(p));
   } finally { if (tmp) rm(tmp); }
 });
-
 function ownProject(req, res) {
   const p = db.projects.find(x => x.id === req.params.id && x.userId === req.user.id);
   if (!p) res.status(404).json({ error: 'Project not found' });
@@ -322,17 +321,12 @@ function deleteProject(p) {
   db.projects = db.projects.filter(x => x.id!== p.id); save();
 }
 app.delete('/api/projects/:id', auth, (req, res) => { const p = ownProject(req, res); if (p) { deleteProject(p); res.json({ ok: true }); } });
-
-/* ---------- billing routes ---------- */
 app.get('/api/billing', auth, (req, res) => res.json(publicUser(req.user)));
 app.post('/api/billing/pay', auth, async (req, res) => {
   if (!PSK) return res.status(500).json({ error: 'Paystack not configured' });
   const reference = `mh_${req.user.id}_${Date.now()}`;
   try {
-    const r = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST', headers: { Authorization: 'Bearer ' + PSK, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: req.user.email, amount: PRICE * 100, currency: 'KES', reference, callback_url: `${BASE_URL}/billing/return`, metadata: { userId: req.user.id } })
-    });
+    const r = await fetch('https://api.paystack.co/transaction/initialize', { method: 'POST', headers: { Authorization: 'Bearer ' + PSK, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: req.user.email, amount: PRICE * 100, currency: 'KES', reference, callback_url: `${BASE_URL}/billing/return`, metadata: { userId: req.user.id } }) });
     const j = await r.json();
     if (!j.status) return res.status(502).json({ error: j.message || 'Paystack error' });
     res.json({ url: j.data.authorization_url });
@@ -344,8 +338,6 @@ app.get('/billing/return', async (req, res) => {
   try { ok = ref && await creditPayment(ref); } catch (e) { console.error(e); }
   res.redirect('/#/billing?paid=' + (ok? '1' : '0'));
 });
-
-/* ---------- admin ---------- */
 app.post('/api/admin/login', limiter(10, 15 * 60000), (req, res) => {
   if (!ADMIN_PASSWORD ||!safeEq(req.body.password || '', ADMIN_PASSWORD)) return res.status(401).json({ error: 'Incorrect password' });
   res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) });
@@ -382,17 +374,12 @@ app.delete('/api/admin/projects/:id', adminAuth, (req, res) => {
   const p = db.projects.find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: 'Not found' });
   deleteProject(p); res.json({ ok: true });
 });
-
-/* ---------- enforcement ---------- */
-// every 5 minutes: stop bots for unpaid users
 setInterval(() => {
   db.projects.filter(p => p.type === 'bot' && runner.isRunning(p.id)).forEach(p => {
     const o = db.users.find(u => u.id === p.userId);
     if (!o ||!isActive(o) || p.adminSuspended) { runner.log(p.id, 'Stopped: payment expired or admin suspended it.'); runner.stop(p.id); }
   });
 }, 5 * 60000);
-
-// R2 sites: switch between live <-> blocked based on payment
 const cfBusy = new Set();
 async function syncSites() {
   if (!cf.enabled) return;
@@ -407,15 +394,11 @@ async function syncSites() {
   }
 }
 setInterval(syncSites, 5 * 60000);
-
-/* ---------- frontend ---------- */
 app.use(express.static(path.join(__dirname, 'public')));
 app.use((req, res) => res.status(404).send('Not found'));
-
 app.listen(PORT, () => {
   console.log('MtaaniHost running on port ' + PORT);
   syncSites();
-  // restart bots after server restart
   db.projects.filter(p => p.type === 'bot' && p.desired === 'running').forEach(p => {
     const o = db.users.find(u => u.id === p.userId);
     if (o && isActive(o) &&!p.adminSuspended) runner.start(p);
