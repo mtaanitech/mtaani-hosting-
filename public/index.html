@@ -1,351 +1,1195 @@
-<!doctype html>
+```html
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MtaaniHost limited — Deploy websites and bots in Kenya</title>
-<script>
-  if (localStorage.getItem('mh_theme') === 'light') document.documentElement.classList.remove('dark'); else document.documentElement.classList.add('dark');
-  tailwind = { config: { darkMode: 'class' } };
-</script>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
-.grid-bg{background-image:radial-gradient(circle at 1px 1px,rgba(128,128,128,.18) 1px,transparent 0);background-size:24px 24px}
-.hero-glow{position:absolute;top:20%;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(16,185,129,.15) 0%,transparent 70%);filter:blur(40px);pointer-events:none}
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MtaaniHost — Deploy websites and bots in Kenya</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+      body {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        overflow-x: hidden;
+        background-color: #f9fafb;
+      }
+      .sidebar {
+        width: 220px;
+        transition: all 0.3s ease;
+      }
+      .main-content {
+        flex: 1;
+        min-height: calc(100vh - 64px);
+        overflow-y: auto;
+      }
+      .dropdown-menu {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        z-index: 50;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        width: 16rem;
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -2px rgb(0 0 0 / 0.05);
+      }
+      .dropdown-menu.active {
+        display: block;
+      }
+      .dropdown-menu a,
+      .dropdown-menu button {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        color: #374151;
+        text-decoration: none;
+        cursor: pointer;
+        border-radius: 0.375rem;
+        transition: background-color 0.15s ease;
+        width: 100%;
+        border: none;
+        background: none;
+      }
+      .dropdown-menu a:hover,
+      .dropdown-menu button:hover {
+        background-color: #f3f4f6;
+        color: #059669;
+      }
+      .dropdown-menu hr {
+        margin: 0.25rem 0;
+        border-color: #e5e7eb;
+      }
+      .active-tab {
+        background-color: #d1fae5;
+        color: #059669;
+        font-weight: 600;
+      }
+      @media (max-width: 768px) {
+        .sidebar {
+          position: fixed;
+          left: -220px;
+          top: 64px;
+          height: calc(100vh - 64px);
+          background: white;
+          box-shadow: 2px 0 8px rgb(0 0 0 / 0.1);
+          z-index: 100;
+        }
+        .sidebar.active {
+          left: 0;
+        }
+        .main-content {
+          min-height: auto;
+          width: 100%;
+        }
+      }
+      footer {
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        padding: 2.5rem 1.5rem;
+        font-size: 0.875rem;
+        color: #6b7280;
+      }
+      footer a:hover {
+        color: #059669;
+      }
+      footer .footer-grid {
+        max-width: 1280px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem;
+      }
+      @media (min-width: 768px) {
+        footer .footer-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+      footer .footer-column h4 {
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #111827;
+      }
+      footer .footer-column ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      footer .footer-column ul li {
+        margin-bottom: 0.5rem;
+      }
+      .btn-secondary {
+        background-color: transparent;
+        border: 1px solid #d1d5db;
+        color: #374151;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+      .btn-secondary:hover {
+        background-color: #d1fae5;
+        border-color: #10b981;
+        color: #065f46;
+      }
+      .btn-danger {
+        background-color: transparent;
+        border: 1px solid #ef4444;
+        color: #b91c1c;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+      .btn-danger:hover {
+        background-color: #fee2e2;
+        border-color: #b91c1c;
+        color: #991b1b;
+      }
+      /* Toast animations */
+      @keyframes fadein {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeout {
+        from { opacity: 1; transform: translateY(0); }
+        to { opacity: 0; transform: translateY(10px); }
+      }
+      .animate-fadein {
+        animation: fadein 0.3s ease forwards;
+      }
+      .animate-fadeout {
+        animation: fadeout 0.3s ease forwards;
+      }
+    </style>
 </head>
-<body class="bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 min-h-screen flex flex-col">
-<div id="nav"></div>
-<main id="app" class="flex-1 relative"></main>
-<div id="toast" class="fixed bottom-5 right-5 z-50"></div>
-<div id="modal"></div>
-<script>
-const API_BASE = 'https://mtaani-hosting.onrender.com';
-const esc = s => String(s?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let token = localStorage.getItem('mh_token'), atoken = sessionStorage.getItem('mh_admin'), me = null;
-const inp = 'w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition';
-const btn = 'inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black px-4 py-2.5 text-sm font-medium hover:opacity-85 disabled:opacity-50 shadow-sm';
-const btn2 = 'inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition';
-const card = 'rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm';
-const logo = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2 22 20H2L12 2Z" fill="currentColor"/><path d="M12 9l4.5 8h-9L12 9Z" fill="#10b981"/></svg>`;
+<body class="flex flex-col min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
 
-function toast(msg, bad) {
-  const d = document.createElement('div');
-  d.className = `mb-2 rounded-xl px-4 py-2.5 text-sm shadow-lg text-white ${bad? 'bg-red-600' : 'bg-emerald-600'}`;
-  d.textContent = msg; document.getElementById('toast').appendChild(d); setTimeout(() => d.remove(), 4000);
-}
-function $(s) { return document.querySelector(s); }
-async function api(p, o = {}, t = token) {
-  const fd = o.body instanceof FormData;
-  const h = fd? {} : { 'Content-Type': 'application/json' };
-  if (t) h.Authorization = 'Bearer ' + t;
-  const r = await fetch(API_BASE + '/api' + p, {...o, headers: h, body: o.body &&!fd? JSON.stringify(o.body) : o.body });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error(j.error || 'Something went wrong'); e.status = r.status; e.data = j; throw e; }
-  return j;
-}
-function logout() { token = null; me = null; localStorage.removeItem('mh_token'); location.hash = '#/'; }
-function toggleTheme() { const d = document.documentElement.classList.toggle('dark'); localStorage.setItem('mh_theme', d? 'dark' : 'light'); }
-function setTheme(d) { document.documentElement.classList.toggle('dark', d); localStorage.setItem('mh_theme', d? 'dark' : 'light'); }
-async function loadMe() { if (!token) return null; try { me = await api('/me'); } catch { token = null; localStorage.removeItem('mh_token'); me = null; } return me; }
-
-function nav() {
-  const admin = location.hash.startsWith('#/admin');
-  $('#nav').innerHTML = `<header class="sticky top-0 z-40 backdrop-blur-xl border-b border-zinc-200/70 dark:border-zinc-900 bg-white/80 dark:bg-black/80">
-  <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-    <a href="#/" class="flex items-center gap-2 font-semibold">${logo}<span>MtaaniHost</span></a>
-    <nav class="flex items-center gap-2 text-sm">
-      ${!token &&!admin? `<a class="hidden sm:block px-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white" href="#/" onclick="setTimeout(()=>document.getElementById('features')?.scrollIntoView(),50)">Features</a><a class="hidden sm:block px-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white" href="#/" onclick="setTimeout(()=>document.getElementById('pricing')?.scrollIntoView(),50)">Pricing</a>` : ''}
-      <button class="${btn2}" onclick="toggleTheme()" title="Dark / Light">◐</button>
-      ${token? `<a class="${btn2}" href="#/dashboard">Dashboard</a><a class="${btn2}" href="#/profile">Profile</a><a class="${btn2}" href="#/billing">Billing</a><button class="${btn2}" onclick="logout()">Logout</button>`
-        : `<a class="${btn2}" href="#/login">Login</a><a class="${btn}" href="#/signup">Sign Up</a>`}
-    </nav></div></header>`;
-}
-
-function landing() {
-  const feats = [
-    ['🌐', 'Static Hosting', 'Upload a ZIP of HTML/CSS/JS or paste a GitHub URL — your site is live in seconds.'],
-    ['🤖', 'Bots 24/7', 'WhatsApp (Baileys), Telegram and Discord bots that keep running without stopping.'],
-    ['⚡', 'Fast & Simple', 'No verification stress. Register and deploy immediately.'],
-    ['💳', 'Paystack Billing', 'Pay with M-Pesa or card. Once you pay, your projects come back online automatically.']
-  ];
-  $('#app').innerHTML = `
-  <section class="grid-bg relative overflow-hidden"><div class="hero-glow"></div>
-  <div class="max-w-4xl mx-auto px-4 py-24 text-center relative">
-    <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/50 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300 mb-6">🇰🇪 Hosting made in Kenya • 7 days free</span>
-    <h1 class="text-4xl sm:text-6xl font-bold tracking-tight">Deploy your website or bot <span class="text-emerald-500">in minutes</span></h1>
-    <p class="mt-6 text-lg text-zinc-500 max-w-2xl mx-auto">Like Vercel and Render, but built for Kenya. Pay with M-Pesa and start without the stress.</p>
-    <div class="mt-10 flex flex-wrap gap-3 justify-center"><a href="#/signup" class="${btn} px-6 py-3 text-base">Deploy website or bot</a><a href="#/login" class="${btn2} px-6 py-3 text-base">Login</a></div>
-  </div></section>
-  <section id="features" class="max-w-6xl mx-auto px-4 py-20">
-    <h2 class="text-3xl font-bold text-center mb-12">Everything you need</h2>
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${feats.map(f => `<div class="${card} p-6 hover:shadow-md transition"><div class="text-3xl mb-4">${f[0]}</div><h3 class="font-semibold mb-2">${f[1]}</h3><p class="text-sm text-zinc-500">${f[2]}</p></div>`).join('')}</div>
-  </section>
-  <section id="pricing" class="max-w-6xl mx-auto px-4 py-20">
-    <h2 class="text-3xl font-bold text-center mb-12">Simple pricing</h2>
-    <div class="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-      <div class="${card} p-8"><h3 class="font-semibold">Free Trial</h3><p class="text-4xl font-bold mt-3">KES 0</p><p class="text-zinc-500 text-sm mt-1">7 days</p><ul class="mt-6 text-sm space-y-2 text-zinc-500"><li>✓ Deploy anything</li><li>✓ No card required</li></ul><a href="#/signup" class="${btn2} w-full mt-8">Start free</a></div>
-      <div class="${card} p-8 border-emerald-500 shadow-emerald-100 dark:shadow-none shadow-lg"><h3 class="font-semibold">Pro</h3><p class="text-4xl font-bold mt-3">KES 200</p><p class="text-zinc-500 text-sm mt-1">per month</p><ul class="mt-6 text-sm space-y-2 text-zinc-500"><li>✓ Static sites and bots</li><li>✓ M-Pesa and card</li><li>✓ Online 24/7</li></ul><a href="#/signup" class="${btn} w-full mt-8">Get started</a></div>
+  <!-- Header -->
+  <header
+    class="sticky top-0 z-40 bg-white dark:bg-black border-b border-gray-200 dark:border-gray-900 flex items-center justify-between px-4 h-16"
+  >
+    <div class="flex items-center gap-4">
+      <button
+        onclick="toggleSidebar()"
+        class="md:hidden text-gray-600 dark:text-gray-300 focus:outline-none"
+        aria-label="Toggle sidebar"
+      >
+        <i class="fas fa-bars fa-lg"></i>
+      </button>
+      <a href="#/" class="flex items-center gap-2 font-semibold text-lg">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          class="text-emerald-600 dark:text-emerald-400"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M12 2L22 20H2L12 2Z" fill="currentColor" />
+          <path d="M12 9L16.5 17H7.5L12 9Z" fill="#10b981" />
+        </svg>
+        <span>MtaaniHost</span>
+      </a>
     </div>
-  </section>
-  <footer class="border-t border-zinc-200 dark:border-zinc-900 py-8 text-center text-sm text-zinc-500">© ${new Date().getFullYear()} MtaaniHost — Made in Kenya 🇰🇪 · <a class="underline" href="#/admin">Admin</a></footer>`;
-}
 
-// ===== FIXED AUTH - NO VERIFICATION, PASSWORD MBILI =====
-function authView(mode) {
-  const su = mode === 'signup';
-  const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  $('#app').innerHTML = `<div class="max-w-sm mx-auto px-4 py-20"><div class="${card} p-8 shadow-lg">
-    <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-semibold text-center mb-1">${su? 'Create your account' : 'Welcome back'}</h1>
-    <p class="text-center text-sm text-zinc-500 mb-6">${su? 'Password mbili lazima zifanane' : 'Login kuingia dashboard'}</p>
-    ${q.get('verified')? '<p class="mb-4 text-sm text-emerald-500 text-center">Account created! Login now.</p>' : ''}
-    <form id="f" class="space-y-3">
-      <input class="${inp}" type="email" id="em" placeholder="Email" required>
-      <input class="${inp}" type="password" id="pw" placeholder="Password ${su? '(min 6 chars)' : ''}" required>
-      ${su? `<input class="${inp}" type="password" id="pw2" placeholder="Confirm password - weka ile ile tena" required>` : ''}
-      <button class="${btn} w-full" id="sb">${su? 'Sign Up' : 'Login'}</button>
-    </form>
-    <p class="text-center text-sm text-zinc-500 mt-4">${su? 'Already have an account? <a class="underline" href="#/login">Login</a>' : "Don't have an account? <a class=\"underline\" href=\"#/signup\">Sign Up</a>"}</p></div></div>`;
+    <div class="relative flex items-center gap-4">
+      <button
+        onclick="toggleTheme()"
+        title="Toggle Dark/Light Theme"
+        class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+        aria-label="Toggle theme"
+      >
+        <i class="fas fa-adjust"></i>
+      </button>
 
-  $('#f').onsubmit = async e => {
-    e.preventDefault();
-    const b = $('#sb');
-    const email = $('#em').value.trim();
-    const password = $('#pw').value;
+      <button
+        id="settingsBtn"
+        onclick="toggleSettings()"
+        aria-haspopup="true"
+        aria-expanded="false"
+        title="Settings"
+        class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+      >
+        <i class="fas fa-cog text-gray-600 dark:text-gray-300"></i>
+      </button>
 
-    if(su){
-      const pw2 = $('#pw2').value;
-      if(password!== pw2){ toast('Password mbili hazifanani! Weka ile ile', true); return; }
-      if(password.length < 6){ toast('Password angalau 6 characters', true); return; }
+      <!-- Settings Dropdown -->
+      <div
+        id="settingsDropdown"
+        class="dropdown-menu"
+        role="menu"
+        aria-labelledby="settingsBtn"
+      >
+        <a href="#/profile" role="menuitem"><i class="fas fa-user"></i> My Profile</a>
+        <a href="#/change-password" role="menuitem"><i class="fas fa-key"></i> Change Password</a>
+        <a href="#/billing" role="menuitem"><i class="fas fa-credit-card"></i> Billing & Payments</a>
+        <a href="#/notifications" role="menuitem"><i class="fas fa-bell"></i> Notifications</a>
+        <button
+          onclick="toggleTheme(); toggleSettings();"
+          role="menuitem"
+          class="flex items-center justify-between w-full"
+        >
+          <span><i class="fas fa-adjust"></i> Dark/Light Theme</span>
+          <input
+            type="checkbox"
+            id="themeToggle"
+            class="cursor-pointer"
+            readonly
+            tabindex="-1"
+          />
+        </button>
+        <a href="#/language" role="menuitem"><i class="fas fa-language"></i> Language</a>
+        <a href="#/api-keys" role="menuitem"><i class="fas fa-key"></i> API Keys</a>
+        <a href="#/custom-domains" role="menuitem"><i class="fas fa-globe"></i> Custom Domains</a>
+        <a href="#/environment-variables" role="menuitem"><i class="fas fa-code"></i> Environment Variables</a>
+        <a href="#/backups" role="menuitem"><i class="fas fa-database"></i> Backups</a>
+        <a href="#/security" role="menuitem"><i class="fas fa-shield-alt"></i> Security</a>
+        <a href="#/two-factor-auth" role="menuitem"><i class="fas fa-lock"></i> Two-Factor Auth</a>
+        <a href="#/team-members" role="menuitem"><i class="fas fa-users"></i> Team Members</a>
+        <form
+          id="deleteAccountForm"
+          class="px-4 py-2"
+          onsubmit="return confirmDeleteAccount(event)"
+          role="menuitem"
+        >
+          <label for="deletePassword" class="block text-xs mb-1 text-red-600 font-semibold"
+            >Delete Account (password required)</label
+          >
+          <input
+            type="password"
+            id="deletePassword"
+            placeholder="Enter password"
+            required
+            class="w-full rounded-md border border-red-400 px-2 py-1 text-sm mb-2"
+          />
+          <button
+            type="submit"
+            class="w-full text-red-600 border border-red-600 rounded-md py-1 hover:bg-red-50 transition"
+          >
+            Delete Account
+          </button>
+        </form>
+        <button
+          onclick="logout()"
+          role="menuitem"
+          class="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 flex items-center gap-3"
+        >
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex flex-1 min-h-0">
+    <!-- Sidebar -->
+    <aside
+      id="sidebar"
+      class="sidebar bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0"
+    >
+      <nav class="p-4 space-y-1 overflow-y-auto flex-1">
+        <button
+          id="tab-projects"
+          onclick="showTab('projects')"
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
+          aria-current="page"
+        >
+          <i class="fas fa-layer-group w-4"></i> Projects
+        </button>
+        <button
+          id="tab-github-import"
+          onclick="showTab('github-import')"
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
+        >
+          <i class="fab fa-github w-4"></i> GitHub Import
+        </button>
+        <button
+          id="tab-billing"
+          onclick="showTab('billing')"
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
+        >
+          <i class="fas fa-credit-card w-4"></i> Billing
+        </button>
+        <button
+          id="tab-admin"
+          onclick="showTab('admin')"
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
+        >
+          <i class="fas fa-user-shield w-4"></i> Admin Panel
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content p-6 overflow-y-auto">
+      <!-- Projects Tab -->
+      <section id="tab-content-projects" class="tab-content">
+        <h1 class="text-2xl font-bold mb-6">Your Projects</h1>
+        <div id="projects-summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+        <div id="projects-list" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </section>
+
+      <!-- GitHub Import Tab -->
+      <section id="tab-content-github-import" class="tab-content hidden max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">GitHub Import</h1>
+
+        <!-- Repository Selection -->
+        <div id="repo-selection" class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
+          <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+            <span class="font-semibold">Select a repository to import</span>
+            <button id="refreshReposBtn" class="text-sm text-emerald-600 hover:underline">Refresh</button>
+          </div>
+          <div id="repo-list" class="divide-y divide-gray-200 dark:divide-gray-700 max-h-72 overflow-y-auto">
+            <!-- Repos will be dynamically inserted here -->
+          </div>
+        </div>
+
+        <!-- Import Form -->
+        <form id="importForm" class="hidden bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-6 mt-6 shadow-sm max-w-xl mx-auto space-y-6">
+          <h2 class="text-xl font-semibold">Import GitHub Repository</h2>
+
+          <div>
+            <label for="githubUrl" class="block mb-1 text-sm font-medium">GitHub URL</label>
+            <input
+              type="url"
+              id="githubUrl"
+              name="githubUrl"
+              placeholder="https://github.com/user/repo"
+              required
+              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="branch" class="block mb-1 text-sm font-medium">Branch</label>
+              <input
+                type="text"
+                id="branch"
+                name="branch"
+                value="main"
+                required
+                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label for="nodeVersion" class="block mb-1 text-sm font-medium">Node Version</label>
+              <input
+                type="text"
+                id="nodeVersion"
+                name="nodeVersion"
+                value="18.x"
+                required
+                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="buildCommand" class="block mb-1 text-sm font-medium">Build Command</label>
+            <input
+              type="text"
+              id="buildCommand"
+              name="buildCommand"
+              value="npm run build"
+              required
+              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label for="outputDirectory" class="block mb-1 text-sm font-medium">Output Directory</label>
+            <input
+              type="text"
+              id="outputDirectory"
+              name="outputDirectory"
+              value=".next"
+              required
+              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <p class="text-sm text-emerald-600 font-semibold flex items-center gap-2">
+            <i class="fas fa-check-circle"></i> Auto-detected: Next.js
+          </p>
+
+          <div class="mt-6 grid grid-cols-2 gap-4">
+            <div class="border border-gray-300 dark:border-gray-700 rounded-lg p-4 text-center cursor-pointer select-none hover:border-emerald-500" id="deployOptionWebsite" aria-pressed="true" role="button" tabindex="0">
+              <div class="text-lg font-semibold mb-1">Website</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Static / Next.js</div>
+            </div>
+            <div class="border border-gray-300 dark:border-gray-700 rounded-lg p-4 text-center cursor-pointer select-none hover:border-emerald-500" id="deployOptionBot" aria-pressed="false" role="button" tabindex="0">
+              <div class="text-lg font-semibold mb-1">Bot</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Node.js / WhatsApp bot</div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            id="deployBtn"
+            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition"
+          >
+            Deploy Website →
+          </button>
+        </form>
+
+        <!-- Deploy Success -->
+        <div id="deploySuccess" class="hidden max-w-xl mx-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-6 mt-6 text-center shadow-sm">
+          <div class="text-emerald-600 text-4xl mb-4">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <h2 class="text-xl font-semibold mb-2">Project deployed!</h2>
+          <p class="mb-4 text-gray-700 dark:text-gray-300 break-all" id="deployLiveLink"></p>
+          <a
+            href="#"
+            id="openLiveBtn"
+            target="_blank"
+            class="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-lg transition"
+            >Open</a
+          >
+        </div>
+      </section>
+
+      <!-- Billing Tab -->
+      <section id="tab-content-billing" class="tab-content hidden max-w-xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Billing</h1>
+        <div class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-6 shadow-sm space-y-4">
+          <div class="flex justify-between text-gray-700 dark:text-gray-300">
+            <span>Status</span>
+            <span id="billingStatus" class="font-semibold">Active</span>
+          </div>
+          <div class="flex justify-between text-gray-700 dark:text-gray-300">
+            <span>Days left</span>
+            <span id="billingDaysLeft" class="font-semibold">30</span>
+          </div>
+          <div class="flex justify-between text-gray-700 dark:text-gray-300">
+            <span>Expires</span>
+            <span id="billingExpires" class="font-semibold">N/A</span>
+          </div>
+          <div class="flex justify-between text-gray-700 dark:text-gray-300">
+            <span>Price</span>
+            <span class="font-semibold">KES 130 / month</span>
+          </div>
+          <button
+            id="payNowBtn"
+            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition"
+          >
+            Pay Now (M-Pesa / Card)
+          </button>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Secure payment via Paystack — M-Pesa, Airtel Money and cards accepted. Your subscription extends by 30 days on top of your remaining time. No hidden fees.
+          </p>
+        </div>
+      </section>
+
+      <!-- Admin Tab -->
+      <section id="tab-content-admin" class="tab-content hidden max-w-7xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Admin Panel</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <!-- Stats Cards -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
+            <h2 class="font-semibold mb-2">Users</h2>
+            <p id="adminUsersCount" class="text-3xl font-bold">0</p>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
+            <h2 class="font-semibold mb-2">Projects</h2>
+            <p id="adminProjectsCount" class="text-3xl font-bold">0</p>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
+            <h2 class="font-semibold mb-2">Revenue (KES)</h2>
+            <p id="adminRevenue" class="text-3xl font-bold">0</p>
+          </div>
+        </div>
+
+        <!-- Users Table -->
+        <section class="mb-10">
+          <h2 class="text-xl font-semibold mb-4">Users</h2>
+          <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Days Left</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Projects</th>
+                  <th class="px-6 py-3"></th>
+                </tr>
+              </thead>
+              <tbody id="adminUsersTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <!-- Dynamic user rows here -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Projects Table -->
+        <section class="mb-10">
+          <h2 class="text-xl font-semibold mb-4">Projects</h2>
+          <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Owner</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                  <th class="px-6 py-3"></th>
+                </tr>
+              </thead>
+              <tbody id="adminProjectsTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <!-- Dynamic project rows here -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Payments Table -->
+        <section>
+          <h2 class="text-xl font-semibold mb-4">Payments</h2>
+          <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Channel</th>
+                </tr>
+              </thead>
+              <tbody id="adminPaymentsTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <!-- Dynamic payment rows here -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs"></div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-grid">
+      <div class="footer-column">
+        <h4>MtaaniHost</h4>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Deploy websites and bots in Kenya with ease.</p>
+      </div>
+      <div class="footer-column">
+        <h4>How it works</h4>
+        <ul>
+          <li>1. Import your GitHub repo</li>
+          <li>2. Configure build & deploy</li>
+          <li>3. Go live instantly</li>
+        </ul>
+      </div>
+      <div class="footer-column">
+        <h4>Pricing</h4>
+        <p>KES 130/month - simple and transparent</p>
+      </div>
+      <div class="footer-column">
+        <h4>Support</h4>
+        <ul>
+          <li><a href="#/docs">Docs</a></li>
+          <li><a href="#/contact">Contact</a></li>
+          <li><a href="https://wa.me/254700000000" target="_blank" rel="noopener">WhatsApp Support</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="mt-6 text-center text-gray-500 dark:text-gray-400 text-xs">
+      © 2026 MtaaniHost, Version 2.12.4, Nairobi KE, All systems operational
+    </div>
+  </footer>
+
+  <script>
+    // Toast notification system
+    function showToast(message, type = 'success', duration = 4000) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = `rounded-lg px-4 py-3 shadow-lg text-white ${
+        type === 'error' ? 'bg-red-600' : 'bg-emerald-600'
+      } animate-fadein`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('animate-fadeout');
+        toast.addEventListener('animationend', () => toast.remove());
+      }, duration);
     }
 
-    b.disabled = true; b.textContent = 'Please wait...';
-    try {
-      if (su) {
-        const r = await api('/auth/signup', { method: 'POST', body: { email, password } });
-        token = r.token; localStorage.setItem('mh_token', token); me = r.user;
-        toast('Account created! Karibu MtaaniHost'); location.hash = '#/dashboard';
-      } else {
-        const r = await api('/auth/login', { method: 'POST', body: { email, password } });
-        token = r.token; localStorage.setItem('mh_token', token); me = r.user;
-        location.hash = '#/dashboard';
+    const API_BASE = 'https://mtaani-hosting.onrender.com';
+    let token = localStorage.getItem('mh_token');
+    let me = null;
+    let currentTab = 'projects';
+    let deployType = 'website'; // 'website' or 'bot'
+
+    // Utility escape function
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      }[c]));
+    }
+
+    // Toggle sidebar on mobile
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('active');
+    }
+
+    // Toggle settings dropdown
+    function toggleSettings() {
+      const dropdown = document.getElementById('settingsDropdown');
+      dropdown.classList.toggle('active');
+      const expanded = dropdown.classList.contains('active');
+      document.getElementById('settingsBtn').setAttribute('aria-expanded', expanded);
+    }
+
+    // Toggle dark/light theme
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      localStorage.setItem('mh_theme', isDark ? 'dark' : 'light');
+      document.getElementById('themeToggle').checked = isDark;
+    }
+
+    // Initialize theme toggle checkbox state
+    function initThemeToggle() {
+      const isDark = localStorage.getItem('mh_theme') === 'dark';
+      document.documentElement.classList.toggle('dark', isDark);
+      document.getElementById('themeToggle').checked = isDark;
+    }
+
+    // Logout function
+    function logout() {
+      if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem('mh_token');
+        token = null;
+        me = null;
+        location.href = '#/login';
       }
-    } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = su? 'Sign Up' : 'Login'; }
-  };
-}
+    }
 
-// Verification disabled - redirect to dashboard
-function verifyView() { location.hash = '#/dashboard'; toast('Verification imezimwa kwa sasa - unaingia direct'); }
+    // Confirm delete account with password prompt
+    async function confirmDeleteAccount(event) {
+      event.preventDefault();
+      const pwdInput = document.getElementById('deletePassword');
+      if (!pwdInput.value) {
+        alert('Please enter your password to confirm account deletion.');
+        return false;
+      }
+      if (!confirm('This will permanently delete your account and all projects. Continue?')) {
+        return false;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/account`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ password: pwdInput.value }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.error || 'Failed to delete account.');
+          return false;
+        }
+        alert('Account deleted successfully.');
+        logout();
+      } catch (e) {
+        alert('Error deleting account: ' + e.message);
+      }
+      return false;
+    }
 
-function banner() {
-  if (!me) return '';
-  if (me.status === 'trial') return `<div class="${card} p-4 mb-6 flex flex-wrap items-center justify-between gap-3 border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
-  if (me.status === 'expired') return `<div class="${card} p-4 mb-6 flex flex-wrap items-center justify-between gap-3 border-red-500"><span class="text-sm text-red-500">⛔ Your trial has ended. Your projects are suspended.</span><a href="#/billing" class="${btn}">Pay Now</a></div>`;
-  if (me.status === 'paid') return `<div class="${card} p-4 mb-6 text-sm">✅ You're paid up. ${me.daysLeft} days left.</div>`;
-  return '';
-}
-const badge = s => { const c = { live: 'emerald', running: 'emerald', starting: 'amber', stopped: 'zinc', suspended: 'red' }[s] || 'zinc'; return `<span class="rounded-full px-2 py-0.5 text-xs bg-${c}-500/15 text-${c}-500 border border-${c}-500/30">${s}</span>`; };
-let tab = 'projects', pollT = null;
+    // Show tab content and highlight sidebar button
+    async function showTab(tab) {
+      if (!(await checkAuth())) return;
 
-async function profileView() {
-  if (!(await loadMe())) { location.hash = '#/login'; return; }
-  nav();
-  let p; try { p = await api('/profile'); } catch (e) { toast(e.message, true); return; }
-  const row = (a, b) => `<div class="flex justify-between gap-4 py-3 border-t border-zinc-200 dark:border-zinc-900 first:border-0"><span class="text-zinc-500">${a}</span><span class="text-right break-all">${b}</span></div>`;
-  $('#app').innerHTML = `<div class="max-w-xl mx-auto px-4 py-12">
-    <div class="flex items-center gap-4 mb-8"><div class="h-16 w-16 rounded-full bg-emerald-500/15 text-emerald-500 grid place-items-center text-2xl font-bold">${esc((p.displayName || p.email)[0].toUpperCase())}</div>
-      <div><h1 class="text-2xl font-bold">${esc(p.displayName)}</h1><p class="text-sm text-zinc-500">${esc(p.email)}</p></div></div>
-    <div class="${card} px-6 py-2">
-      ${row('Plan', badge(p.status === 'paid'? 'live' : p.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(p.status)}<`))}
-      ${row('Days left', p.daysLeft)}
-      ${row('Member since', new Date(p.memberSince).toLocaleDateString())}
-      ${row('Projects', `${p.projects} (${p.websites} websites, ${p.bots} bots)`)}
-    </div>
-    <div class="mt-6 flex gap-2"><a class="${btn}" href="#/settings">Edit settings</a><a class="${btn2}" href="#/billing">Billing</a></div></div>`;
-}
+      currentTab = tab;
+      document.querySelectorAll('.tab-content').forEach((el) => {
+        el.classList.add('hidden');
+      });
+      document.getElementById(`tab-content-${tab}`).classList.remove('hidden');
 
-async function settingsView() {
-  if (!(await loadMe())) { location.hash = '#/login'; return; }
-  nav();
-  let p; try { p = await api('/profile'); } catch (e) { toast(e.message, true); return; }
-  $('#app').innerHTML = `<div class="max-w-xl mx-auto px-4 py-12 space-y-6"><h1 class="text-2xl font-bold">Settings</h1>
-    <form id="fn" class="${card} p-6 space-y-3"><h2 class="font-semibold">Profile</h2>
-      <label class="text-sm text-zinc-500">Display name</label><input class="${inp}" id="dn" maxlength="40" value="${esc(p.displayName)}" required>
-      <label class="text-sm text-zinc-500">Email</label><input class="${inp} opacity-60" value="${esc(p.email)}" disabled>
-      <button class="${btn}">Save</button></form>
-    <form id="fp" class="${card} p-6 space-y-3"><h2 class="font-semibold">Change password</h2>
-      <input class="${inp}" type="password" id="cp" placeholder="Current password" required autocomplete="current-password">
-      <input class="${inp}" type="password" id="np" placeholder="New password (at least 8 characters)" minlength="8" required autocomplete="new-password">
-      <input class="${inp}" type="password" id="np2" placeholder="Confirm new password" required autocomplete="new-password">
-      <button class="${btn}">Update password</button></form>
-    <div class="${card} p-6 space-y-3"><h2 class="font-semibold">Appearance</h2>
-      <div class="flex gap-2"><button class="${btn2}" id="tl">Light</button><button class="${btn2}" id="td">Dark</button></div></div>
-    <form id="fd" class="${card} p-6 space-y-3 border-red-500/50"><h2 class="font-semibold text-red-500">Delete account</h2>
-      <p class="text-sm text-zinc-500">This permanently deletes your account and all your projects, and stops your bots. It cannot be undone.</p>
-      <input class="${inp}" type="password" id="dp" placeholder="Confirm with your password" required>
-      <button class="${btn2} text-red-500">Delete my account</button></form></div>`;
-  $('#fn').onsubmit = async e => { e.preventDefault(); try { await api('/profile', { method: 'PUT', body: { displayName: $('#dn').value } }); toast('Profile saved'); } catch (err) { toast(err.message, true); } };
-  $('#fp').onsubmit = async e => {
-    e.preventDefault();
-    if ($('#np').value!== $('#np2').value) return toast('New passwords do not match', true);
-    try { await api('/settings/password', { method: 'POST', body: { currentPassword: $('#cp').value, newPassword: $('#np').value } }); toast('Password updated'); e.target.reset(); }
-    catch (err) { toast(err.message, true); }
-  };
-  $('#tl').onclick = () => setTheme(false);
-  $('#td').onclick = () => setTheme(true);
-  $('#fd').onsubmit = async e => {
-    e.preventDefault();
-    if (!confirm('Delete your account permanently?')) return;
-    try { await api('/account', { method: 'DELETE', body: { password: $('#dp').value } }); toast('Account deleted'); logout(); }
-    catch (err) { toast(err.message, true); }
-  };
-}
+      document.querySelectorAll('aside nav button').forEach((btn) => {
+        btn.classList.remove('active-tab');
+        btn.setAttribute('aria-current', 'false');
+      });
+      const activeBtn = document.getElementById(`tab-${tab}`);
+      if (activeBtn) {
+        activeBtn.classList.add('active-tab');
+        activeBtn.setAttribute('aria-current', 'page');
+      }
 
-async function envModal(id) {
-  let keys = [];
-  try { keys = (await api(`/projects/${id}/env`)).keys; } catch (e) { return toast(e.message, true); }
-  const m = $('#modal');
-  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><form id="fe" class="${card} w-full max-w-lg p-5 space-y-3">
-    <div class="flex justify-between"><b>Environment variables</b><button type="button" id="ce" class="${btn2}">Close</button></div>
-    <p class="text-xs text-zinc-500">Current keys: ${keys.length? keys.map(esc).join(', ') : 'none'}. Values are hidden. Saving replaces ALL variables and restarts the bot.</p>
-    <textarea class="${inp} font-mono" rows="6" id="ev" placeholder="BOT_TOKEN=123:abc"></textarea>
-    <button class="${btn}">Save and restart</button></form></div>`;
-  $('#ce').onclick = () => { m.innerHTML = ''; };
-  $('#fe').onsubmit = async e => {
-    e.preventDefault();
-    try { await api(`/projects/${id}/env`, { method: 'PUT', body: { envVars: $('#ev').value } }); m.innerHTML = ''; toast('Saved. Your bot is restarting.'); renderProjects(); }
-    catch (err) { toast(err.message, true); }
-  };
-}
+      if (tab === 'projects') {
+        loadProjects();
+      } else if (tab === 'github-import') {
+        loadGitHubRepos();
+      } else if (tab === 'billing') {
+        loadBilling();
+      } else if (tab === 'admin') {
+        loadAdminData();
+      }
+    }
 
-async function dashView() {
-  if (!(await loadMe())) { location.hash = '#/login'; return; }
-  nav();
-  const tabs = [['projects', 'Your Projects'], ['website', 'Deploy Website'], ['bot', 'Deploy Bot']];
-  $('#app').innerHTML = `<div class="max-w-6xl mx-auto px-4 py-10">${banner()}
-    <div class="flex gap-1 border-b border-zinc-200 dark:border-zinc-900 mb-8">${tabs.map(t => `<button data-t="${t[0]}" class="px-4 py-2 text-sm -mb-px border-b-2 ${tab === t[0]? 'border-emerald-500 font-medium' : 'border-transparent text-zinc-500'}">${t[1]}</button>`).join('')}</div>
-    <div id="tc"></div></div>`;
-  document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; dashView(); });
-  clearInterval(pollT);
-  if (tab === 'projects') { await renderProjects(); pollT = setInterval(() => { if (location.hash.startsWith('#/dashboard') && tab === 'projects' &&!document.querySelector('#modal>*')) renderProjects(); else if (!location.hash.startsWith('#/dashboard')) clearInterval(pollT); }, 6000); }
-  if (tab === 'website') websiteForm();
-  if (tab === 'bot') botForm();
-}
-async function renderProjects() {
-  let list; try { list = await api('/projects'); } catch (e) { return; }
-  const el = $('#tc'); if (!el) return;
-  if (!list.length) { el.innerHTML = `<div class="${card} p-12 text-center"><p class="text-zinc-500 mb-4">You have no projects yet.</p><button class="${btn}" onclick="tab='website';dashView()">Deploy your first project</button></div>`; return; }
-  el.innerHTML = summary(list) + `<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${list.map(p => `<div class="${card} p-5 flex flex-col gap-3">
-    <div class="flex items-start justify-between gap-2"><div><div class="font-semibold">${esc(p.name)}</div><div class="text-xs text-zinc-500">${p.type === 'website'? '🌐 Website' : '🤖 ' + esc(p.botType)}</div></div>${badge(p.status)}</div>
-    ${p.url? `<a class="text-sm text-emerald-500 break-all hover:underline" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>` : '<div class="text-sm text-zinc-500">Bots have no URL — check the logs</div>'}
-    ${statLine(p)}
-    <div class="flex flex-wrap gap-2 mt-auto">
-      ${p.type === 'bot'? `<button class="${btn2}" onclick="logsModal('${p.id}')">Logs</button><button class="${btn2}" onclick="envModal('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting'? `<button class="${btn2}" onclick="act('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="act('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="act('${p.id}','start')">Start</button>`}` : ''}
-      <button class="${btn2} text-red-500" onclick="delProject('${p.id}')">Delete</button></div></div>`).join('')}</div>`;
-}
-function fmtUp(s) { if (!s) return '—'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d? `${d}d ${h}h` : h? `${h}h ${m}m` : `${m}m`; }
-function fmtB(b) { return b > 1048576? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
-function summary(l) {
-  const c = f => l.filter(f).length;
-  const box = (a, b, col = '') => `<div class="${card} p-4"><div class="text-xs text-zinc-500">${a}</div><div class="text-2xl font-bold mt-1 ${col}">${b}</div></div>`;
-  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${box('Projects', l.length)}${box('Online (live / running)', c(p => p.status === 'live' || p.status === 'running'), 'text-emerald-500')}${box('Stopped', c(p => p.status === 'stopped'))}${box('Suspended', c(p => p.status === 'suspended'), 'text-red-500')}</div>`;
-}
-function statLine(p) {
-  const s = p.stats || {}; let t;
-  if (p.type === 'bot') t = p.status === 'running'? `⏱ Uptime ${fmtUp(s.uptimeSec)} · Crashes ${s.crashes} · Auto-restarts ${s.autoRestarts}` : `Crashes ${s.crashes || 0}${s.lastExit? ` · Last exit code ${esc(s.lastExit.code)}` : ''}`;
-  else t = `${s.files || 0} files · ${fmtB(s.bytes || 0)} · Deployed ${new Date(s.deployedAt || p.createdAt).toLocaleDateString()}`;
-  const w = p.suspendedBy === 'admin'? '<div class="text-xs text-red-500">⛔ Suspended by admin</div>' : p.suspendedBy === 'billing'? '<div class="text-xs text-red-500">⛔ Pay to bring it back online</div>' : '';
-  return `<div class="text-xs text-zinc-500">${t}</div>${w}`;
-}
-async function act(id, a) { try { await api(`/projects/${id}/${a}`, { method: 'POST' }); toast('Done'); renderProjects(); } catch (e) { toast(e.message, true); } }
-async function delProject(id) { if (!confirm('Delete this project permanently?')) return; try { await api('/projects/' + id, { method: 'DELETE' }); renderProjects(); } catch (e) { toast(e.message, true); } }
-async function logsModal(id) {
-  const m = $('#modal'); let live = true;
-  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><div class="${card} w-full max-w-3xl p-4"><div class="flex justify-between mb-2"><b>Logs</b><button id="cl" class="${btn2}">Close</button></div><pre id="lg" class="bg-black text-green-400 text-xs p-3 rounded-lg h-96 overflow-auto whitespace-pre-wrap"></pre><p class="text-xs text-zinc-500 mt-2">A WhatsApp pairing code or QR will show up here if your bot prints it to the console.</p></div></div>`;
-  $('#cl').onclick = () => { live = false; m.innerHTML = ''; };
-  const load = async () => { if (!live) return; try { const r = await api(`/projects/${id}/logs`); const el = $('#lg'); if (el) { const bottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20; el.textContent = r.logs || '(no logs yet)'; if (bottom) el.scrollTop = el.scrollHeight; } } catch {} setTimeout(load, 2500); };
-  load();
-}
-function websiteForm() {
-  $('#tc').innerHTML = `<form id="f" class="${card} p-6 max-w-xl space-y-4"><h2 class="font-semibold text-lg">Deploy Website</h2>
-    <div><label class="text-sm text-zinc-500">Project Name</label><input class="${inp} mt-1" id="n" required maxlength="40"></div>
-    <div><label class="text-sm text-zinc-500">GitHub URL (optional)</label><input class="${inp} mt-1" id="g" placeholder="https://github.com/user/repo"></div>
-    <div><label class="text-sm text-zinc-500">OR upload a ZIP (must contain index.html)</label><input class="${inp} mt-1" type="file" id="z" accept=".zip"></div>
-    <button class="${btn}" id="sb">Deploy Website</button></form>`;
-  $('#f').onsubmit = async e => {
-    e.preventDefault(); const fd = new FormData(); fd.append('name', $('#n').value); fd.append('githubUrl', $('#g').value); if ($('#z').files[0]) fd.append('file', $('#z').files[0]);
-    const b = $('#sb'); b.disabled = true; b.textContent = 'Deploying...';
-    try { const p = await api('/projects/website', { method: 'POST', body: fd }); toast('Live: ' + p.url); tab = 'projects'; dashView(); }
-    catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; b.disabled = false; b.textContent = 'Deploy Website'; }
-  };
-}
-function botForm() {
-  $('#tc').innerHTML = `<form id="f" class="${card} p-6 max-w-xl space-y-4"><h2 class="font-semibold text-lg">Deploy Bot</h2>
-    <div><label class="text-sm text-zinc-500">Bot Name</label><input class="${inp} mt-1" id="n" required maxlength="40"></div>
-    <div><label class="text-sm text-zinc-500">Bot type</label><select class="${inp} mt-1" id="t"><option value="baileys">WhatsApp (Baileys)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>
-    <div><label class="text-sm text-zinc-500">Bot ZIP (must contain package.json)</label><input class="${inp} mt-1" type="file" id="z" accept=".zip" required></div>
-    <div><label class="text-sm text-zinc-500">Environment variables (optional, one per line: KEY=value)</label><textarea class="${inp} mt-1 font-mono" rows="4" id="e" placeholder="BOT_TOKEN=123:abc"></textarea></div>
-    <button class="${btn}" id="sb">Deploy</button></form>`;
-  $('#f').onsubmit = async e => {
-    e.preventDefault(); const fd = new FormData(); fd.append('name', $('#n').value); fd.append('botType', $('#t').value); fd.append('envVars', $('#e').value); fd.append('file', $('#z').files[0]);
-    const b = $('#sb'); b.disabled = true; b.textContent = 'Uploading...';
-    try { await api('/projects/bot', { method: 'POST', body: fd }); toast('Your bot is starting. Check the Logs.'); tab = 'projects'; dashView(); }
-    catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; b.disabled = false; b.textContent = 'Deploy'; }
-  };
-}
-async function billingView() {
-  if (!(await loadMe())) { location.hash = '#/login'; return; }
-  nav();
-  const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  const exp = me.paidUntil || me.trialEndsAt;
-  $('#app').innerHTML = `<div class="max-w-xl mx-auto px-4 py-12"><h1 class="text-2xl font-bold mb-6">Billing</h1>
-    ${q.get('paid') === '1'? `<div class="${card} p-4 mb-4 border-emerald-500 text-sm">✅ Payment received! Your projects are coming back online.</div>` : q.get('paid') === '0'? `<div class="${card} p-4 mb-4 border-red-500 text-sm">Payment not confirmed yet. If you have paid, refresh in a minute.</div>` : ''}
-    <div class="${card} p-6 space-y-4"><div class="flex justify-between"><span class="text-zinc-500">Status</span>${badge(me.status === 'paid'? 'live' : me.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${me.status}<`)}</div>
-    <div class="flex justify-between"><span class="text-zinc-500">Days left</span><b>${me.daysLeft}</b></div>
-    <div class="flex justify-between"><span class="text-zinc-500">Expires</span><span>${exp? new Date(exp).toLocaleDateString() : '-'}</span></div>
-    <div class="flex justify-between"><span class="text-zinc-500">Price</span><b>KES ${me.price} / month</b></div>
-    <button id="pay" class="${btn} w-full py-3">Pay Now (M-Pesa / Card)</button>
-    <p class="text-xs text-zinc-500">When you pay, 30 days are added on top of the days you have left.</p></div></div>`;
-  $('#pay').onclick = async e => { e.target.disabled = true; try { const r = await api('/billing/pay', { method: 'POST' }); location.href = r.url; } catch (err) { toast(err.message, true); e.target.disabled = false; } };
-}
-async function adminView() {
-  if (!atoken) {
-    $('#app').innerHTML = `<div class="max-w-sm mx-auto px-4 py-20"><div class="${card} p-8"><h1 class="text-xl font-semibold text-center mb-6">Admin Login</h1><form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`;
-    $('#f').onsubmit = async e => { e.preventDefault(); try { const r = await api('/admin/login', { method: 'POST', body: { password: $('#pw').value } }, null); atoken = r.token; sessionStorage.setItem('mh_admin', atoken); adminView(); } catch (err) { toast(err.message, true); } };
-    return;
-  }
-  let d; try { d = await api('/admin/overview', {}, atoken); } catch { atoken = null; sessionStorage.removeItem('mh_admin'); return adminView(); }
-  const s = d.stats, stat = (a, b) => `<div class="${card} p-4"><div class="text-xs text-zinc-500">${a}</div><div class="text-2xl font-bold mt-1">${b}</div></div>`;
-  const th = 'text-left text-xs text-zinc-500 font-normal py-2 pr-4', td = 'py-2 pr-4 text-sm';
-  $('#app').innerHTML = `<div class="max-w-6xl mx-auto px-4 py-10 space-y-10">
-    <div class="flex justify-between items-center"><h1 class="text-2xl font-bold">Admin Panel</h1><button class="${btn2}" onclick="atoken=null;sessionStorage.removeItem('mh_admin');adminView()">Logout</button></div>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Unpaid (expired)', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}</div>
-    <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days left</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
-    ${d.users.map(u => `<tr class="border-t border-zinc-200 dark:border-zinc-900"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td} flex gap-2"><button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></td></tr>`).join('')}</table></div></section>
-    <section><h2 class="font-semibold mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}"></th></tr>
-    ${d.projects.map(p => `<tr class="border-t border-zinc-200 dark:border-zinc-900"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td} flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy!== 'admin'}})">${p.suspendedBy === 'admin'? 'Resume' : 'Suspend'}</button><button class="${btn2} text-red-500" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></td></tr>`).join('')}</table></div></section>
-    <section><h2 class="font-semibold mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
-    ${d.payments.map(p => `<tr class="border-t border-zinc-200 dark:border-zinc-900"><td class="${td}">${new Date(p.at).toLocaleString()}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${p.amount}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('') || `<tr><td class="${td} text-zinc-500" colspan=4>No payments yet</td></tr>`}</table></div></section></div>`;
-}
-async function adm(path, body, method) { try { await api('/admin' + path, { method: method || 'POST', body }, atoken); adminView(); } catch (e) { toast(e.message, true); } }
+    // Check authentication and prompt if no token
+    async function checkAuth() {
+      if (!token) {
+        const t = prompt('Login required - Enter your token or go to home?');
+        if (!t) location.hash = '#/';
+        else {
+          token = t;
+          localStorage.setItem('mh_token', token);
+        }
+        return false;
+      }
+      await loadMe();
+      return true;
+    }
 
-function route() {
-  const h = (location.hash || '#/').split('?')[0];
-  clearInterval(pollT); $('#modal').innerHTML = ''; nav(); window.scrollTo(0, 0);
-  if (h === '#/dashboard') return dashView();
-  if (h === '#/billing') return billingView();
-  if (h === '#/profile') return profileView();
-  if (h === '#/settings') return settingsView();
-  if (h === '#/admin') return adminView();
-  if (token && (h === '#/login' || h === '#/signup')) { location.hash = '#/dashboard'; return; }
-  if (h === '#/login') return authView('login');
-  if (h === '#/signup') return authView('signup');
-  if (h === '#/verify') return verifyView();
-  landing();
-}
-addEventListener('hashchange', route);
-route();
-</script>
+    // Load user profile info (simplified)
+    async function loadMe() {
+      if (!token) return null;
+      try {
+        const res = await fetch(`${API_BASE}/api/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Unauthorized');
+        me = await res.json();
+        return me;
+      } catch {
+        localStorage.removeItem('mh_token');
+        token = null;
+        me = null;
+        return null;
+      }
+    }
+
+    // Load projects from API and render
+    async function loadProjects() {
+      const container = document.getElementById('projects-list');
+      const summary = document.getElementById('projects-summary');
+      container.innerHTML = `<div class="col-span-full py-20 text-center text-gray-500 dark:text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-4"></i><p>Loading projects...</p></div>`;
+      summary.innerHTML = '';
+      try {
+        if (!token) {
+          container.innerHTML = `<p class="text-center text-red-600">Please login to view projects.</p>`;
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/projects`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Failed to load projects');
+        const projects = await res.json();
+
+        if (!projects.length) {
+          container.innerHTML = `<div class="col-span-full py-20 text-center text-gray-500 dark:text-gray-400">
+            <p>No deployments yet.</p>
+            <button onclick="showTab('github-import')" class="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg">Import from GitHub</button>
+          </div>`;
+          summary.innerHTML = '';
+          return;
+        }
+
+        // Summary stats
+        const count = projects.length;
+        const online = projects.filter(p => p.status === 'live' || p.status === 'running').length;
+        const stopped = projects.filter(p => p.status === 'stopped').length;
+        const suspended = projects.filter(p => p.status === 'suspended').length;
+        summary.innerHTML = `
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Projects</div>
+            <div class="text-2xl font-bold">${count}</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
+            <div class="text-xs text-green-600 dark:text-green-400">Online (live / running)</div>
+            <div class="text-2xl font-bold text-green-600">${online}</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Stopped</div>
+            <div class="text-2xl font-bold">${stopped}</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
+            <div class="text-xs text-red-600 dark:text-red-400">Suspended</div>
+            <div class="text-2xl font-bold text-red-600">${suspended}</div>
+          </div>
+        `;
+
+        // Projects list
+        container.innerHTML = projects
+          .map(
+            (p) => `
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-5 flex flex-col gap-3 shadow-sm">
+            <div class="flex justify-between items-start gap-2">
+              <div>
+                <div class="font-semibold">${esc(p.name)}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">${p.type === 'website' ? '🌐 Website' : '🤖 ' + esc(p.botType)}</div>
+              </div>
+              <span class="rounded-full px-2 py-0.5 text-xs ${
+                p.status === 'live' || p.status === 'running'
+                  ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                  : p.status === 'stopped'
+                  ? 'bg-gray-300/15 text-gray-500 border border-gray-300/30'
+                  : p.status === 'suspended'
+                  ? 'bg-red-500/15 text-red-500 border border-red-500/30'
+                  : 'bg-gray-300/15 text-gray-500 border border-gray-300/30'
+              }">${esc(p.status)}</span>
+            </div>
+            ${
+              p.url
+                ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" class="text-sm text-emerald-500 break-all hover:underline">${esc(p.url)}</a>`
+                : '<div class="text-sm text-gray-500 dark:text-gray-400">Bots have no URL — check the logs</div>'
+            }
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              ${
+                p.type === 'bot'
+                  ? p.status === 'running'
+                    ? `⏱ Uptime ${formatUptime(p.stats?.uptimeSec)} · Crashes ${p.stats?.crashes || 0} · Auto-restarts ${p.stats?.autoRestarts || 0}`
+                    : `Crashes ${p.stats?.crashes || 0}${p.stats?.lastExit ? ` · Last exit code ${esc(p.stats.lastExit.code)}` : ''}`
+                  : `${p.stats?.files || 0} files · ${formatBytes(p.stats?.bytes || 0)} · Deployed ${new Date(p.stats?.deployedAt || p.createdAt).toLocaleDateString()}`
+              }
+            </div>
+            <div class="flex flex-wrap gap-2 mt-auto">
+              ${
+                p.type === 'bot'
+                  ? `<button class="btn-secondary" onclick="showLogs('${p.id}')">Logs</button>
+                     <button class="btn-secondary" onclick="editEnv('${p.id}')">Env</button>
+                     ${
+                       p.status === 'running' || p.status === 'starting'
+                         ? `<button class="btn-secondary" onclick="controlBot('${p.id}', 'restart')">Restart</button>
+                            <button class="btn-secondary" onclick="controlBot('${p.id}', 'stop')">Stop</button>`
+                         : `<button class="btn-secondary" onclick="controlBot('${p.id}', 'start')">Start</button>`
+                     }`
+                  : ''
+              }
+              <button class="btn-danger" onclick="deleteProject('${p.id}')">Delete</button>
+            </div>
+          </div>
+        `
+          )
+          .join('');
+      } catch (e) {
+        container.innerHTML = `<p class="text-center text-red-600">Failed to load projects: ${esc(e.message)}</p>`;
+        summary.innerHTML = '';
+      }
+    }
+
+    // Format uptime seconds to d/h/m
+    function formatUptime(sec) {
+      if (!sec) return '—';
+      const d = Math.floor(sec / 86400);
+      const h = Math.floor((sec % 86400) / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      if (d) return `${d}d ${h}h`;
+      if (h) return `${h}h ${m}m`;
+      return `${m}m`;
+    }
+
+    // Format bytes to KB or MB
+    function formatBytes(b) {
+      if (!b) return '0 KB';
+      if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+      return Math.max(1, Math.round(b / 1024)) + ' KB';
+    }
+
+    // Load GitHub repos (mocked example)
+    async function loadGitHubRepos() {
+      const repoList = document.getElementById('repo-list');
+      repoList.innerHTML = `<div class="p-4 text-center text-gray-500 dark:text-gray-400">Loading repositories...</div>`;
+      try {
+        // Replace with real API call if available
+        const repos = [
+          { name: 'my-website', updated: '2 days ago' },
+          { name: 'whatsapp-bot', updated: '5 hours ago' },
+          { name: 'portfolio', updated: '1 week ago' },
+        ];
+        repoList.innerHTML = repos
+          .map(
+            (r) => `
+          <div class="flex justify-between items-center p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+            <div>
+              <p class="font-semibold">${esc(r.name)}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Updated ${esc(r.updated)}</p>
+            </div>
+            <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-sm" onclick="openImportForm('${esc(r.name)}')">Import</button>
+          </div>
+        `
+          )
+          .join('');
+      } catch (e) {
+        repoList.innerHTML = `<p class="text-center text-red-600">Failed to load repos: ${esc(e.message)}</p>`;
+      }
+    }
+
+    // Open import form with repo name prefilled
+    function openImportForm(repoName) {
+      document.getElementById('repo-selection').classList.add('hidden');
+      document.getElementById('importForm').classList.remove('hidden');
+      document.getElementById('deploySuccess').classList.add('hidden');
+      document.getElementById('githubUrl').value = `https://github.com/user/${repoName}`;
+      document.getElementById('branch').value = 'main';
+      document.getElementById('buildCommand').value = 'npm run build';
+      document.getElementById('outputDirectory').value = '.next';
+      document.getElementById('nodeVersion').value = '18.x';
+      deployType = 'website';
+      updateDeployOptionUI();
+    }
+
+    // Deploy option cards toggle
+    document.getElementById('deployOptionWebsite').addEventListener('click', () => {
+      deployType = 'website';
+      updateDeployOptionUI();
+    });
+    document.getElementById('deployOptionBot').addEventListener('click', () => {
+      deployType = 'bot';
+      updateDeployOptionUI();
+    });
+
+    function updateDeployOptionUI() {
+      const web = document.getElementById('deployOptionWebsite');
+      const bot = document.getElementById('deployOptionBot');
+      const deployBtn = document.getElementById('deployBtn');
+      if (deployType === 'website') {
+        web.classList.add('border-emerald-500');
+        bot.classList.remove('border-emerald-500');
+        deployBtn.textContent = 'Deploy Website →';
+      } else {
+        bot.classList.add('border-emerald-500');
+        web.classList.remove('border-emerald-500');
+        deployBtn.textContent = 'Deploy Bot →';
+      }
+    }
+
+    // CHANGE 2 LINES ONLY in your file:
+    // Badilisha function ya importForm submit kuwa hivi:
+    document.getElementById('importForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const githubUrl = document.getElementById('githubUrl').value.trim();
+
+      const formDataType = deployType; // website or bot
+      const endpoint = formDataType === 'website' ? '/projects/website' : '/projects/bot';
+      const fd = new FormData();
+      fd.append('name', githubUrl.split('/').pop() || 'my-site');
+      fd.append('githubUrl', githubUrl);
+      if (formDataType === 'bot') {
+        fd.append('botType', 'baileys');
+      }
+
+      const deployBtn = document.getElementById('deployBtn');
+      deployBtn.disabled = true;
+      deployBtn.textContent = 'Deploying...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api${endpoint}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Deployment failed');
+        }
+        const project = await res.json();
+
+        // Show success UI
+        document.getElementById('importForm').classList.add('hidden');
+        const successDiv = document.getElementById('deploySuccess');
+        successDiv.classList.remove('hidden');
+        const liveLink = `https://${project.subdomain}.mtaanihost.com`;
+        document.getElementById('deployLiveLink').textContent = liveLink;
+        const openBtn = document.getElementById('openLiveBtn');
+        openBtn.href = liveLink;
+
+        deployBtn.disabled = false;
+        deployBtn.textContent = formDataType === 'website' ? 'Deploy Website →' : 'Deploy Bot →';
+
+        // Refresh projects list
+        showTab('projects');
+      } catch (err) {
+        alert(err.message);
+        deployBtn.disabled = false;
+        deployBtn.textContent = formDataType === 'website' ? 'Deploy Website →' : 'Deploy Bot →';
+      }
+    });
+
+    // Na ongeza juu ya showTab:
+    async function checkAuth() {
+      if (!token) {
+        const t = prompt('Login required - Enter your token or go to home?');
+        if (!t) location.hash = '#/';
+        else {
+          token = t;
+          localStorage.setItem('mh_token', token);
+        }
+        return false;
+      }
+      await loadMe();
+      return true;
+    }
+
+    // Admin panel data loading and actions
+    async function loadAdminData() {
+      try {
+        if (!token) {
+          alert('Admin login required');
+          location.hash = '#/login';
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/admin/overview`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to load admin data');
+        const data = await res.json();
+
+        // Populate stats
+        document.getElementById('adminUsersCount').textContent = data.stats.users || 0;
+        document.getElementById('adminProjectsCount').textContent = data.stats.projects || 0;
+        document.getElementById('adminRevenue').textContent = data.stats.revenue ? 'KES ' + data.stats.revenue : 'KES 0';
+
+        // Populate users table
+        const usersTbody = document.getElementById('adminUsersTable');
+        usersTbody.innerHTML = data.users.map(u => `
+          <tr class="border-t border-gray-200 dark:border-gray-700">
+            <td class="px-6 py-3 text-sm">${esc(u.email)}</td>
+            <td class="px-6 py-3 text-sm">${esc(u.status)}</td>
+            <td class="px-6 py-3 text-sm">${esc(u.daysLeft)}</td>
+            <td class="px-6 py-3 text-sm">${esc(u.projects)}</td>
+            <td class="px-6 py-3 text-sm flex gap-2">
+              <button class="btn-secondary" onclick="blockUser('${u.id}', ${!u.blocked})">${u.blocked ? 'Unblock' : 'Block'}</button>
+              <button class="btn-secondary" onclick="extendUserSubscription('${u.id}', 30)">+30d</button>
+            </td>
+          </tr>
+        `).join('');
+
+        // Populate projects table
+        const projectsTbody = document.getElementById('adminProjectsTable');
+        projectsTbody.innerHTML = data.projects.map(p => `
+          <tr class="border-t border-gray-200 dark:border-gray-700">
+            <td class="px-6 py-3 text-sm">${esc(p.name)}</td>
+            <td class="px-6 py-3 text-sm">${esc(p.owner)}</td>
+            <td class="px-6 py-3 text-sm">${esc(p.type)}</td>
+            <td class="px-6 py-3 text-sm">${esc(p.status)}</td>
+            <td class="px-6 py-3 text-sm flex gap-2">
+              <button class="btn-secondary" onclick="suspendProject('${p.id}', ${p.suspendedBy !== 'admin'})">${p.suspendedBy === 'admin' ? 'Resume' : 'Suspend'}</button>
+              <button class="btn-danger" onclick="deleteProjectAdmin('${p.id}')">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+
+        // Populate payments table
+        const paymentsTbody = document.getElementById('adminPaymentsTable');
+        paymentsTbody.innerHTML = data.payments.map(p => `
+          <tr class="border-t border-gray-200 dark:border-gray-700">
+            <td class="px-6 py-3 text-sm">${new Date(p.at).toLocaleString()}</td>
+            <td class="px-6 py-3 text-sm">${esc(p.email)}</td>
+            <td class="px-6 py-3 text-sm">KES ${esc(p.amount)}</td>
+            <td class="px-6 py-3 text-sm">${esc(p.channel)}</td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        alert('Error loading admin data: ' + e.message);
+      }
+    }
+
+    async function blockUser(userId, block) {
+      if (!confirm(`${block ? 'Block' : 'Unblock'} this user?`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/users/${userId}/block`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ blocked: block }),
+        });
+        if (!res.ok) throw new Error('Failed to update user status');
+        showToast(`User ${block ? 'blocked' : 'unblocked'}`);
+        loadAdminData();
+      } catch (e) {
+        alert('Failed to update user status: ' + e.message);
+      }
+    }
+
+    async function extendUserSubscription(userId, days) {
+      if (!confirm(`Extend subscription by ${days} days?`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/users/${userId}/extend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ days }),
+        });
+        if (!res.ok) throw new Error('Failed to extend subscription');
+        showToast('Subscription extended');
+        loadAdminData();
+      } catch (e) {
+        alert('Failed to extend subscription: ' + e.message);
+      }
+    }
+
+    async function suspendProject(projectId, suspend) {
+      if (!confirm(`${suspend ? 'Suspend' : 'Resume'} this project?`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/projects/${projectId}/suspend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ suspended: suspend }),
+        });
+        if (!res.ok) throw new Error('Failed to update project status');
+        showToast(`Project ${suspend ? 'suspended' : 'resumed'}`);
+        loadAdminData();
+      } catch (e) {
+        alert('Failed to update project status: ' + e.message);
+      }
+    }
+
+    async function deleteProjectAdmin(projectId) {
+      if (!confirm('Delete this project permanently?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/projects/${projectId}`, {
+          method: 'DELETE',
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        if (!res.ok) throw new Error('Failed to delete project');
+        showToast('Project deleted');
+        loadAdminData();
+      } catch (e) {
+        alert('Failed to delete project: ' + e.message);
+      }
+    }
+
+    // Initialize theme toggle checkbox state on page load
+    initThemeToggle();
+
+    // Initialize page with projects tab
+    showTab('projects');
+
+    // Close settings dropdown on outside click
+    window.addEventListener('click', (e) => {
+      if (!e.target.closest('#settingsBtn') && !e.target.closest('#settingsDropdown')) {
+        document.getElementById('settingsDropdown').classList.remove('active');
+        document.getElementById('settingsBtn').setAttribute('aria-expanded', 'false');
+      }
+    });
+  </script>
 </body>
 </html>
+```
+
+---
