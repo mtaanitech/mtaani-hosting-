@@ -1,0 +1,11 @@
+name = "mtaanihost-sites"
+main = "index.js"
+compatibility_date = "2024-09-23"
+routes = [{ pattern = "*.mtaanihost.dev/*", zone_name = "mtaanihost.dev" }]
+
+[[r2_buckets]]
+binding = "SITES"
+bucket_name = "mtaanihost-sites"
+
+[vars]
+BASE_DOMAIN = "mtaanihost.dev"
