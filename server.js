@@ -9,11 +9,17 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
-const nodemailer = require('nodemailer');
 const { execFile } = require('child_process');
 const { db, save, DATA } = require('./db');
 const runner = require('./runner');
-const cf = require('./cf');
+
+// Make cf optional - so free /p/ link works without Cloudflare env
+let cf = {
+  dirStats: () => ({ files: 0, bytes: 0, deployedAt: Date.now() }),
+  removeSite: () => {},
+  createSite: async () => null
+};
+try { cf = require('./cf'); } catch (e) { console.log('cf.js not loaded, using dummy - free /p/ mode'); }
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -28,6 +34,10 @@ const RESERVED = ['www', 'app', 'api', 'admin', 'p', 'mail', 'static'];
 
 const app = express();
 app.set('trust proxy', 1);
+
+// IMPORTANT: Body parser MUST be before all routes
+app.use(express.json({ limit: '500kb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: true, credentials: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
 
 const now = () => Date.now();
@@ -50,11 +60,9 @@ function limiter(max, windowMs) {
 }
 setInterval(() => { for (const [k, h] of hits) if (now() > h.r) hits.delete(k); }, 600000);
 
-const mailer = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD? nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } }) : null;
-
-// ===== VERIFICATION ZIMWA - DIRECT LOGIN =====
 const authLimit = limiter(20, 15 * 60000);
 
+// ===== AUTH - NO VERIFICATION - DIRECT LOGIN =====
 app.post('/api/auth/signup', authLimit, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
@@ -69,20 +77,21 @@ app.post('/api/auth/signup', authLimit, async (req, res) => {
   } else {
     Object.assign(u, { passHash, verified: true, trialEndsAt: u.trialEndsAt || now() + TRIAL_DAYS * DAY, blocked: false });
   }
-  u.passHash = passHash; u.verified = true; u.code = null;
   save();
-  console.log(`[NEW USER DIRECT] ${email} - no verification needed`);
+  console.log(`[NEW USER DIRECT] ${email}`);
   const token = jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, user: publicUser(u) });
 });
 
-app.post('/api/auth/resend', authLimit, async (req, res) => { res.json({ ok: true, message: 'Verification disabled - you can login directly' }); });
+app.post('/api/auth/resend', authLimit, async (req, res) => { res.json({ ok: true, message: 'Verification disabled' }); });
 app.post('/api/auth/verify', authLimit, (req, res) => { res.json({ ok: true }); });
 
 app.post('/api/auth/login', authLimit, async (req, res) => {
-  const u = db.users.find(x => x.email === String(req.body.email || '').trim().toLowerCase());
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const u = db.users.find(x => x.email === email);
   if (!u ||!(await bcrypt.compare(String(req.body.password || ''), u.passHash))) return res.status(401).json({ error: 'Incorrect email or password' });
   if (u.blocked) return res.status(403).json({ error: 'Your account has been blocked. Contact admin.' });
+  // Auto-fix old unverified accounts
   if (!u.verified) { u.verified = true; if (!u.trialEndsAt) u.trialEndsAt = now() + TRIAL_DAYS * DAY; save(); }
   res.json({ token: jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' }), user: publicUser(u) });
 });
@@ -90,8 +99,7 @@ app.post('/api/auth/login', authLimit, async (req, res) => {
 app.post('/api/auth/forgot', authLimit, async (req, res) => { res.json({ ok: true }); });
 app.post('/api/auth/reset', authLimit, async (req, res) => { res.status(400).json({ error: 'Reset disabled for now, contact admin' }); });
 
-// ===== AUTH MIDDLEWARE =====
-app.use(express.json({ limit: '100kb' }));
+// ===== MIDDLEWARE =====
 function auth(req, res, next) {
   try {
     const t = (req.headers.authorization || '').replace('Bearer ', '');
@@ -111,120 +119,34 @@ function adminAuth(req, res, next) {
 }
 
 app.get('/api/me', auth, (req, res) => res.json(publicUser(req.user)));
-
-// ===== NEW PROFILE ROUTES - ZILIKUWA ZINAKOSKANA =====
 app.get('/api/profile', auth, (req, res) => {
   const u = req.user;
   const projects = db.projects.filter(p => p.userId === u.id);
-  res.json({
-    email: u.email,
-    displayName: u.displayName || u.email.split('@')[0],
-    status: userStatus(u),
-    daysLeft: daysLeft(u),
-    memberSince: u.createdAt,
-    projects: projects.length,
-    websites: projects.filter(p=>p.type==='website').length,
-    bots: projects.filter(p=>p.type==='bot').length,
-   ...publicUser(u)
-  });
+  res.json({ email: u.email, displayName: u.displayName || u.email.split('@')[0], status: userStatus(u), daysLeft: daysLeft(u), memberSince: u.createdAt, projects: projects.length, websites: projects.filter(p=>p.type==='website').length, bots: projects.filter(p=>p.type==='bot').length,...publicUser(u) });
 });
-
 app.put('/api/profile', auth, (req, res) => {
   const { displayName } = req.body;
-  if (displayName && displayName.trim().length > 0) {
-    req.user.displayName = displayName.trim().slice(0,40);
-    save();
-  }
+  if (displayName && displayName.trim().length > 0) { req.user.displayName = displayName.trim().slice(0,40); save(); }
   res.json({ ok: true });
 });
-
 app.post('/api/settings/password', auth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword ||!newPassword) return res.status(400).json({ error: 'Fill all fields' });
   if (newPassword.length < 6) return res.status(400).json({ error: 'New password at least 6 chars' });
   const ok = await bcrypt.compare(currentPassword.trim(), req.user.passHash);
   if (!ok) return res.status(400).json({ error: 'Current password is wrong' });
-  req.user.passHash = await bcrypt.hash(newPassword.trim(), 10);
-  save();
-  res.json({ ok: true });
+  req.user.passHash = await bcrypt.hash(newPassword.trim(), 10); save(); res.json({ ok: true });
 });
-
 app.delete('/api/account', auth, async (req, res) => {
   const { password } = req.body;
   const ok = await bcrypt.compare(String(password||''), req.user.passHash);
   if (!ok) return res.status(400).json({ error: 'Password is wrong' });
-  db.projects.filter(p=>p.userId===req.user.id).forEach(p=>{
-    p.desired='stopped'; runner.stop(p.id);
-    setTimeout(()=>{ try{fs.rmSync(p.dir,{recursive:true,force:true})}catch{} },2000);
-  });
+  db.projects.filter(p=>p.userId===req.user.id).forEach(p=>{ p.desired='stopped'; runner.stop(p.id); setTimeout(()=>{ try{fs.rmSync(p.dir,{recursive:true,force:true})}catch{} },2000); });
   db.projects = db.projects.filter(p=>p.userId!==req.user.id);
-  db.users = db.users.filter(u=>u.id!==req.user.id);
-  save();
-  res.json({ ok: true });
+  db.users = db.users.filter(u=>u.id!==req.user.id); save(); res.json({ ok: true });
 });
 
-app.get('/api/projects/:id/env', auth, (req, res) => {
-  const p = db.projects.find(x=>x.id===req.params.id && x.userId===req.user.id);
-  if (!p) return res.status(404).json({ error: 'Project not found' });
-  if (p.type!=='bot') return res.status(400).json({ error: 'Bots only' });
-  res.json({ keys: Object.keys(p.env||{}) });
-});
-
-app.put('/api/projects/:id/env', auth, (req, res) => {
-  const p = db.projects.find(x=>x.id===req.params.id && x.userId===req.user.id);
-  if (!p) return res.status(404).json({ error: 'Project not found' });
-  if (p.type!=='bot') return res.status(400).json({ error: 'Bots only' });
-  const env = {};
-  String(req.body.envVars||'').split(/\r?\n/).forEach(l=>{
-    const m=l.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-    if(m) env[m[1]]=m[2].replace(/^["']|["']$/g,'');
-  });
-  p.env=env; save();
-  runner.stop(p.id); setTimeout(()=>runner.start(p),1500);
-  res.json({ ok: true });
-});
-
-//... BAKI YOTE KAMA IKO KWAKO...
-function creditPayment(reference) { /* code yako ya zamani hapa */ }
-function resumeUserBots(userId) {
-  const o = db.users.find(x => x.id === userId);
-  if (!o ||!isActive(o)) return;
-  db.projects.filter(p => p.userId === userId && p.type === 'bot' && p.desired === 'running' &&!p.adminSuspended).forEach(p => runner.start(p));
-}
-app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res) => {
-  try {
-    const sig = crypto.createHmac('sha512', PSK || '').update(req.body).digest('hex');
-    if (!safeEq(sig, req.headers['x-paystack-signature'] || '')) return res.sendStatus(401);
-    const ev = JSON.parse(req.body.toString());
-    if (ev.event === 'charge.success') await creditPayment(ev.data.reference);
-    res.sendStatus(200);
-  } catch (e) { console.error('webhook', e); res.sendStatus(500); }
-}
-function blockedPage(res, name) {
-  res.status(402).send(`<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#000;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center"><div><h1>This site has been suspended</h1><p style="color:#aaa">The owner of <b>${String(name).replace(/[<>&"]/g, '')}</b> needs to pay to keep it running.</p><a style="color:#4ade80" href="${BASE_URL}">MtaaniHost</a></div>`);
-}
-function serveSite(slug, req, res, next) {
-  const p = db.projects.find(x => x.slug === slug && x.type === 'website');
-  if (!p) return next();
-  const owner = db.users.find(u => u.id === p.userId);
-  if (!owner ||!isActive(owner) || p.adminSuspended) return blockedPage(res, p.name);
-  express.static(p.dir, { index: 'index.html', extensions: ['html'], dotfiles: 'ignore' })(req, res, () => {
-    const nf = path.join(p.dir, '404.html');
-    if (fs.existsSync(nf)) return res.status(404).sendFile(nf);
-    res.status(404).send('Not found');
-  });
-}
-app.use((req, res, next) => {
-  if (!BASE_DOMAIN) return next();
-  const host = (req.hostname || '').toLowerCase();
-  if (host.endsWith('.' + BASE_DOMAIN)) {
-    const slug = host.slice(0, -(BASE_DOMAIN.length + 1));
-    if (!slug.includes('.') &&!RESERVED.includes(slug)) return serveSite(slug, req, res, () => res.status(404).send('Project does not exist'));
-  }
-  next();
-});
-app.use('/p/:slug', (req, res, next) => serveSite(req.params.slug, req, res, next));
-
+// ===== PROJECT HELPERS =====
 function projectView(p) {
   const owner = db.users.find(u => u.id === p.userId);
   const active = owner && isActive(owner) &&!p.adminSuspended;
@@ -234,7 +156,8 @@ function projectView(p) {
   else status = runner.isRunning(p.id)? 'running' : (p.desired === 'running'? 'starting' : 'stopped');
   let url = null;
   if (p.type === 'website') url = BASE_DOMAIN? `https://${p.slug}.${BASE_DOMAIN}` : `${BASE_URL}/p/${p.slug}/`;
-  const stats = p.type === 'bot'? runner.stats(p.id) : { files: (p.stats || {}).files || 0, bytes: (p.stats || {}).bytes || 0, deployedAt: p.createdAt };
+  let stats = {};
+  try { stats = p.type === 'bot'? runner.stats(p.id) : cf.dirStats(p.dir); } catch { stats = { files: 0, bytes: 0 }; }
   return { id: p.id, name: p.name, type: p.type, botType: p.botType, slug: p.slug, url, status, createdAt: p.createdAt, github: p.github || null, suspendedBy: p.adminSuspended? 'admin' : (!active? 'billing' : null), stats };
 }
 function slugify(name) {
@@ -276,7 +199,27 @@ function checkCanDeploy(req, res) {
   return true;
 }
 function cleanName(n) { return String(n || '').trim().slice(0, 40); }
+function creditPayment(reference) { /* handled below */ }
+
+// ===== PROJECT ROUTES =====
 app.get('/api/projects', auth, (req, res) => res.json(db.projects.filter(p => p.userId === req.user.id).map(projectView)));
+app.get('/api/projects/:id/env', auth, (req, res) => {
+  const p = db.projects.find(x=>x.id===req.params.id && x.userId===req.user.id);
+  if (!p) return res.status(404).json({ error: 'Project not found' });
+  if (p.type!=='bot') return res.status(400).json({ error: 'Bots only' });
+  res.json({ keys: Object.keys(p.env||{}) });
+});
+app.put('/api/projects/:id/env', auth, (req, res) => {
+  const p = db.projects.find(x=>x.id===req.params.id && x.userId===req.user.id);
+  if (!p) return res.status(404).json({ error: 'Project not found' });
+  if (p.type!=='bot') return res.status(400).json({ error: 'Bots only' });
+  const env = {};
+  String(req.body.envVars||'').split(/\r?\n/).forEach(l=>{
+    const m=l.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if(m) env[m[1]]=m[2].replace(/^["']|["']$/g,'');
+  });
+  p.env=env; save(); runner.stop(p.id); setTimeout(()=>runner.start(p),1500); res.json({ ok: true });
+});
 app.post('/api/projects/website', auth, upload.single('file'), async (req, res) => {
   const tmp = req.file && req.file.path;
   try {
@@ -292,9 +235,8 @@ app.post('/api/projects/website', auth, upload.single('file'), async (req, res) 
       if (!fs.existsSync(path.join(dir, 'index.html'))) throw new Error('index.html not found in project root');
     } catch (e) { rm(dir); return res.status(400).json({ error: e.message }); }
     const p = { id, userId: req.user.id, type: 'website', name, slug: slugify(name), dir, github: gh || null, createdAt: now() };
-    p.stats = cf.dirStats(dir);
-    db.projects.push(p); save();
-    res.json(projectView(p));
+    try { p.stats = cf.dirStats(dir); } catch { p.stats = { files: 0, bytes: 0 }; }
+    db.projects.push(p); save(); res.json(projectView(p));
   } finally { if (tmp) rm(tmp); }
 });
 app.post('/api/projects/bot', auth, upload.single('file'), async (req, res) => {
@@ -317,9 +259,7 @@ app.post('/api/projects/bot', auth, upload.single('file'), async (req, res) => {
       if (!fs.existsSync(path.join(dir, 'package.json'))) throw new Error('package.json not found in zip root');
     } catch (e) { rm(dir); return res.status(400).json({ error: e.message }); }
     const p = { id, userId: req.user.id, type: 'bot', botType, name, slug: slugify(name), dir, env, desired: 'running', createdAt: now() };
-    db.projects.push(p); save();
-    runner.start(p);
-    res.json(projectView(p));
+    db.projects.push(p); save(); runner.start(p); res.json(projectView(p));
   } finally { if (tmp) rm(tmp); }
 });
 app.get('/api/projects/:id/logs', auth, (req, res) => {
@@ -338,7 +278,7 @@ app.post('/api/projects/:id/:action(start|stop|restart)', auth, async (req, res)
   save(); res.json(projectView(p));
 });
 function deleteProject(p) {
-  if (p.cf) cf.removeSite(p);
+  try { if (p.cf) cf.removeSite(p); } catch {}
   p.desired = 'stopped'; runner.stop(p.id);
   setTimeout(() => rm(p.dir), 3000);
   db.projects = db.projects.filter(x => x.id!== p.id); save();
@@ -348,10 +288,12 @@ app.delete('/api/projects/:id', auth, (req, res) => {
   if(!p) return res.status(404).json({error:'Not found'});
   deleteProject(p); res.json({ ok: true });
 });
+
+// ===== BILLING =====
 app.get('/api/billing', auth, (req, res) => res.json(publicUser(req.user)));
-// PAYSTACK - creditPayment function keep yours
-async function creditPayment(reference) {
+async function creditPaymentInner(reference) {
   if (db.payments.find(p => p.reference === reference)) return true;
+  if (!PSK) return false;
   const r = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(reference), { headers: { Authorization: 'Bearer ' + PSK } });
   const j = await r.json();
   if (!j.status ||!j.data || j.data.status!== 'success') return false;
@@ -362,6 +304,11 @@ async function creditPayment(reference) {
   user.paidUntil = Math.max(now(), user.paidUntil || 0) + 30 * DAY;
   db.payments.push({ reference, userId, email: user.email, amount: d.amount / 100, currency: d.currency, channel: d.channel, at: now() });
   save(); resumeUserBots(user.id); return true;
+}
+function resumeUserBots(userId) {
+  const o = db.users.find(x => x.id === userId);
+  if (!o ||!isActive(o)) return;
+  db.projects.filter(p => p.userId === userId && p.type === 'bot' && p.desired === 'running' &&!p.adminSuspended).forEach(p => runner.start(p));
 }
 app.post('/api/billing/pay', auth, async (req, res) => {
   if (!PSK) return res.status(500).json({ error: 'Paystack not configured' });
@@ -376,9 +323,46 @@ app.post('/api/billing/pay', auth, async (req, res) => {
 app.get('/billing/return', async (req, res) => {
   const ref = String(req.query.reference || req.query.trxref || '');
   let ok = false;
-  try { ok = ref && await creditPayment(ref); } catch (e) { console.error(e); }
+  try { ok = ref && await creditPaymentInner(ref); } catch (e) { console.error(e); }
   res.redirect('/#/billing?paid=' + (ok? '1' : '0'));
 });
+app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+  try {
+    const sig = crypto.createHmac('sha512', PSK || '').update(req.body).digest('hex');
+    if (!safeEq(sig, req.headers['x-paystack-signature'] || '')) return res.sendStatus(401);
+    const ev = JSON.parse(req.body.toString());
+    if (ev.event === 'charge.success') await creditPaymentInner(ev.data.reference);
+    res.sendStatus(200);
+  } catch (e) { console.error('webhook', e); res.sendStatus(500); }
+});
+
+// ===== SITE SERVING - FREE /p/ MODE =====
+function blockedPage(res, name) {
+  res.status(402).send(`<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#000;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center"><div><h1>This site has been suspended</h1><p style="color:#aaa">The owner of <b>${String(name).replace(/[<>&"]/g, '')}</b> needs to pay to keep it running.</p><a style="color:#4ade80" href="${BASE_URL}">MtaaniHost</a></div>`);
+}
+function serveSite(slug, req, res, next) {
+  const p = db.projects.find(x => x.slug === slug && x.type === 'website');
+  if (!p) return next();
+  const owner = db.users.find(u => u.id === p.userId);
+  if (!owner ||!isActive(owner) || p.adminSuspended) return blockedPage(res, p.name);
+  express.static(p.dir, { index: 'index.html', extensions: ['html'], dotfiles: 'ignore' })(req, res, () => {
+    const nf = path.join(p.dir, '404.html');
+    if (fs.existsSync(nf)) return res.status(404).sendFile(nf);
+    res.status(404).send('Not found');
+  });
+}
+app.use((req, res, next) => {
+  if (!BASE_DOMAIN) return next();
+  const host = (req.hostname || '').toLowerCase();
+  if (host.endsWith('.' + BASE_DOMAIN)) {
+    const slug = host.slice(0, -(BASE_DOMAIN.length + 1));
+    if (!slug.includes('.') &&!RESERVED.includes(slug)) return serveSite(slug, req, res, () => res.status(404).send('Project does not exist'));
+  }
+  next();
+});
+app.use('/p/:slug', (req, res, next) => serveSite(req.params.slug, req, res, next));
+
+// ===== ADMIN =====
 app.post('/api/admin/login', limiter(10, 15 * 60000), (req, res) => {
   if (!ADMIN_PASSWORD ||!safeEq(req.body.password || '', ADMIN_PASSWORD)) return res.status(401).json({ error: 'Incorrect password' });
   res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) });
@@ -400,8 +384,7 @@ app.post('/api/admin/users/:id/block', adminAuth, (req, res) => {
 app.post('/api/admin/users/:id/extend', adminAuth, (req, res) => {
   const u = db.users.find(x => x.id === req.params.id); if (!u) return res.status(404).json({ error: 'User not found' });
   const d = Math.min(365, Math.max(1, Number(req.body.days) || 30));
-  u.paidUntil = Math.max(now(), u.paidUntil || 0) + d * DAY; save(); resumeUserBots(u.id);
-  res.json({ ok: true });
+  u.paidUntil = Math.max(now(), u.paidUntil || 0) + d * DAY; save(); resumeUserBots(u.id); res.json({ ok: true });
 });
 app.post('/api/admin/projects/:id/suspend', adminAuth, async (req, res) => {
   const p = db.projects.find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: 'Not found' });
@@ -417,7 +400,7 @@ app.delete('/api/admin/projects/:id', adminAuth, (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use((req, res) => res.status(404).send('Not found'));
 app.listen(PORT, () => {
-  console.log('MtaaniHost FIXED - No verification, direct login running on port ' + PORT);
+  console.log('MtaaniHost FIXED - No verification, direct login - Port ' + PORT);
   db.projects.filter(p => p.type === 'bot' && p.desired === 'running').forEach(p => {
     const o = db.users.find(u => u.id === p.userId);
     if (o && isActive(o) &&!p.adminSuspended) runner.start(p);
