@@ -3,33 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MtaaniHost — Deploy websites and bots in Kenya</title>
+<title>MtaaniHost limited — Deploy websites and bots in Kenya</title>
 <script>
   if (localStorage.getItem('mh_theme') === 'light') document.documentElement.classList.remove('dark'); else document.documentElement.classList.add('dark');
   tailwind = { config: { darkMode: 'class' } };
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
-<style>body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}.grid-bg{background-image:radial-gradient(circle at 1px 1px,rgba(128,128,128,.18) 1px,transparent 0);background-size:22px 22px}</style>
+<style>
+body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.grid-bg{background-image:radial-gradient(circle at 1px 1px,rgba(128,128,128,.18) 1px,transparent 0);background-size:24px 24px}
+.hero-glow{position:absolute;top:20%;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(16,185,129,.15) 0%,transparent 70%);filter:blur(40px);pointer-events:none}
+</style>
 </head>
-<body class="bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 min-h-screen flex flex-col">
+<body class="bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 min-h-screen flex flex-col">
 <div id="nav"></div>
-<main id="app" class="flex-1"></main>
+<main id="app" class="flex-1 relative"></main>
 <div id="toast" class="fixed bottom-5 right-5 z-50"></div>
 <div id="modal"></div>
 <script>
 const API_BASE = 'https://mtaani-hosting.onrender.com';
 const esc = s => String(s?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let token = localStorage.getItem('mh_token'), atoken = sessionStorage.getItem('mh_admin'), me = null, pendingEmail = localStorage.getItem('mh_pending') || '';
-const inp = 'w-full rounded-lg border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500';
-const btn = 'inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black px-4 py-2 text-sm font-medium hover:opacity-85 disabled:opacity-50';
-const btn2 = 'inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900';
-const card = 'rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950';
+let token = localStorage.getItem('mh_token'), atoken = sessionStorage.getItem('mh_admin'), me = null;
+const inp = 'w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition';
+const btn = 'inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black px-4 py-2.5 text-sm font-medium hover:opacity-85 disabled:opacity-50 shadow-sm';
+const btn2 = 'inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition';
+const card = 'rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm';
 const logo = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2 22 20H2L12 2Z" fill="currentColor"/><path d="M12 9l4.5 8h-9L12 9Z" fill="#10b981"/></svg>`;
 
 function toast(msg, bad) {
   const d = document.createElement('div');
-  d.className = `mb-2 rounded-lg px-4 py-2 text-sm shadow-lg text-white ${bad? 'bg-red-600' : 'bg-emerald-600'}`;
-  d.textContent = msg; $('#toast').appendChild(d); setTimeout(() => d.remove(), 4000);
+  d.className = `mb-2 rounded-xl px-4 py-2.5 text-sm shadow-lg text-white ${bad? 'bg-red-600' : 'bg-emerald-600'}`;
+  d.textContent = msg; document.getElementById('toast').appendChild(d); setTimeout(() => d.remove(), 4000);
 }
 function $(s) { return document.querySelector(s); }
 async function api(p, o = {}, t = token) {
@@ -48,7 +52,7 @@ async function loadMe() { if (!token) return null; try { me = await api('/me'); 
 
 function nav() {
   const admin = location.hash.startsWith('#/admin');
-  $('#nav').innerHTML = `<header class="sticky top-0 z-40 backdrop-blur border-b border-zinc-200 dark:border-zinc-900 bg-white/80 dark:bg-black/80">
+  $('#nav').innerHTML = `<header class="sticky top-0 z-40 backdrop-blur-xl border-b border-zinc-200/70 dark:border-zinc-900 bg-white/80 dark:bg-black/80">
   <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
     <a href="#/" class="flex items-center gap-2 font-semibold">${logo}<span>MtaaniHost</span></a>
     <nav class="flex items-center gap-2 text-sm">
@@ -63,60 +67,81 @@ function landing() {
   const feats = [
     ['🌐', 'Static Hosting', 'Upload a ZIP of HTML/CSS/JS or paste a GitHub URL — your site is live in seconds.'],
     ['🤖', 'Bots 24/7', 'WhatsApp (Baileys), Telegram and Discord bots that keep running without stopping.'],
-    ['✉️', 'Email Verification', 'Every account is verified with a code sent to your email.'],
+    ['⚡', 'Fast & Simple', 'No verification stress. Register and deploy immediately.'],
     ['💳', 'Paystack Billing', 'Pay with M-Pesa or card. Once you pay, your projects come back online automatically.']
   ];
   $('#app').innerHTML = `
-  <section class="grid-bg"><div class="max-w-4xl mx-auto px-4 py-24 text-center">
-    <span class="inline-block rounded-full border border-zinc-300 dark:border-zinc-800 px-3 py-1 text-xs text-zinc-500 mb-6">🇰🇪 Hosting made in Kenya • 7 days free</span>
+  <section class="grid-bg relative overflow-hidden"><div class="hero-glow"></div>
+  <div class="max-w-4xl mx-auto px-4 py-24 text-center relative">
+    <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/50 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300 mb-6">🇰🇪 Hosting made in Kenya • 7 days free</span>
     <h1 class="text-4xl sm:text-6xl font-bold tracking-tight">Deploy your website or bot <span class="text-emerald-500">in minutes</span></h1>
     <p class="mt-6 text-lg text-zinc-500 max-w-2xl mx-auto">Like Vercel and Render, but built for Kenya. Pay with M-Pesa and start without the stress.</p>
-    <div class="mt-10 flex flex-wrap gap-3 justify-center"><a href="#/signup" class="${btn}!px-6!py-3">Deploy website or bot</a><a href="#/login" class="${btn2}!px-6!py-3">Login</a></div>
+    <div class="mt-10 flex flex-wrap gap-3 justify-center"><a href="#/signup" class="${btn} px-6 py-3 text-base">Deploy website or bot</a><a href="#/login" class="${btn2} px-6 py-3 text-base">Login</a></div>
   </div></section>
   <section id="features" class="max-w-6xl mx-auto px-4 py-20">
     <h2 class="text-3xl font-bold text-center mb-12">Everything you need</h2>
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${feats.map(f => `<div class="${card} p-6"><div class="text-3xl mb-4">${f[0]}</div><h3 class="font-semibold mb-2">${f[1]}</h3><p class="text-sm text-zinc-500">${f[2]}</p></div>`).join('')}</div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${feats.map(f => `<div class="${card} p-6 hover:shadow-md transition"><div class="text-3xl mb-4">${f[0]}</div><h3 class="font-semibold mb-2">${f[1]}</h3><p class="text-sm text-zinc-500">${f[2]}</p></div>`).join('')}</div>
   </section>
   <section id="pricing" class="max-w-6xl mx-auto px-4 py-20">
     <h2 class="text-3xl font-bold text-center mb-12">Simple pricing</h2>
     <div class="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
       <div class="${card} p-8"><h3 class="font-semibold">Free Trial</h3><p class="text-4xl font-bold mt-3">KES 0</p><p class="text-zinc-500 text-sm mt-1">7 days</p><ul class="mt-6 text-sm space-y-2 text-zinc-500"><li>✓ Deploy anything</li><li>✓ No card required</li></ul><a href="#/signup" class="${btn2} w-full mt-8">Start free</a></div>
-      <div class="${card} p-8!border-emerald-500"><h3 class="font-semibold">Pro</h3><p class="text-4xl font-bold mt-3">KES 200</p><p class="text-zinc-500 text-sm mt-1">per month</p><ul class="mt-6 text-sm space-y-2 text-zinc-500"><li>✓ Static sites and bots</li><li>✓ M-Pesa and card</li><li>✓ Online 24/7</li></ul><a href="#/signup" class="${btn} w-full mt-8">Get started</a></div>
+      <div class="${card} p-8 border-emerald-500 shadow-emerald-100 dark:shadow-none shadow-lg"><h3 class="font-semibold">Pro</h3><p class="text-4xl font-bold mt-3">KES 200</p><p class="text-zinc-500 text-sm mt-1">per month</p><ul class="mt-6 text-sm space-y-2 text-zinc-500"><li>✓ Static sites and bots</li><li>✓ M-Pesa and card</li><li>✓ Online 24/7</li></ul><a href="#/signup" class="${btn} w-full mt-8">Get started</a></div>
     </div>
   </section>
   <footer class="border-t border-zinc-200 dark:border-zinc-900 py-8 text-center text-sm text-zinc-500">© ${new Date().getFullYear()} MtaaniHost — Made in Kenya 🇰🇪 · <a class="underline" href="#/admin">Admin</a></footer>`;
 }
 
+// ===== FIXED AUTH - NO VERIFICATION, PASSWORD MBILI =====
 function authView(mode) {
-  const su = mode === 'signup', q = new URLSearchParams(location.hash.split('?')[1] || '');
-  $('#app').innerHTML = `<div class="max-w-sm mx-auto px-4 py-20"><div class="${card} p-8">
-    <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-semibold text-center mb-6">${su? 'Create your account' : 'Welcome back'}</h1>
-    ${q.get('verified')? '<p class="mb-4 text-sm text-emerald-500 text-center">Email verified! You can log in now.</p>' : ''}
-    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email" required><input class="${inp}" type="password" id="pw" placeholder="Password ${su? '(at least 8 characters)' : ''}" required>
-    <button class="${btn} w-full" id="sb">${su? 'Sign Up' : 'Login'}</button></form>
+  const su = mode === 'signup';
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  $('#app').innerHTML = `<div class="max-w-sm mx-auto px-4 py-20"><div class="${card} p-8 shadow-lg">
+    <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-semibold text-center mb-1">${su? 'Create your account' : 'Welcome back'}</h1>
+    <p class="text-center text-sm text-zinc-500 mb-6">${su? 'Password mbili lazima zifanane' : 'Login kuingia dashboard'}</p>
+    ${q.get('verified')? '<p class="mb-4 text-sm text-emerald-500 text-center">Account created! Login now.</p>' : ''}
+    <form id="f" class="space-y-3">
+      <input class="${inp}" type="email" id="em" placeholder="Email" required>
+      <input class="${inp}" type="password" id="pw" placeholder="Password ${su? '(min 6 chars)' : ''}" required>
+      ${su? `<input class="${inp}" type="password" id="pw2" placeholder="Confirm password - weka ile ile tena" required>` : ''}
+      <button class="${btn} w-full" id="sb">${su? 'Sign Up' : 'Login'}</button>
+    </form>
     <p class="text-center text-sm text-zinc-500 mt-4">${su? 'Already have an account? <a class="underline" href="#/login">Login</a>' : "Don't have an account? <a class=\"underline\" href=\"#/signup\">Sign Up</a>"}</p></div></div>`;
+
   $('#f').onsubmit = async e => {
-    e.preventDefault(); const b = $('#sb'); b.disabled = true; const email = $('#em').value, password = $('#pw').value;
+    e.preventDefault();
+    const b = $('#sb');
+    const email = $('#em').value.trim();
+    const password = $('#pw').value;
+
+    if(su){
+      const pw2 = $('#pw2').value;
+      if(password!== pw2){ toast('Password mbili hazifanani! Weka ile ile', true); return; }
+      if(password.length < 6){ toast('Password angalau 6 characters', true); return; }
+    }
+
+    b.disabled = true; b.textContent = 'Please wait...';
     try {
-      if (su) { await api('/auth/signup', { method: 'POST', body: { email, password } }); pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; }
-      else { const r = await api('/auth/login', { method: 'POST', body: { email, password } }); token = r.token; localStorage.setItem('mh_token', token); me = r.user; location.hash = '#/dashboard'; }
-    } catch (err) { if (err.data && err.data.needVerify) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; } toast(err.message, true); }
-    b.disabled = false;
+      if (su) {
+        const r = await api('/auth/signup', { method: 'POST', body: { email, password } });
+        token = r.token; localStorage.setItem('mh_token', token); me = r.user;
+        toast('Account created! Karibu MtaaniHost'); location.hash = '#/dashboard';
+      } else {
+        const r = await api('/auth/login', { method: 'POST', body: { email, password } });
+        token = r.token; localStorage.setItem('mh_token', token); me = r.user;
+        location.hash = '#/dashboard';
+      }
+    } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = su? 'Sign Up' : 'Login'; }
   };
 }
-function verifyView() {
-  $('#app').innerHTML = `<div class="max-w-sm mx-auto px-4 py-20"><div class="${card} p-8 text-center">
-    <h1 class="text-xl font-semibold mb-2">Verify your email</h1><p class="text-sm text-zinc-500 mb-6">We sent a 6-digit code to<br><b>${esc(pendingEmail)}</b></p>
-    <form id="f" class="space-y-3"><input class="${inp} text-center text-2xl tracking-[.5em]" id="cd" maxlength="6" inputmode="numeric" placeholder="······" required><button class="${btn} w-full">Verify</button></form>
-    <button id="rs" class="text-sm text-zinc-500 underline mt-4">Resend code</button></div></div>`;
-  $('#f').onsubmit = async e => { e.preventDefault(); try { await api('/auth/verify', { method: 'POST', body: { email: pendingEmail, code: $('#cd').value } }); location.hash = '#/login?verified=1'; } catch (err) { toast(err.message, true); } };
-  $('#rs').onclick = async () => { try { await api('/auth/resend', { method: 'POST', body: { email: pendingEmail } }); toast('A new code has been sent'); } catch (err) { toast(err.message, true); } };
-}
+
+// Verification disabled - redirect to dashboard
+function verifyView() { location.hash = '#/dashboard'; toast('Verification imezimwa kwa sasa - unaingia direct'); }
 
 function banner() {
   if (!me) return '';
-  if (me.status === 'trial') return `<div class="${card} p-4 mb-6 flex flex-wrap items-center justify-between gap-3!border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
-  if (me.status === 'expired') return `<div class="${card} p-4 mb-6 flex flex-wrap items-center justify-between gap-3!border-red-500"><span class="text-sm text-red-500">⛔ Your trial has ended. Your projects are suspended.</span><a href="#/billing" class="${btn}">Pay Now</a></div>`;
+  if (me.status === 'trial') return `<div class="${card} p-4 mb-6 flex flex-wrap items-center justify-between gap-3 border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
+  if (me.status === 'expired') return `<div class="${card} p-4 mb-6 flex flex-wrap items-center justify-between gap-3 border-red-500"><span class="text-sm text-red-500">⛔ Your trial has ended. Your projects are suspended.</span><a href="#/billing" class="${btn}">Pay Now</a></div>`;
   if (me.status === 'paid') return `<div class="${card} p-4 mb-6 text-sm">✅ You're paid up. ${me.daysLeft} days left.</div>`;
   return '';
 }
@@ -156,10 +181,10 @@ async function settingsView() {
       <button class="${btn}">Update password</button></form>
     <div class="${card} p-6 space-y-3"><h2 class="font-semibold">Appearance</h2>
       <div class="flex gap-2"><button class="${btn2}" id="tl">Light</button><button class="${btn2}" id="td">Dark</button></div></div>
-    <form id="fd" class="${card} p-6 space-y-3!border-red-500/50"><h2 class="font-semibold text-red-500">Delete account</h2>
+    <form id="fd" class="${card} p-6 space-y-3 border-red-500/50"><h2 class="font-semibold text-red-500">Delete account</h2>
       <p class="text-sm text-zinc-500">This permanently deletes your account and all your projects, and stops your bots. It cannot be undone.</p>
       <input class="${inp}" type="password" id="dp" placeholder="Confirm with your password" required>
-      <button class="${btn2}!text-red-500">Delete my account</button></form></div>`;
+      <button class="${btn2} text-red-500">Delete my account</button></form></div>`;
   $('#fn').onsubmit = async e => { e.preventDefault(); try { await api('/profile', { method: 'PUT', body: { displayName: $('#dn').value } }); toast('Profile saved'); } catch (err) { toast(err.message, true); } };
   $('#fp').onsubmit = async e => {
     e.preventDefault();
@@ -217,7 +242,7 @@ async function renderProjects() {
     ${statLine(p)}
     <div class="flex flex-wrap gap-2 mt-auto">
       ${p.type === 'bot'? `<button class="${btn2}" onclick="logsModal('${p.id}')">Logs</button><button class="${btn2}" onclick="envModal('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting'? `<button class="${btn2}" onclick="act('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="act('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="act('${p.id}','start')">Start</button>`}` : ''}
-      <button class="${btn2}!text-red-500" onclick="delProject('${p.id}')">Delete</button></div></div>`).join('')}</div>`;
+      <button class="${btn2} text-red-500" onclick="delProject('${p.id}')">Delete</button></div></div>`).join('')}</div>`;
 }
 function fmtUp(s) { if (!s) return '—'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d? `${d}d ${h}h` : h? `${h}h ${m}m` : `${m}m`; }
 function fmtB(b) { return b > 1048576? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
@@ -275,12 +300,12 @@ async function billingView() {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   const exp = me.paidUntil || me.trialEndsAt;
   $('#app').innerHTML = `<div class="max-w-xl mx-auto px-4 py-12"><h1 class="text-2xl font-bold mb-6">Billing</h1>
-    ${q.get('paid') === '1'? `<div class="${card} p-4 mb-4!border-emerald-500 text-sm">✅ Payment received! Your projects are coming back online.</div>` : q.get('paid') === '0'? `<div class="${card} p-4 mb-4!border-red-500 text-sm">Payment not confirmed yet. If you have paid, refresh in a minute.</div>` : ''}
+    ${q.get('paid') === '1'? `<div class="${card} p-4 mb-4 border-emerald-500 text-sm">✅ Payment received! Your projects are coming back online.</div>` : q.get('paid') === '0'? `<div class="${card} p-4 mb-4 border-red-500 text-sm">Payment not confirmed yet. If you have paid, refresh in a minute.</div>` : ''}
     <div class="${card} p-6 space-y-4"><div class="flex justify-between"><span class="text-zinc-500">Status</span>${badge(me.status === 'paid'? 'live' : me.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${me.status}<`)}</div>
     <div class="flex justify-between"><span class="text-zinc-500">Days left</span><b>${me.daysLeft}</b></div>
     <div class="flex justify-between"><span class="text-zinc-500">Expires</span><span>${exp? new Date(exp).toLocaleDateString() : '-'}</span></div>
     <div class="flex justify-between"><span class="text-zinc-500">Price</span><b>KES ${me.price} / month</b></div>
-    <button id="pay" class="${btn} w-full!py-3">Pay Now (M-Pesa / Card)</button>
+    <button id="pay" class="${btn} w-full py-3">Pay Now (M-Pesa / Card)</button>
     <p class="text-xs text-zinc-500">When you pay, 30 days are added on top of the days you have left.</p></div></div>`;
   $('#pay').onclick = async e => { e.target.disabled = true; try { const r = await api('/billing/pay', { method: 'POST' }); location.href = r.url; } catch (err) { toast(err.message, true); e.target.disabled = false; } };
 }
@@ -299,7 +324,7 @@ async function adminView() {
     <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days left</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
     ${d.users.map(u => `<tr class="border-t border-zinc-200 dark:border-zinc-900"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td} flex gap-2"><button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></td></tr>`).join('')}</table></div></section>
     <section><h2 class="font-semibold mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}"></th></tr>
-    ${d.projects.map(p => `<tr class="border-t border-zinc-200 dark:border-zinc-900"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td} flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy!== 'admin'}})">${p.suspendedBy === 'admin'? 'Resume' : 'Suspend'}</button><button class="${btn2}!text-red-500" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></td></tr>`).join('')}</table></div></section>
+    ${d.projects.map(p => `<tr class="border-t border-zinc-200 dark:border-zinc-900"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td} flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy!== 'admin'}})">${p.suspendedBy === 'admin'? 'Resume' : 'Suspend'}</button><button class="${btn2} text-red-500" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></td></tr>`).join('')}</table></div></section>
     <section><h2 class="font-semibold mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
     ${d.payments.map(p => `<tr class="border-t border-zinc-200 dark:border-zinc-900"><td class="${td}">${new Date(p.at).toLocaleString()}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${p.amount}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('') || `<tr><td class="${td} text-zinc-500" colspan=4>No payments yet</td></tr>`}</table></div></section></div>`;
 }
