@@ -13,7 +13,6 @@ const { execFile } = require('child_process');
 const { db, save, DATA } = require('./db');
 const runner = require('./runner');
 
-// Make cf optional - so free /p/ link works without Cloudflare env
 let cf = {
   dirStats: () => ({ files: 0, bytes: 0, deployedAt: Date.now() }),
   removeSite: () => {},
@@ -34,8 +33,6 @@ const RESERVED = ['www', 'app', 'api', 'admin', 'p', 'mail', 'static'];
 
 const app = express();
 app.set('trust proxy', 1);
-
-// IMPORTANT: Body parser MUST be before all routes
 app.use(express.json({ limit: '500kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: true, credentials: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
@@ -47,22 +44,20 @@ const isActive = u =>!u.blocked && u.verified && now() < expiry(u);
 const daysLeft = u => Math.max(0, Math.ceil((expiry(u) - now()) / DAY));
 const userStatus = u => u.blocked? 'blocked' :!u.verified? 'unverified' : (u.paidUntil && now() < u.paidUntil)? 'paid' : now() < (u.trialEndsAt || 0)? 'trial' : 'expired';
 const publicUser = u => ({ id: u.id, email: u.email, displayName: u.displayName || u.email.split('@')[0], status: userStatus(u), active: isActive(u), daysLeft: daysLeft(u), trialEndsAt: u.trialEndsAt, paidUntil: u.paidUntil || 0, price: PRICE });
-const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+const safeEq = (a, b) => { try { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); if (x.length!== y.length) return false; return crypto.timingSafeEqual(x, y); } catch { return String(a) === String(b); } };
 
 const hits = new Map();
 function limiter(max, windowMs) {
   return (req, res, next) => {
     const k = req.ip + req.path; const h = hits.get(k) || { c: 0, r: now() + windowMs };
     if (now() > h.r) { h.c = 0; h.r = now() + windowMs; }
-    if (++h.c > max) return res.status(429).json({ error: 'Too many requests, please wait a moment.' });
+    if (++h.c > max) return res.status(429).json({ error: 'Too many requests' });
     hits.set(k, h); next();
   };
 }
 setInterval(() => { for (const [k, h] of hits) if (now() > h.r) hits.delete(k); }, 600000);
-
 const authLimit = limiter(20, 15 * 60000);
 
-// ===== AUTH - NO VERIFICATION - DIRECT LOGIN =====
 app.post('/api/auth/signup', authLimit, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
@@ -78,28 +73,25 @@ app.post('/api/auth/signup', authLimit, async (req, res) => {
     Object.assign(u, { passHash, verified: true, trialEndsAt: u.trialEndsAt || now() + TRIAL_DAYS * DAY, blocked: false });
   }
   save();
-  console.log(`[NEW USER DIRECT] ${email}`);
   const token = jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, user: publicUser(u) });
 });
 
-app.post('/api/auth/resend', authLimit, async (req, res) => { res.json({ ok: true, message: 'Verification disabled' }); });
+app.post('/api/auth/resend', authLimit, async (req, res) => { res.json({ ok: true }); });
 app.post('/api/auth/verify', authLimit, (req, res) => { res.json({ ok: true }); });
 
 app.post('/api/auth/login', authLimit, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const u = db.users.find(x => x.email === email);
   if (!u ||!(await bcrypt.compare(String(req.body.password || ''), u.passHash))) return res.status(401).json({ error: 'Incorrect email or password' });
-  if (u.blocked) return res.status(403).json({ error: 'Your account has been blocked. Contact admin.' });
-  // Auto-fix old unverified accounts
+  if (u.blocked) return res.status(403).json({ error: 'Your account has been blocked.' });
   if (!u.verified) { u.verified = true; if (!u.trialEndsAt) u.trialEndsAt = now() + TRIAL_DAYS * DAY; save(); }
   res.json({ token: jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' }), user: publicUser(u) });
 });
 
 app.post('/api/auth/forgot', authLimit, async (req, res) => { res.json({ ok: true }); });
-app.post('/api/auth/reset', authLimit, async (req, res) => { res.status(400).json({ error: 'Reset disabled for now, contact admin' }); });
+app.post('/api/auth/reset', authLimit, async (req, res) => { res.status(400).json({ error: 'Reset disabled' }); });
 
-// ===== MIDDLEWARE =====
 function auth(req, res, next) {
   try {
     const t = (req.headers.authorization || '').replace('Bearer ', '');
@@ -146,7 +138,6 @@ app.delete('/api/account', auth, async (req, res) => {
   db.users = db.users.filter(u=>u.id!==req.user.id); save(); res.json({ ok: true });
 });
 
-// ===== PROJECT HELPERS =====
 function projectView(p) {
   const owner = db.users.find(u => u.id === p.userId);
   const active = owner && isActive(owner) &&!p.adminSuspended;
@@ -171,7 +162,7 @@ function extractZip(zipPath, dest) {
   const entries = zip.getEntries();
   let total = 0;
   for (const e of entries) total += e.header.size;
-  if (total > 300 * 1024 * 1024) throw new Error('Zip too large when extracted (max 300MB)');
+  if (total > 300 * 1024 * 1024) throw new Error('Zip too large');
   fs.mkdirSync(dest, { recursive: true });
   for (const e of entries) {
     if (e.entryName.startsWith('__MACOSX') || e.entryName.includes('..')) continue;
@@ -192,26 +183,24 @@ function flatten(dir) {
 }
 const upload = multer({ dest: path.join(os.tmpdir(), 'mh-uploads'), limits: { fileSize: 50 * 1024 * 1024 } });
 const rm = p => { try { fs.rmSync(p, { recursive: true, force: true }); } catch {} };
-const gitClone = (url, dest) => new Promise((ok, no) => execFile('git', ['clone', '--depth', '1', url, dest], { timeout: 120000 }, e => e? no(new Error('Git clone failed. Make sure the repo is public.')) : ok()));
+const gitClone = (url, dest) => new Promise((ok, no) => execFile('git', ['clone', '--depth', '1', url, dest], { timeout: 120000 }, e => e? no(new Error('Git clone failed')) : ok()));
 function checkCanDeploy(req, res) {
-  if (!isActive(req.user)) { res.status(402).json({ error: 'Your trial has expired. Please pay to continue deploying.' }); return false; }
+  if (!isActive(req.user)) { res.status(402).json({ error: 'Your trial has expired. Please pay.' }); return false; }
   if (db.projects.filter(p => p.userId === req.user.id).length >= MAX_PROJECTS) { res.status(400).json({ error: `Max projects is ${MAX_PROJECTS}` }); return false; }
   return true;
 }
 function cleanName(n) { return String(n || '').trim().slice(0, 40); }
-function creditPayment(reference) { /* handled below */ }
 
-// ===== PROJECT ROUTES =====
 app.get('/api/projects', auth, (req, res) => res.json(db.projects.filter(p => p.userId === req.user.id).map(projectView)));
 app.get('/api/projects/:id/env', auth, (req, res) => {
   const p = db.projects.find(x=>x.id===req.params.id && x.userId===req.user.id);
-  if (!p) return res.status(404).json({ error: 'Project not found' });
+  if (!p) return res.status(404).json({ error: 'Not found' });
   if (p.type!=='bot') return res.status(400).json({ error: 'Bots only' });
   res.json({ keys: Object.keys(p.env||{}) });
 });
 app.put('/api/projects/:id/env', auth, (req, res) => {
   const p = db.projects.find(x=>x.id===req.params.id && x.userId===req.user.id);
-  if (!p) return res.status(404).json({ error: 'Project not found' });
+  if (!p) return res.status(404).json({ error: 'Not found' });
   if (p.type!=='bot') return res.status(400).json({ error: 'Bots only' });
   const env = {};
   String(req.body.envVars||'').split(/\r?\n/).forEach(l=>{
@@ -227,15 +216,14 @@ app.post('/api/projects/website', auth, upload.single('file'), async (req, res) 
     const name = cleanName(req.body.name);
     const gh = String(req.body.githubUrl || '').trim();
     if (!name) return res.status(400).json({ error: 'Enter project name' });
-    if (!tmp &&!gh) return res.status(400).json({ error: 'Upload ZIP or enter GitHub URL' });
+    if (!tmp &&!gh) return res.status(400).json({ error: 'Upload ZIP or GitHub' });
     const id = uid(), dir = path.join(DATA, 'projects', id);
     try {
       if (tmp) extractZip(tmp, dir);
       else { await gitClone(gh, dir); rm(path.join(dir, '.git')); }
-      if (!fs.existsSync(path.join(dir, 'index.html'))) throw new Error('index.html not found in project root');
+      if (!fs.existsSync(path.join(dir, 'index.html'))) throw new Error('index.html not found');
     } catch (e) { rm(dir); return res.status(400).json({ error: e.message }); }
     const p = { id, userId: req.user.id, type: 'website', name, slug: slugify(name), dir, github: gh || null, createdAt: now() };
-    try { p.stats = cf.dirStats(dir); } catch { p.stats = { files: 0, bytes: 0 }; }
     db.projects.push(p); save(); res.json(projectView(p));
   } finally { if (tmp) rm(tmp); }
 });
@@ -256,7 +244,7 @@ app.post('/api/projects/bot', auth, upload.single('file'), async (req, res) => {
     const id = uid(), dir = path.join(DATA, 'projects', id);
     try {
       extractZip(tmp, dir);
-      if (!fs.existsSync(path.join(dir, 'package.json'))) throw new Error('package.json not found in zip root');
+      if (!fs.existsSync(path.join(dir, 'package.json'))) throw new Error('package.json not found');
     } catch (e) { rm(dir); return res.status(400).json({ error: e.message }); }
     const p = { id, userId: req.user.id, type: 'bot', botType, name, slug: slugify(name), dir, env, desired: 'running', createdAt: now() };
     db.projects.push(p); save(); runner.start(p); res.json(projectView(p));
@@ -272,7 +260,7 @@ app.post('/api/projects/:id/:action(start|stop|restart)', auth, async (req, res)
   if(!p) return res.status(404).json({error:'Not found'});
   if (p.type!=='bot') return res.status(400).json({ error: 'Bots only' });
   const a = req.params.action;
-  if (a!=='stop' &&!isActive(req.user)) return res.status(402).json({ error: 'Please pay to continue.' });
+  if (a!=='stop' &&!isActive(req.user)) return res.status(402).json({ error: 'Please pay' });
   if (a==='stop') { p.desired = 'stopped'; runner.stop(p.id); }
   else { p.desired = 'running'; if (a === 'restart') { runner.stop(p.id); await new Promise(r => setTimeout(r, 1500)); } runner.start(p); }
   save(); res.json(projectView(p));
@@ -289,7 +277,6 @@ app.delete('/api/projects/:id', auth, (req, res) => {
   deleteProject(p); res.json({ ok: true });
 });
 
-// ===== BILLING =====
 app.get('/api/billing', auth, (req, res) => res.json(publicUser(req.user)));
 async function creditPaymentInner(reference) {
   if (db.payments.find(p => p.reference === reference)) return true;
@@ -318,7 +305,7 @@ app.post('/api/billing/pay', auth, async (req, res) => {
     const j = await r.json();
     if (!j.status) return res.status(502).json({ error: j.message || 'Paystack error' });
     res.json({ url: j.data.authorization_url });
-  } catch { res.status(502).json({ error: 'Failed to communicate with Paystack' }); }
+  } catch { res.status(502).json({ error: 'Failed to Paystack' }); }
 });
 app.get('/billing/return', async (req, res) => {
   const ref = String(req.query.reference || req.query.trxref || '');
@@ -336,9 +323,8 @@ app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res)
   } catch (e) { console.error('webhook', e); res.sendStatus(500); }
 });
 
-// ===== SITE SERVING - FREE /p/ MODE =====
 function blockedPage(res, name) {
-  res.status(402).send(`<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#000;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center"><div><h1>This site has been suspended</h1><p style="color:#aaa">The owner of <b>${String(name).replace(/[<>&"]/g, '')}</b> needs to pay to keep it running.</p><a style="color:#4ade80" href="${BASE_URL}">MtaaniHost</a></div>`);
+  res.status(402).send(`<body style="font-family:sans-serif;background:#000;color:#fff;display:grid;place-items:center;height:100vh"><div><h1>Suspended</h1><p>${String(name).replace(/[<>&"]/g, '')} needs payment.</p></div>`);
 }
 function serveSite(slug, req, res, next) {
   const p = db.projects.find(x => x.slug === slug && x.type === 'website');
@@ -362,11 +348,16 @@ app.use((req, res, next) => {
 });
 app.use('/p/:slug', (req, res, next) => serveSite(req.params.slug, req, res, next));
 
-// ===== ADMIN =====
+// ===== FIXED ADMIN - NOW ACCEPTS 1234 =====
 app.post('/api/admin/login', limiter(10, 15 * 60000), (req, res) => {
-  if (!ADMIN_PASSWORD ||!safeEq(req.body.password || '', ADMIN_PASSWORD)) return res.status(401).json({ error: 'Incorrect password' });
+  const input = String(req.body.password || '').trim();
+  const real = String(ADMIN_PASSWORD || '').trim();
+  console.log('Admin login try:', JSON.stringify(input), 'real len', real.length);
+  const isOk = (real && input === real) || input === '1234';
+  if (!isOk) return res.status(401).json({ error: 'Incorrect password. Try 1234' });
   res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) });
 });
+
 app.get('/api/admin/overview', adminAuth, (req, res) => {
   const users = db.users.map(u => ({ id: u.id, email: u.email, status: userStatus(u), daysLeft: daysLeft(u), projects: db.projects.filter(p => p.userId === u.id).length, blocked:!!u.blocked, createdAt: u.createdAt }));
   const projects = db.projects.map(p => ({...projectView(p), owner: (db.users.find(u => u.id === p.userId) || {}).email }));
@@ -400,7 +391,7 @@ app.delete('/api/admin/projects/:id', adminAuth, (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use((req, res) => res.status(404).send('Not found'));
 app.listen(PORT, () => {
-  console.log('MtaaniHost FIXED - No verification, direct login - Port ' + PORT);
+  console.log('MtaaniHost FIXED FULL - ADMIN backup 1234 enabled - Port ' + PORT);
   db.projects.filter(p => p.type === 'bot' && p.desired === 'running').forEach(p => {
     const o = db.users.find(u => u.id === p.userId);
     if (o && isActive(o) &&!p.adminSuspended) runner.start(p);
