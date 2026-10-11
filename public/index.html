@@ -1,1192 +1,501 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MtaaniHost — Deploy websites and bots in Kenya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    />
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-      body {
-        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-        overflow-x: hidden;
-        background-color: #f9fafb;
-      }
-      .sidebar {
-        width: 220px;
-        transition: all 0.3s ease;
-      }
-      .main-content {
-        flex: 1;
-        min-height: calc(100vh - 64px);
-        overflow-y: auto;
-      }
-      .dropdown-menu {
-        display: none;
-        position: absolute;
-        right: 0;
-        top: 100%;
-        z-index: 50;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.5rem;
-        width: 16rem;
-        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1),
-          0 4px 6px -2px rgb(0 0 0 / 0.05);
-      }
-      .dropdown-menu.active {
-        display: block;
-      }
-      .dropdown-menu a,
-      .dropdown-menu button {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
-        color: #374151;
-        text-decoration: none;
-        cursor: pointer;
-        border-radius: 0.375rem;
-        transition: background-color 0.15s ease;
-        width: 100%;
-        border: none;
-        background: none;
-      }
-      .dropdown-menu a:hover,
-      .dropdown-menu button:hover {
-        background-color: #f3f4f6;
-        color: #059669;
-      }
-      .dropdown-menu hr {
-        margin: 0.25rem 0;
-        border-color: #e5e7eb;
-      }
-      .active-tab {
-        background-color: #d1fae5;
-        color: #059669;
-        font-weight: 600;
-      }
-      @media (max-width: 768px) {
-        .sidebar {
-          position: fixed;
-          left: -220px;
-          top: 64px;
-          height: calc(100vh - 64px);
-          background: white;
-          box-shadow: 2px 0 8px rgb(0 0 0 / 0.1);
-          z-index: 100;
-        }
-        .sidebar.active {
-          left: 0;
-        }
-        .main-content {
-          min-height: auto;
-          width: 100%;
-        }
-      }
-      footer {
-        background: white;
-        border-top: 1px solid #e5e7eb;
-        padding: 2.5rem 1.5rem;
-        font-size: 0.875rem;
-        color: #6b7280;
-      }
-      footer a:hover {
-        color: #059669;
-      }
-      footer .footer-grid {
-        max-width: 1280px;
-        margin: 0 auto;
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 2rem;
-      }
-      @media (min-width: 768px) {
-        footer .footer-grid {
-          grid-template-columns: repeat(4, 1fr);
-        }
-      }
-      footer .footer-column h4 {
-        font-weight: 600;
-        margin-bottom: 1rem;
-        color: #111827;
-      }
-      footer .footer-column ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-      }
-      footer .footer-column ul li {
-        margin-bottom: 0.5rem;
-      }
-      .btn-secondary {
-        background-color: transparent;
-        border: 1px solid #d1d5db;
-        color: #374151;
-        padding: 0.375rem 0.75rem;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        cursor: pointer;
-        transition: background-color 0.15s ease;
-      }
-      .btn-secondary:hover {
-        background-color: #d1fae5;
-        border-color: #10b981;
-        color: #065f46;
-      }
-      .btn-danger {
-        background-color: transparent;
-        border: 1px solid #ef4444;
-        color: #b91c1c;
-        padding: 0.375rem 0.75rem;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        cursor: pointer;
-        transition: background-color 0.15s ease;
-      }
-      .btn-danger:hover {
-        background-color: #fee2e2;
-        border-color: #b91c1c;
-        color: #991b1b;
-      }
-      /* Toast animations */
-      @keyframes fadein {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes fadeout {
-        from { opacity: 1; transform: translateY(0); }
-        to { opacity: 0; transform: translateY(10px); }
-      }
-      .animate-fadein {
-        animation: fadein 0.3s ease forwards;
-      }
-      .animate-fadeout {
-        animation: fadeout 0.3s ease forwards;
-      }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MtaaniHost — Deploy websites and bots in Kenya</title>
+<meta name="description" content="Host your website or WhatsApp, Telegram and Discord bots in Kenya. Free trial, pay with M-Pesa.">
+<script>
+  // Tailwind must be told to use the "dark" class, otherwise the theme button does nothing.
+  tailwind = { config: { darkMode: 'class' } };
+  if (localStorage.getItem('mh_theme') === 'dark') document.documentElement.classList.add('dark');
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<style>
+  body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+  .grad-text{background:linear-gradient(90deg,#10b981,#06b6d4,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .grad-bg{background:linear-gradient(135deg,#10b981,#06b6d4 55%,#8b5cf6)}
+  .glow{box-shadow:0 12px 40px -12px rgba(16,185,129,.55)}
+  .hero-bg{background:radial-gradient(55rem 26rem at 15% -10%,rgba(16,185,129,.25),transparent),radial-gradient(50rem 26rem at 95% 0%,rgba(139,92,246,.25),transparent),radial-gradient(40rem 20rem at 50% 100%,rgba(6,182,212,.16),transparent)}
+  .lift{transition:transform .2s,border-color .2s}.lift:hover{transform:translateY(-3px);border-color:rgba(16,185,129,.6)}
+  details>summary::-webkit-details-marker{display:none}
+  @keyframes fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .fadein{animation:fadein .25s ease}
+</style>
 </head>
-<body class="flex flex-col min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
+<body class="bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
+<div id="root" class="flex flex-col flex-1 min-h-screen"></div>
+<div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 max-w-xs"></div>
+<div id="modal"></div>
 
-  <!-- Header -->
-  <header
-    class="sticky top-0 z-40 bg-white dark:bg-black border-b border-gray-200 dark:border-gray-900 flex items-center justify-between px-4 h-16"
-  >
-    <div class="flex items-center gap-4">
-      <button
-        onclick="toggleSidebar()"
-        class="md:hidden text-gray-600 dark:text-gray-300 focus:outline-none"
-        aria-label="Toggle sidebar"
-      >
-        <i class="fas fa-bars fa-lg"></i>
-      </button>
-      <a href="#/" class="flex items-center gap-2 font-semibold text-lg">
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          class="text-emerald-600 dark:text-emerald-400"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path d="M12 2L22 20H2L12 2Z" fill="currentColor" />
-          <path d="M12 9L16.5 17H7.5L12 9Z" fill="#10b981" />
-        </svg>
-        <span>MtaaniHost</span>
-      </a>
+<script>
+/* ===================== config & state ===================== */
+const SUPPORT_WHATSAPP = ''; // optional: your number like 2547XXXXXXXX (shows a WhatsApp support link)
+// Same origin when served from Render/localhost, otherwise talk to the Render backend (needs CORS_ORIGINS on the server)
+const API_BASE = (typeof window.MH_API === 'string') ? window.MH_API
+  : (/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname) ? '' : 'https://mtaani-hosting.onrender.com');
+
+let token = localStorage.getItem('mh_token');
+let atoken = sessionStorage.getItem('mh_admin');
+let me = null, health = null, pollT = null, ghKind = 'website';
+let cfg = { price: 130, trialDays: 7 };
+let pendingEmail = localStorage.getItem('mh_pending') || '';
+
+/* ===================== helpers ===================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inp = 'w-full rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500';
+const btn = 'grad-bg inline-flex items-center justify-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50';
+const btn2 = 'inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:border-emerald-500';
+const btnDanger = 'inline-flex items-center justify-center gap-2 rounded-lg border border-red-400 text-red-600 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-500/10';
+const card = 'rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900';
+const ddItem = 'flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:text-emerald-600 cursor-pointer';
+const logo = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><path d="M12 2 22 20H2L12 2Z" fill="url(#lg1)"/><path d="M12 9l4.5 8h-9L12 9Z" fill="#fff" fill-opacity=".9"/></svg>`;
+
+function toast(msg, bad) {
+  const box = $('#toast-container'); if (!box) return;
+  const d = document.createElement('div');
+  d.className = `rounded-lg px-4 py-3 text-sm shadow-lg text-white fadein ${bad ? 'bg-red-600' : 'bg-emerald-600'}`;
+  d.textContent = msg; box.appendChild(d); setTimeout(() => d.remove(), 4000);
+}
+async function api(p, o = {}, t = token) {
+  const fd = o.body instanceof FormData;
+  const h = fd ? {} : { 'Content-Type': 'application/json' };
+  if (t) h.Authorization = 'Bearer ' + t;
+  let r;
+  try { r = await fetch(API_BASE + '/api' + p, { ...o, headers: h, body: o.body && !fd ? JSON.stringify(o.body) : o.body }); }
+  catch { throw new Error('Cannot reach the server. Check your internet or try again in a minute (free servers wake up slowly).'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.error || 'Something went wrong'); e.status = r.status; e.data = j; throw e; }
+  return j;
+}
+function setTheme(d) { document.documentElement.classList.toggle('dark', d); localStorage.setItem('mh_theme', d ? 'dark' : 'light'); }
+function toggleTheme() { setTheme(!document.documentElement.classList.contains('dark')); }
+function logout() { token = null; me = null; localStorage.removeItem('mh_token'); location.hash = '#/'; }
+async function loadCfg() { try { cfg = await api('/config', {}, null); } catch {} }
+async function loadMe() { if (!token) return null; try { me = await api('/me'); } catch (e) { if (e.status === 401) { token = null; localStorage.removeItem('mh_token'); } me = null; } return me; }
+async function requireAuth() {
+  if (await loadMe()) return true;
+  if (token) { // still have a token but the server did not answer (e.g. free server waking up): do not bounce to login
+    publicShell(`<div class="max-w-md mx-auto px-4 py-24 text-center"><div class="text-4xl mb-3">⏳</div><h1 class="text-xl font-bold mb-2">The server is waking up</h1><p class="text-sm text-gray-500 mb-6">Free servers sleep when idle and can take up to a minute to start. Please try again.</p><button class="${btn}" onclick="route()">Try again</button></div>`);
+    return false;
+  }
+  location.hash = '#/login'; return false;
+}
+function goTo(id) {
+  const scroll = () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  if (location.hash && location.hash !== '#/') { location.hash = '#/'; setTimeout(scroll, 150); } else scroll();
+}
+const statusHtml = () => health === null ? 'Checking system…' : health.ok ? '<span class="text-emerald-500">●</span> API online' : '<span class="text-red-500">●</span> API unreachable';
+async function checkHealth() { try { health = await api('/health', {}, null); } catch { health = { ok: false }; } const el = $('#apiStatus'); if (el) el.innerHTML = statusHtml(); }
+function fmtUp(s) { if (!s) return '—'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; }
+function fmtB(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB'; }
+const badge = s => { const c = { live: 'emerald', running: 'emerald', starting: 'amber', stopped: 'zinc', suspended: 'red' }[s] || 'zinc'; return `<span class="rounded-full px-2 py-0.5 text-xs bg-${c}-500/15 text-${c}-500 border border-${c}-500/30">${esc(s)}</span>`; };
+
+/* ===================== shells ===================== */
+function headerHtml(mode) {
+  const themeBtn = `<button onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme" class="h-9 w-9 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 grid place-items-center"><i class="fas fa-adjust"></i></button>`;
+  const lk = 'hidden sm:block px-2 text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer text-sm';
+  let right = '', left = '';
+  if (mode === 'app') {
+    left = `<button onclick="toggleSidebar()" class="md:hidden h-9 w-9 grid place-items-center text-gray-600 dark:text-gray-300" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></button>`;
+    const nm = me?.displayName || me?.email || '?';
+    right = `${themeBtn}<div class="relative">
+      <button id="settingsBtn" onclick="toggleSettings(event)" aria-haspopup="true" class="flex items-center gap-2 rounded-full border border-gray-200 dark:border-zinc-700 pl-1 pr-3 py-1 hover:bg-gray-100 dark:hover:bg-zinc-800"><span class="h-8 w-8 rounded-full grad-bg text-white grid place-items-center text-sm font-bold">${esc(nm[0].toUpperCase())}</span><i class="fas fa-cog text-gray-500"></i></button>
+      <div id="settingsDropdown" class="hidden absolute right-0 top-full mt-2 w-64 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-2 z-50">
+        <div class="px-3 py-2 mb-1 border-b border-gray-200 dark:border-zinc-700"><div class="font-semibold text-sm truncate">${esc(nm)}</div><div class="text-xs text-gray-500 truncate">${esc(me?.email || '')}</div></div>
+        <a class="${ddItem}" href="#/profile"><i class="fas fa-user w-4"></i> My Profile</a>
+        <a class="${ddItem}" href="#/settings"><i class="fas fa-cog w-4"></i> Settings</a>
+        <a class="${ddItem}" href="#/billing"><i class="fas fa-credit-card w-4"></i> Billing &amp; Payments</a>
+        <button class="${ddItem}" onclick="toggleTheme()"><i class="fas fa-adjust w-4"></i> Switch Dark / Light</button>
+        <div class="my-1 border-t border-gray-200 dark:border-zinc-700"></div>
+        <button class="${ddItem} !text-red-600" onclick="logout()"><i class="fas fa-sign-out-alt w-4"></i> Logout</button>
+      </div></div>`;
+  } else if (mode === 'admin') {
+    right = `${themeBtn}${atoken ? `<button class="${btn2}" onclick="adminLogout()">Admin logout</button>` : ''}<a class="${btn2}" href="#/">Home</a>`;
+  } else {
+    right = `<a class="${lk}" onclick="goTo('features')">Features</a><a class="${lk}" onclick="goTo('how')">How it works</a><a class="${lk}" onclick="goTo('pricing')">Pricing</a><a class="${lk}" onclick="goTo('faq')">FAQ</a>${themeBtn}
+      ${token ? `<a class="${btn}" href="#/dashboard">Dashboard</a>` : `<a class="${btn2}" href="#/login">Login</a><a class="${btn}" href="#/signup">Sign Up</a>`}`;
+  }
+  return `<header class="sticky top-0 z-40 backdrop-blur border-b border-gray-200 dark:border-zinc-800 bg-white/85 dark:bg-zinc-950/85">
+    <div class="px-4 h-16 flex items-center justify-between gap-2 ${mode === 'public' ? 'max-w-6xl mx-auto' : ''}">
+      <div class="flex items-center gap-2">${left}<a href="#/" class="flex items-center gap-2 font-bold text-lg">${logo}<span>Mtaani<span class="grad-text">Host</span></span></a></div>
+      <div class="flex items-center gap-2">${right}</div></div></header>`;
+}
+function footerHtml() {
+  const h4 = 'font-semibold text-gray-900 dark:text-gray-100 mb-3';
+  return `<footer class="border-t border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-10 text-sm text-gray-500">
+    <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div><h4 class="${h4}">MtaaniHost</h4><p>Deploy websites and bots in Kenya with ease.</p></div>
+      <div><h4 class="${h4}">How it works</h4><ul class="space-y-2"><li>1. Sign up and verify your email</li><li>2. Upload a ZIP or import from GitHub</li><li>3. Share your live link</li></ul></div>
+      <div><h4 class="${h4}">Pricing</h4><p>KES ${esc(cfg.price)} per month after a ${esc(cfg.trialDays)}-day free trial.</p></div>
+      <div><h4 class="${h4}">Support</h4><ul class="space-y-2"><li><a class="hover:text-emerald-600 cursor-pointer" onclick="goTo('faq')">FAQ</a></li><li><a class="hover:text-emerald-600" href="#/billing">Billing</a></li>${SUPPORT_WHATSAPP ? `<li><a class="hover:text-emerald-600" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}" target="_blank" rel="noopener">WhatsApp support</a></li>` : ''}<li><a class="hover:text-emerald-600" href="#/admin">Admin</a></li></ul></div>
     </div>
+    <div class="mt-8 text-center text-xs">© ${new Date().getFullYear()} MtaaniHost · Nairobi, Kenya · <span id="apiStatus">${statusHtml()}</span></div></footer>`;
+}
+const NAV = [
+  ['dashboard', 'fas fa-layer-group', 'Projects', '#/dashboard'],
+  ['deploy-website', 'fas fa-globe', 'Deploy Website', '#/deploy/website'],
+  ['deploy-bot', 'fas fa-robot', 'Deploy Bot', '#/deploy/bot'],
+  ['github', 'fab fa-github', 'GitHub Import', '#/github'],
+  ['billing', 'fas fa-credit-card', 'Billing', '#/billing'],
+  ['profile', 'fas fa-user', 'Profile', '#/profile'],
+  ['settings', 'fas fa-cog', 'Settings', '#/settings']
+];
+function appShell(active, inner) {
+  const items = NAV.map(n => `<a href="${n[3]}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${n[0] === active ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800'}"><i class="${n[1]} w-4 text-center"></i> ${n[2]}</a>`).join('');
+  $('#root').innerHTML = `${headerHtml('app')}
+    <div class="flex flex-1 min-h-0">
+      <aside id="sidebar" class="fixed md:static top-16 bottom-0 left-0 z-30 w-56 shrink-0 -translate-x-full md:translate-x-0 transition-transform bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 shadow-lg md:shadow-none"><nav class="p-3 space-y-1">${items}</nav></aside>
+      <main class="flex-1 min-w-0 p-4 sm:p-6 fadein">${inner}</main>
+    </div>${footerHtml()}`;
+}
+function publicShell(inner) { $('#root').innerHTML = `${headerHtml('public')}<main class="flex-1 fadein">${inner}</main>${footerHtml()}`; }
+function adminShell(inner) { $('#root').innerHTML = `${headerHtml('admin')}<main class="flex-1 p-4 sm:p-6 fadein">${inner}</main>${footerHtml()}`; }
+function toggleSidebar() { $('#sidebar')?.classList.toggle('-translate-x-full'); }
+function toggleSettings(ev) { ev?.stopPropagation(); $('#settingsDropdown')?.classList.toggle('hidden'); }
+document.addEventListener('click', e => {
+  const dd = $('#settingsDropdown');
+  if (dd && !e.target.closest('#settingsDropdown') && !e.target.closest('#settingsBtn')) dd.classList.add('hidden');
+});
 
-    <div class="relative flex items-center gap-4">
-      <button
-        onclick="toggleTheme()"
-        title="Toggle Dark/Light Theme"
-        class="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-        aria-label="Toggle theme"
-      >
-        <i class="fas fa-adjust"></i>
-      </button>
+/* ===================== public pages ===================== */
+function landing() {
+  const T = cfg.trialDays, P = cfg.price;
+  const feats = [
+    ['🌐', 'Static website hosting', 'Upload a ZIP of your HTML, CSS and JavaScript, or paste a public GitHub link. Your site goes live on its own address in seconds, with HTTPS included.', 'emerald'],
+    ['🤖', 'Bots that never sleep', 'Run WhatsApp (Baileys), Telegram and Discord bots 24/7. We install your packages, start your bot and restart it automatically if it crashes.', 'violet'],
+    ['🔗', 'Your own free link', 'Every website gets a clean link like yourname.mtaanihost.dev. Share it on WhatsApp, Instagram or print it on your business card.', 'cyan'],
+    ['📊', 'Live logs and stats', 'See whether each project is online, how long your bot has been running, how many times it restarted, and read its logs in real time.', 'amber'],
+    ['🔐', 'Secret keys stay secret', 'Add bot tokens as environment variables. Values are hidden after you save them and are never shown to anyone else.', 'rose'],
+    ['💳', 'Pay the Kenyan way', 'Pay with M-Pesa or your card through Paystack. The moment your payment is confirmed, your projects come back online automatically.', 'emerald'],
+    ['✉️', 'Verified accounts', 'Every account is verified with a 6-digit code sent to your email, so your projects are tied to a real owner.', 'cyan'],
+    ['🛡️', 'Fair and controlled', 'Admins can pause any project that breaks the rules. Your projects are never deleted just because a payment is late. They are paused until you pay.', 'violet']
+  ];
+  const steps = [
+    ['1', 'Create your account', 'Sign up with your email and password. We send a verification code, you enter it, and your free trial starts immediately.'],
+    ['2', 'Upload and deploy', 'Choose Deploy Website or Deploy Bot, give it a name, upload your ZIP (or a GitHub link) and press Deploy.'],
+    ['3', 'Share it with the world', 'Copy your link, send it to customers and friends, and watch your project stats from your dashboard.']
+  ];
+  const uses = [
+    ['🎓', 'Students and learners', 'Host your portfolio, school project or first website without paying a fortune.'],
+    ['🏪', 'Small businesses', 'Put your shop, salon, church or event page online and let customers find you.'],
+    ['⚙️', 'Bot developers', 'Keep your WhatsApp and Telegram bots running day and night, even when your phone is off.'],
+    ['👥', 'Communities and teams', 'Run a Discord bot for your group, or a simple site for your team and chama.']
+  ];
+  const faqs = [
+    ['What can I deploy on MtaaniHost?', 'Static websites (HTML, CSS and JavaScript, uploaded as a ZIP or pulled from a public GitHub repository) and Node.js bots for WhatsApp (Baileys), Telegram and Discord.'],
+    ['How does the free trial work?', `When you verify your email you get ${T} days free. You can deploy anything during the trial and no card is needed.`],
+    ['How much does it cost after the trial?', `KES ${P} per month, paid with M-Pesa or card through Paystack. Each payment adds 30 days to your account. If you pay early, the days are added on top of what you have left.`],
+    ['What happens if I stop paying?', 'Your websites show a "suspended" page and your bots are stopped, but nothing is deleted. As soon as you pay, everything comes back online automatically.'],
+    ['Does my bot need a special setup?', 'Your project must contain a package.json in its root. We run npm install, then npm start (or your main file). Add tokens as environment variables from the Env button on your project.'],
+    ['Is my account safe?', 'Passwords are stored encrypted, your email is verified, and your secret keys are hidden once saved. Never share your password or bot tokens with anyone.']
+  ];
+  const col = { emerald: 'bg-emerald-500/15 text-emerald-500', violet: 'bg-violet-500/15 text-violet-500', cyan: 'bg-cyan-500/15 text-cyan-500', amber: 'bg-amber-500/15 text-amber-500', rose: 'bg-rose-500/15 text-rose-500' };
+  publicShell(`
+  <section class="hero-bg"><div class="max-w-5xl mx-auto px-4 pt-20 pb-24 text-center">
+    <span class="inline-block rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1 text-xs font-medium text-emerald-600 mb-6">🇰🇪 Built in Kenya · ${esc(T)} days free · Pay with M-Pesa</span>
+    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight">Deploy your website or bot <span class="grad-text">in minutes</span></h1>
+    <p class="mt-6 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Like Vercel and Render, but made for Kenya. Upload your files, get a live link, keep your bots running 24/7 and pay simply with M-Pesa. No dollars, no stress.</p>
+    <div class="mt-10 flex flex-wrap gap-3 justify-center"><a href="#/signup" class="${btn} glow !px-7 !py-3 text-base">Deploy website or bot</a><a href="#/login" class="${btn2} !px-7 !py-3 text-base">Login</a></div>
+    <p class="mt-4 text-xs text-gray-500">No card needed to start · Cancel any time</p>
+    <div class="mt-14 max-w-2xl mx-auto text-left rounded-2xl border border-zinc-800 bg-zinc-950 glow overflow-hidden">
+      <div class="flex gap-1.5 px-4 py-3 border-b border-zinc-800"><span class="h-3 w-3 rounded-full bg-red-500"></span><span class="h-3 w-3 rounded-full bg-amber-400"></span><span class="h-3 w-3 rounded-full bg-emerald-500"></span><span class="ml-3 text-xs text-zinc-500">deploy</span></div>
+      <pre class="p-5 text-xs sm:text-sm text-emerald-300 overflow-x-auto leading-relaxed">$ upload mybiz.zip
+✔ Extracted 24 files
+✔ Deployed to the edge network
+🌍 Live at https://mybiz.mtaanihost.dev</pre></div>
+  </div></section>
 
-      <button
-        id="settingsBtn"
-        onclick="toggleSettings()"
-        aria-haspopup="true"
-        aria-expanded="false"
-        title="Settings"
-        class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-      >
-        <i class="fas fa-cog text-gray-600 dark:text-gray-300"></i>
-      </button>
+  <section class="max-w-6xl mx-auto px-4 -mt-8 relative z-10"><div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    ${[['60s', 'Average time to go live', 'text-emerald-500'], ['24/7', 'Bots that keep running', 'text-violet-500'], ['KES ' + P, 'Per month, all included', 'text-cyan-500'], ['M-Pesa', 'and cards via Paystack', 'text-amber-500']].map(s => `<div class="${card} p-5 text-center shadow-lg"><div class="text-2xl sm:text-3xl font-extrabold ${s[2]}">${esc(s[0])}</div><div class="text-xs text-gray-500 mt-1">${s[1]}</div></div>`).join('')}
+  </div></section>
 
-      <!-- Settings Dropdown -->
-      <div
-        id="settingsDropdown"
-        class="dropdown-menu"
-        role="menu"
-        aria-labelledby="settingsBtn"
-      >
-        <a href="#/profile" role="menuitem"><i class="fas fa-user"></i> My Profile</a>
-        <a href="#/change-password" role="menuitem"><i class="fas fa-key"></i> Change Password</a>
-        <a href="#/billing" role="menuitem"><i class="fas fa-credit-card"></i> Billing & Payments</a>
-        <a href="#/notifications" role="menuitem"><i class="fas fa-bell"></i> Notifications</a>
-        <button
-          onclick="toggleTheme(); toggleSettings();"
-          role="menuitem"
-          class="flex items-center justify-between w-full"
-        >
-          <span><i class="fas fa-adjust"></i> Dark/Light Theme</span>
-          <input
-            type="checkbox"
-            id="themeToggle"
-            class="cursor-pointer"
-            readonly
-            tabindex="-1"
-          />
-        </button>
-        <a href="#/language" role="menuitem"><i class="fas fa-language"></i> Language</a>
-        <a href="#/api-keys" role="menuitem"><i class="fas fa-key"></i> API Keys</a>
-        <a href="#/custom-domains" role="menuitem"><i class="fas fa-globe"></i> Custom Domains</a>
-        <a href="#/environment-variables" role="menuitem"><i class="fas fa-code"></i> Environment Variables</a>
-        <a href="#/backups" role="menuitem"><i class="fas fa-database"></i> Backups</a>
-        <a href="#/security" role="menuitem"><i class="fas fa-shield-alt"></i> Security</a>
-        <a href="#/two-factor-auth" role="menuitem"><i class="fas fa-lock"></i> Two-Factor Auth</a>
-        <a href="#/team-members" role="menuitem"><i class="fas fa-users"></i> Team Members</a>
-        <form
-          id="deleteAccountForm"
-          class="px-4 py-2"
-          onsubmit="return confirmDeleteAccount(event)"
-          role="menuitem"
-        >
-          <label for="deletePassword" class="block text-xs mb-1 text-red-600 font-semibold"
-            >Delete Account (password required)</label
-          >
-          <input
-            type="password"
-            id="deletePassword"
-            placeholder="Enter password"
-            required
-            class="w-full rounded-md border border-red-400 px-2 py-1 text-sm mb-2"
-          />
-          <button
-            type="submit"
-            class="w-full text-red-600 border border-red-600 rounded-md py-1 hover:bg-red-50 transition"
-          >
-            Delete Account
-          </button>
-        </form>
-        <button
-          onclick="logout()"
-          role="menuitem"
-          class="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 flex items-center gap-3"
-        >
-          <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
-      </div>
+  <section id="features" class="max-w-6xl mx-auto px-4 py-24">
+    <div class="text-center mb-14"><p class="text-sm font-semibold text-emerald-600">FEATURES</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Everything you need to go online</h2><p class="mt-4 text-gray-500 max-w-2xl mx-auto">From your first web page to a bot serving thousands of chats, MtaaniHost gives you the tools without the complicated setup.</p></div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${feats.map(f => `<div class="${card} lift p-6"><div class="h-12 w-12 rounded-xl ${col[f[3]]} grid place-items-center text-2xl mb-4">${f[0]}</div><h3 class="font-semibold mb-2">${f[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${f[2]}</p></div>`).join('')}</div>
+  </section>
+
+  <section id="how" class="bg-white dark:bg-zinc-900/40 border-y border-gray-200 dark:border-zinc-800"><div class="max-w-6xl mx-auto px-4 py-24">
+    <div class="text-center mb-14"><p class="text-sm font-semibold text-violet-600">HOW IT WORKS</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Live in three simple steps</h2></div>
+    <div class="grid md:grid-cols-3 gap-6">${steps.map(s => `<div class="${card} p-8 text-center lift"><div class="mx-auto h-14 w-14 rounded-full grad-bg text-white text-xl font-extrabold grid place-items-center mb-5 glow">${s[0]}</div><h3 class="font-semibold text-lg mb-2">${s[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${s[2]}</p></div>`).join('')}</div>
+  </div></section>
+
+  <section class="max-w-6xl mx-auto px-4 py-24">
+    <div class="text-center mb-14"><p class="text-sm font-semibold text-cyan-600">WHO IT IS FOR</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Built for everyone online in Kenya</h2></div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${uses.map(u => `<div class="${card} p-6 lift"><div class="text-3xl mb-3">${u[0]}</div><h3 class="font-semibold mb-1">${u[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${u[2]}</p></div>`).join('')}</div>
+  </section>
+
+  <section id="pricing" class="hero-bg"><div class="max-w-6xl mx-auto px-4 py-24">
+    <div class="text-center mb-14"><p class="text-sm font-semibold text-amber-600">PRICING</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">One simple price</h2><p class="mt-4 text-gray-500">Start free, then pay only when you are ready.</p></div>
+    <div class="grid sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+      <div class="${card} p-8"><h3 class="font-semibold text-lg">Free trial</h3><p class="text-5xl font-extrabold mt-4">KES 0</p><p class="text-gray-500 text-sm mt-1">for ${esc(T)} days</p>
+        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Deploy websites and bots</li><li>✓ Free yourname.mtaanihost.dev link</li><li>✓ Live logs and stats</li><li>✓ No card required</li></ul><a href="#/signup" class="${btn2} w-full mt-8 !py-3">Start free</a></div>
+      <div class="${card} p-8 !border-emerald-500 relative glow"><span class="absolute -top-3 right-6 grad-bg text-white text-xs font-semibold rounded-full px-3 py-1">Most popular</span><h3 class="font-semibold text-lg">Monthly plan</h3><p class="text-5xl font-extrabold mt-4 grad-text">KES ${esc(P)}</p><p class="text-gray-500 text-sm mt-1">per month</p>
+        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Everything in the free trial</li><li>✓ Websites and bots online 24/7</li><li>✓ Pay with M-Pesa or card</li><li>✓ Back online automatically after you pay</li></ul><a href="#/signup" class="${btn} w-full mt-8 !py-3">Get started</a></div>
     </div>
-  </header>
+  </div></section>
 
-  <div class="flex flex-1 min-h-0">
-    <!-- Sidebar -->
-    <aside
-      id="sidebar"
-      class="sidebar bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0"
-    >
-      <nav class="p-4 space-y-1 overflow-y-auto flex-1">
-        <button
-          id="tab-projects"
-          onclick="showTab('projects')"
-          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
-          aria-current="page"
-        >
-          <i class="fas fa-layer-group w-4"></i> Projects
-        </button>
-        <button
-          id="tab-github-import"
-          onclick="showTab('github-import')"
-          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
-        >
-          <i class="fab fa-github w-4"></i> GitHub Import
-        </button>
-        <button
-          id="tab-billing"
-          onclick="showTab('billing')"
-          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
-        >
-          <i class="fas fa-credit-card w-4"></i> Billing
-        </button>
-        <button
-          id="tab-admin"
-          onclick="showTab('admin')"
-          class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 dark:text-gray-300"
-        >
-          <i class="fas fa-user-shield w-4"></i> Admin Panel
-        </button>
-      </nav>
-    </aside>
+  <section id="faq" class="max-w-3xl mx-auto px-4 py-24">
+    <div class="text-center mb-12"><p class="text-sm font-semibold text-rose-600">FAQ</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Questions? We have answers</h2></div>
+    <div class="space-y-3">${faqs.map(f => `<details class="group ${card} p-5"><summary class="cursor-pointer list-none flex justify-between items-center gap-4 font-semibold">${f[0]}<span class="text-emerald-500 text-xl transition group-open:rotate-45">+</span></summary><p class="mt-3 text-sm text-gray-500 leading-relaxed">${f[1]}</p></details>`).join('')}</div>
+  </section>
 
-    <!-- Main Content -->
-    <main class="main-content p-6 overflow-y-auto">
-      <!-- Projects Tab -->
-      <section id="tab-content-projects" class="tab-content">
-        <h1 class="text-2xl font-bold mb-6">Your Projects</h1>
-        <div id="projects-summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
-        <div id="projects-list" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-      </section>
+  <section class="max-w-5xl mx-auto px-4 pb-24"><div class="grad-bg rounded-3xl p-10 sm:p-14 text-center text-white glow">
+    <h2 class="text-3xl sm:text-4xl font-extrabold">Ready to put your project online?</h2>
+    <p class="mt-4 text-white/90 max-w-xl mx-auto">Create your free account today and have your website or bot live before you finish your tea.</p>
+    <a href="#/signup" class="inline-flex mt-8 rounded-lg bg-white text-gray-900 font-semibold px-8 py-3 hover:opacity-90">Create free account</a>
+  </div></section>`);
+}
 
-      <!-- GitHub Import Tab -->
-      <section id="tab-content-github-import" class="tab-content hidden max-w-4xl mx-auto">
-        <h1 class="text-2xl font-bold mb-6">GitHub Import</h1>
-
-        <!-- Repository Selection -->
-        <div id="repo-selection" class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
-          <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
-            <span class="font-semibold">Select a repository to import</span>
-            <button id="refreshReposBtn" class="text-sm text-emerald-600 hover:underline">Refresh</button>
-          </div>
-          <div id="repo-list" class="divide-y divide-gray-200 dark:divide-gray-700 max-h-72 overflow-y-auto">
-            <!-- Repos will be dynamically inserted here -->
-          </div>
-        </div>
-
-        <!-- Import Form -->
-        <form id="importForm" class="hidden bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-6 mt-6 shadow-sm max-w-xl mx-auto space-y-6">
-          <h2 class="text-xl font-semibold">Import GitHub Repository</h2>
-
-          <div>
-            <label for="githubUrl" class="block mb-1 text-sm font-medium">GitHub URL</label>
-            <input
-              type="url"
-              id="githubUrl"
-              name="githubUrl"
-              placeholder="https://github.com/user/repo"
-              required
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label for="branch" class="block mb-1 text-sm font-medium">Branch</label>
-              <input
-                type="text"
-                id="branch"
-                name="branch"
-                value="main"
-                required
-                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label for="nodeVersion" class="block mb-1 text-sm font-medium">Node Version</label>
-              <input
-                type="text"
-                id="nodeVersion"
-                name="nodeVersion"
-                value="18.x"
-                required
-                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label for="buildCommand" class="block mb-1 text-sm font-medium">Build Command</label>
-            <input
-              type="text"
-              id="buildCommand"
-              name="buildCommand"
-              value="npm run build"
-              required
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label for="outputDirectory" class="block mb-1 text-sm font-medium">Output Directory</label>
-            <input
-              type="text"
-              id="outputDirectory"
-              name="outputDirectory"
-              value=".next"
-              required
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
-            />
-          </div>
-
-          <p class="text-sm text-emerald-600 font-semibold flex items-center gap-2">
-            <i class="fas fa-check-circle"></i> Auto-detected: Next.js
-          </p>
-
-          <div class="mt-6 grid grid-cols-2 gap-4">
-            <div class="border border-gray-300 dark:border-gray-700 rounded-lg p-4 text-center cursor-pointer select-none hover:border-emerald-500" id="deployOptionWebsite" aria-pressed="true" role="button" tabindex="0">
-              <div class="text-lg font-semibold mb-1">Website</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Static / Next.js</div>
-            </div>
-            <div class="border border-gray-300 dark:border-gray-700 rounded-lg p-4 text-center cursor-pointer select-none hover:border-emerald-500" id="deployOptionBot" aria-pressed="false" role="button" tabindex="0">
-              <div class="text-lg font-semibold mb-1">Bot</div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">Node.js / WhatsApp bot</div>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            id="deployBtn"
-            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition"
-          >
-            Deploy Website →
-          </button>
-        </form>
-
-        <!-- Deploy Success -->
-        <div id="deploySuccess" class="hidden max-w-xl mx-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-6 mt-6 text-center shadow-sm">
-          <div class="text-emerald-600 text-4xl mb-4">
-            <i class="fas fa-check-circle"></i>
-          </div>
-          <h2 class="text-xl font-semibold mb-2">Project deployed!</h2>
-          <p class="mb-4 text-gray-700 dark:text-gray-300 break-all" id="deployLiveLink"></p>
-          <a
-            href="#"
-            id="openLiveBtn"
-            target="_blank"
-            class="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-lg transition"
-            >Open</a
-          >
-        </div>
-      </section>
-
-      <!-- Billing Tab -->
-      <section id="tab-content-billing" class="tab-content hidden max-w-xl mx-auto">
-        <h1 class="text-2xl font-bold mb-6">Billing</h1>
-        <div class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-6 shadow-sm space-y-4">
-          <div class="flex justify-between text-gray-700 dark:text-gray-300">
-            <span>Status</span>
-            <span id="billingStatus" class="font-semibold">Active</span>
-          </div>
-          <div class="flex justify-between text-gray-700 dark:text-gray-300">
-            <span>Days left</span>
-            <span id="billingDaysLeft" class="font-semibold">30</span>
-          </div>
-          <div class="flex justify-between text-gray-700 dark:text-gray-300">
-            <span>Expires</span>
-            <span id="billingExpires" class="font-semibold">N/A</span>
-          </div>
-          <div class="flex justify-between text-gray-700 dark:text-gray-300">
-            <span>Price</span>
-            <span class="font-semibold">KES 130 / month</span>
-          </div>
-          <button
-            id="payNowBtn"
-            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition"
-          >
-            Pay Now (M-Pesa / Card)
-          </button>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            Secure payment via Paystack — M-Pesa, Airtel Money and cards accepted. Your subscription extends by 30 days on top of your remaining time. No hidden fees.
-          </p>
-        </div>
-      </section>
-
-      <!-- Admin Tab -->
-      <section id="tab-content-admin" class="tab-content hidden max-w-7xl mx-auto">
-        <h1 class="text-2xl font-bold mb-6">Admin Panel</h1>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <!-- Stats Cards -->
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
-            <h2 class="font-semibold mb-2">Users</h2>
-            <p id="adminUsersCount" class="text-3xl font-bold">0</p>
-          </div>
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
-            <h2 class="font-semibold mb-2">Projects</h2>
-            <p id="adminProjectsCount" class="text-3xl font-bold">0</p>
-          </div>
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
-            <h2 class="font-semibold mb-2">Revenue (KES)</h2>
-            <p id="adminRevenue" class="text-3xl font-bold">0</p>
-          </div>
-        </div>
-
-        <!-- Users Table -->
-        <section class="mb-10">
-          <h2 class="text-xl font-semibold mb-4">Users</h2>
-          <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead class="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Days Left</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Projects</th>
-                  <th class="px-6 py-3"></th>
-                </tr>
-              </thead>
-              <tbody id="adminUsersTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <!-- Dynamic user rows here -->
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- Projects Table -->
-        <section class="mb-10">
-          <h2 class="text-xl font-semibold mb-4">Projects</h2>
-          <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead class="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Owner</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                  <th class="px-6 py-3"></th>
-                </tr>
-              </thead>
-              <tbody id="adminProjectsTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <!-- Dynamic project rows here -->
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- Payments Table -->
-        <section>
-          <h2 class="text-xl font-semibold mb-4">Payments</h2>
-          <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl shadow">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead class="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Channel</th>
-                </tr>
-              </thead>
-              <tbody id="adminPaymentsTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <!-- Dynamic payment rows here -->
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-      </section>
-    </main>
-  </div>
-
-  <!-- Toast Notifications Container -->
-  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs"></div>
-
-  <!-- Footer -->
-  <footer>
-    <div class="footer-grid">
-      <div class="footer-column">
-        <h4>MtaaniHost</h4>
-        <p class="text-sm text-gray-600 dark:text-gray-400">Deploy websites and bots in Kenya with ease.</p>
-      </div>
-      <div class="footer-column">
-        <h4>How it works</h4>
-        <ul>
-          <li>1. Import your GitHub repo</li>
-          <li>2. Configure build & deploy</li>
-          <li>3. Go live instantly</li>
-        </ul>
-      </div>
-      <div class="footer-column">
-        <h4>Pricing</h4>
-        <p>KES 130/month - simple and transparent</p>
-      </div>
-      <div class="footer-column">
-        <h4>Support</h4>
-        <ul>
-          <li><a href="#/docs">Docs</a></li>
-          <li><a href="#/contact">Contact</a></li>
-          <li><a href="https://wa.me/254707182307" target="_blank" rel="noopener">WhatsApp Support</a></li>
-        </ul>
-      </div>
-    </div>
-    <div class="mt-6 text-center text-gray-500 dark:text-gray-400 text-xs">
-      © 2026 MtaaniHost, Version 2.12.4, Nairobi KE, All systems operational
-    </div>
-  </footer>
-
-  <script>
-    // Toast notification system
-    function showToast(message, type = 'success', duration = 4000) {
-      const container = document.getElementById('toast-container');
-      if (!container) return;
-      const toast = document.createElement('div');
-      toast.className = `rounded-lg px-4 py-3 shadow-lg text-white ${
-        type === 'error' ? 'bg-red-600' : 'bg-emerald-600'
-      } animate-fadein`;
-      toast.textContent = message;
-      container.appendChild(toast);
-      setTimeout(() => {
-        toast.classList.add('animate-fadeout');
-        toast.addEventListener('animationend', () => toast.remove());
-      }, duration);
+function authView(mode) {
+  const su = mode === 'signup', q = new URLSearchParams(location.hash.split('?')[1] || '');
+  publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 glow">
+    <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-bold text-center mb-1">${su ? 'Create your account' : 'Welcome back'}</h1>
+    <p class="text-center text-sm text-gray-500 mb-6">${su ? `Start your ${esc(cfg.trialDays)}-day free trial. No card needed.` : 'Log in to manage your projects.'}</p>
+    ${q.get('verified') ? '<p class="mb-4 text-sm text-emerald-600 text-center">Email verified! You can log in now.</p>' : ''}
+    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email" required autocomplete="email"><input class="${inp}" type="password" id="pw" placeholder="Password ${su ? '(at least 8 characters)' : ''}" required autocomplete="${su ? 'new-password' : 'current-password'}">
+    <button class="${btn} w-full !py-2.5" id="sb">${su ? 'Sign Up' : 'Login'}</button></form>
+    <p class="text-center text-sm text-gray-500 mt-4">${su ? 'Already have an account? <a class="underline" href="#/login">Login</a>' : 'Don\'t have an account? <a class="underline" href="#/signup">Sign Up</a>'}</p></div></div></div>`);
+  $('#f').onsubmit = async e => {
+    e.preventDefault(); const b = $('#sb'); b.disabled = true; const email = $('#em').value.trim(), password = $('#pw').value;
+    try {
+      if (su) { await api('/auth/signup', { method: 'POST', body: { email, password } }, null); pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; }
+      else { const r = await api('/auth/login', { method: 'POST', body: { email, password } }, null); token = r.token; localStorage.setItem('mh_token', token); me = r.user; location.hash = '#/dashboard'; }
+    } catch (err) {
+      if (err.data && err.data.needVerify) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; }
+      toast(err.message, true); b.disabled = false;
     }
+  };
+}
+function verifyView() {
+  if (!pendingEmail) { location.hash = '#/signup'; return; }
+  publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 text-center glow">
+    <div class="text-4xl mb-3">✉️</div><h1 class="text-xl font-bold mb-2">Verify your email</h1><p class="text-sm text-gray-500 mb-6">We sent a 6-digit code to<br><b>${esc(pendingEmail)}</b></p>
+    <form id="f" class="space-y-3"><input class="${inp} text-center text-2xl tracking-[.5em]" id="cd" maxlength="6" inputmode="numeric" placeholder="······" required><button class="${btn} w-full !py-2.5">Verify</button></form>
+    <button id="rs" class="text-sm text-gray-500 underline mt-4">Resend code</button></div></div></div>`);
+  $('#f').onsubmit = async e => { e.preventDefault(); try { await api('/auth/verify', { method: 'POST', body: { email: pendingEmail, code: $('#cd').value.trim() } }, null); location.hash = '#/login?verified=1'; } catch (err) { toast(err.message, true); } };
+  $('#rs').onclick = async () => { try { await api('/auth/resend', { method: 'POST', body: { email: pendingEmail } }, null); toast('A new code has been sent'); } catch (err) { toast(err.message, true); } };
+}
 
-    const API_BASE = 'https://mtaani-hosting.onrender.com';
-    let token = localStorage.getItem('mh_token');
-    let me = null;
-    let currentTab = 'projects';
-    let deployType = 'website'; // 'website' or 'bot'
+/* ===================== projects ===================== */
+function banner() {
+  if (!me) return '';
+  if (me.status === 'trial') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3 !border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
+  if (me.status === 'expired') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3 !border-red-500"><span class="text-sm text-red-600">⛔ Your trial has ended. Your projects are suspended.</span><a href="#/billing" class="${btn}">Pay Now</a></div>`;
+  if (me.status === 'paid') return `<div class="${card} p-4 text-sm">✅ You're paid up. ${me.daysLeft} days left.</div>`;
+  return '';
+}
+async function dashboardView() {
+  if (!(await requireAuth())) return;
+  appShell('dashboard', `<div class="max-w-6xl mx-auto"><h1 class="text-2xl font-extrabold mb-4">Welcome back, <span class="grad-text">${esc(me.displayName)}</span> 👋</h1><div class="mb-6">${banner()}</div><div id="plist"></div></div>`);
+  await renderProjects();
+  pollT = setInterval(() => { if (location.hash.startsWith('#/dashboard') && !$('#modal>*')) renderProjects(); }, 6000);
+}
+function summaryHtml(l) {
+  const c = f => l.filter(f).length;
+  const box = (a, b, cl = '') => `<div class="${card} p-4 text-center"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1 ${cl}">${b}</div></div>`;
+  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${box('Projects', l.length)}${box('Online (live / running)', c(p => p.status === 'live' || p.status === 'running'), 'text-emerald-500')}${box('Stopped', c(p => p.status === 'stopped'))}${box('Suspended', c(p => p.status === 'suspended'), 'text-red-500')}</div>`;
+}
+function statLine(p) {
+  const s = p.stats || {}; let t;
+  if (p.type === 'bot') t = p.status === 'running' ? `⏱ Uptime ${fmtUp(s.uptimeSec)} · Crashes ${s.crashes} · Auto-restarts ${s.autoRestarts}` : `Crashes ${s.crashes || 0}${s.lastExit ? ` · Last exit code ${esc(s.lastExit.code)}` : ''}`;
+  else t = `${s.files || 0} files · ${fmtB(s.bytes)} · Deployed ${new Date(s.deployedAt || p.createdAt).toLocaleDateString()}`;
+  const w = p.suspendedBy === 'admin' ? '<div class="text-xs text-red-600">⛔ Suspended by admin</div>' : p.suspendedBy === 'billing' ? '<div class="text-xs text-red-600">⛔ Pay to bring it back online</div>' : '';
+  return `<div class="text-xs text-gray-500">${t}</div>${w}`;
+}
+async function renderProjects() {
+  const el = $('#plist'); if (!el) return;
+  let list; try { list = await api('/projects'); } catch (e) { if (e.status === 401) { logout(); return; } el.innerHTML = `<p class="text-center text-red-600">${esc(e.message)}</p>`; return; }
+  if (!list.length) { el.innerHTML = `<div class="${card} p-12 text-center"><div class="text-4xl mb-3">🚀</div><p class="text-gray-500 mb-4">You have no projects yet.</p><div class="flex gap-2 justify-center flex-wrap"><a class="${btn}" href="#/deploy/website">Deploy a website</a><a class="${btn2}" href="#/deploy/bot">Deploy a bot</a><a class="${btn2}" href="#/github">Import from GitHub</a></div></div>`; return; }
+  el.innerHTML = summaryHtml(list) + `<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${list.map(p => `<div class="${card} lift p-5 flex flex-col gap-3">
+    <div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-semibold truncate">${esc(p.name)}</div><div class="text-xs text-gray-500">${p.type === 'website' ? '🌐 Website' : '🤖 ' + esc(p.botType)}</div></div>${badge(p.status)}</div>
+    ${p.url ? `<a class="text-sm text-emerald-600 break-all hover:underline" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>` : '<div class="text-sm text-gray-500">Bots have no URL — check the logs</div>'}
+    ${statLine(p)}
+    <div class="flex flex-wrap gap-2 mt-auto">
+      ${p.type === 'bot' ? `<button class="${btn2}" onclick="showLogs('${p.id}')">Logs</button><button class="${btn2}" onclick="editEnv('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting' ? `<button class="${btn2}" onclick="controlBot('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="controlBot('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="controlBot('${p.id}','start')">Start</button>`}` : ''}
+      <button class="${btnDanger}" onclick="deleteProject('${p.id}')">Delete</button></div></div>`).join('')}</div>`;
+}
+async function controlBot(id, a) { try { await api(`/projects/${id}/${a}`, { method: 'POST' }); toast('Done'); renderProjects(); } catch (e) { toast(e.message, true); } }
+async function deleteProject(id) { if (!confirm('Delete this project permanently?')) return; try { await api('/projects/' + id, { method: 'DELETE' }); toast('Project deleted'); renderProjects(); } catch (e) { toast(e.message, true); } }
+async function showLogs(id) {
+  const m = $('#modal'); let live = true;
+  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><div class="${card} w-full max-w-3xl p-4"><div class="flex justify-between mb-2"><b>Logs</b><button id="cl" class="${btn2}">Close</button></div><pre id="lg" class="bg-black text-green-400 text-xs p-3 rounded-lg h-96 overflow-auto whitespace-pre-wrap"></pre><p class="text-xs text-gray-500 mt-2">A WhatsApp pairing code or QR will show up here if your bot prints it to the console.</p></div></div>`;
+  $('#cl').onclick = () => { live = false; m.innerHTML = ''; };
+  const load = async () => { if (!live) return; try { const r = await api(`/projects/${id}/logs`); const el = $('#lg'); if (el) { const bottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20; el.textContent = r.logs || '(no logs yet)'; if (bottom) el.scrollTop = el.scrollHeight; } } catch {} setTimeout(load, 2500); };
+  load();
+}
+async function editEnv(id) {
+  let keys = [];
+  try { keys = (await api(`/projects/${id}/env`)).keys; } catch (e) { return toast(e.message, true); }
+  const m = $('#modal');
+  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><form id="fe" class="${card} w-full max-w-lg p-5 space-y-3">
+    <div class="flex justify-between"><b>Environment variables</b><button type="button" id="ce" class="${btn2}">Close</button></div>
+    <p class="text-xs text-gray-500">Current keys: ${keys.length ? keys.map(esc).join(', ') : 'none'}. Values are hidden. Saving replaces ALL variables and restarts the bot.</p>
+    <textarea class="${inp} font-mono" rows="6" id="ev" placeholder="BOT_TOKEN=123:abc"></textarea>
+    <button class="${btn}">Save and restart</button></form></div>`;
+  $('#ce').onclick = () => { m.innerHTML = ''; };
+  $('#fe').onsubmit = async e => {
+    e.preventDefault();
+    try { await api(`/projects/${id}/env`, { method: 'PUT', body: { envVars: $('#ev').value } }); m.innerHTML = ''; toast('Saved. Your bot is restarting.'); renderProjects(); }
+    catch (err) { toast(err.message, true); }
+  };
+}
 
-    // Utility escape function
-    function esc(s) {
-      return String(s ?? '').replace(/[&<>"']/g, c => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;',
-      }[c]));
-    }
+/* ===================== deploy (website / bot / github) ===================== */
+async function deployView(mode) {
+  if (!(await requireAuth())) return;
+  const github = mode === 'github';
+  const kind = github ? ghKind : mode;
+  const title = github ? 'Import from GitHub' : kind === 'website' ? 'Deploy Website' : 'Deploy Bot';
+  const label = 'text-sm text-gray-500';
+  const kindCards = github ? `<div class="grid grid-cols-2 gap-3">
+      ${[['website', 'Website', 'Static site (index.html in the root)'], ['bot', 'Bot', 'Node.js bot (package.json in the root)']].map(k => `<button type="button" data-kind="${k[0]}" class="rounded-xl border p-4 text-center ${ghKind === k[0] ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-gray-300 dark:border-zinc-700 hover:border-emerald-500'}"><div class="font-semibold">${k[1]}</div><div class="text-xs text-gray-500 mt-1">${k[2]}</div></button>`).join('')}</div>` : '';
+  appShell(github ? 'github' : 'deploy-' + kind, `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1><div id="dp">
+    <form id="f" class="${card} p-6 space-y-4">${kindCards}
+      <div><label class="${label}">${kind === 'bot' ? 'Bot' : 'Project'} name${github ? ' (optional)' : ''}</label><input class="${inp} mt-1" id="n" maxlength="40" ${github ? '' : 'required'}></div>
+      ${kind === 'bot' ? `<div><label class="${label}">Bot type</label><select class="${inp} mt-1" id="t"><option value="baileys">WhatsApp (Baileys)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>` : ''}
+      <div><label class="${label}">GitHub URL ${github ? '' : '(optional)'}</label><input class="${inp} mt-1" id="g" type="url" placeholder="https://github.com/user/repo" ${github ? 'required' : ''}></div>
+      ${github ? `<div><label class="${label}">Branch (optional, defaults to the repository's default)</label><input class="${inp} mt-1" id="br" placeholder="main"></div>` : `<div><label class="${label}">${kind === 'bot' ? 'OR upload a ZIP (must contain package.json)' : 'OR upload a ZIP (must contain index.html)'}</label><input class="${inp} mt-1" type="file" id="z" accept=".zip"></div>`}
+      ${kind === 'bot' ? `<div><label class="${label}">Environment variables (optional, one per line: KEY=value)</label><textarea class="${inp} mt-1 font-mono" rows="4" id="e" placeholder="BOT_TOKEN=123:abc"></textarea></div>` : ''}
+      ${github ? '<p class="text-xs text-gray-500">The repository must be public. Websites must have an index.html in the root (build steps are not run). Bots must have a package.json.</p>' : ''}
+      <button class="${btn} w-full !py-2.5" id="sb">${kind === 'bot' ? 'Deploy Bot →' : 'Deploy Website →'}</button>
+    </form></div></div>`);
+  document.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { ghKind = b.dataset.kind; deployView('github'); });
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const gh = ($('#g').value || '').trim(), file = $('#z') && $('#z').files[0];
+    if (!gh && !file) return toast('Upload a ZIP or enter a GitHub URL', true);
+    let name = ($('#n').value || '').trim() || gh.split('/').filter(Boolean).pop().replace(/\.git$/, '') || 'my-project';
+    const fd = new FormData(); fd.append('name', name); fd.append('githubUrl', gh);
+    if ($('#br')) fd.append('branch', $('#br').value.trim());
+    if (file) fd.append('file', file);
+    if (kind === 'bot') { fd.append('botType', $('#t').value); fd.append('envVars', $('#e').value); }
+    const b = $('#sb'); b.disabled = true; b.textContent = 'Deploying…';
+    try {
+      const p = await api(kind === 'bot' ? '/projects/bot' : '/projects/website', { method: 'POST', body: fd });
+      $('#dp').innerHTML = `<div class="${card} p-8 text-center glow"><div class="text-5xl mb-3">✅</div><h2 class="text-xl font-bold mb-2">Project deployed!</h2>
+        ${p.url ? `<p class="text-sm break-all mb-5"><a class="text-emerald-600 hover:underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></p><a class="${btn}" href="${esc(p.url)}" target="_blank" rel="noopener">Open site</a>` : '<p class="text-sm text-gray-500 mb-5">Your bot is starting. Open Logs on your dashboard to follow the progress.</p>'}
+        <a class="${btn2} ml-2" href="#/dashboard">Go to projects</a></div>`;
+    } catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; b.disabled = false; b.textContent = kind === 'bot' ? 'Deploy Bot →' : 'Deploy Website →'; }
+  };
+}
 
-    // Toggle sidebar on mobile
-    function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('active');
-    }
+/* ===================== billing / profile / settings ===================== */
+async function billingView() {
+  if (!(await requireAuth())) return;
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  const exp = me.paidUntil || me.trialEndsAt;
+  const row = (a, b) => `<div class="flex justify-between"><span class="text-gray-500">${a}</span><span class="font-semibold">${b}</span></div>`;
+  appShell('billing', `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">Billing</h1>
+    ${q.get('paid') === '1' ? `<div class="${card} p-4 mb-4 !border-emerald-500 text-sm">✅ Payment received! Your projects are coming back online.</div>` : q.get('paid') === '0' ? `<div class="${card} p-4 mb-4 !border-red-500 text-sm">Payment not confirmed yet. If you have paid, refresh in a minute.</div>` : ''}
+    <div class="${card} p-6 space-y-4">${row('Status', badge(me.status === 'paid' ? 'live' : me.status === 'trial' ? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(me.status)}<`))}${row('Days left', me.daysLeft)}${row('Expires', exp ? new Date(exp).toLocaleDateString() : '-')}${row('Price', `KES ${esc(me.price)} / month`)}
+      <button id="pay" class="${btn} w-full !py-3 glow">Pay KES ${esc(me.price)} (M-Pesa / Card)</button>
+      <p class="text-xs text-gray-500">Secure payment via Paystack. When you pay, 30 days are added on top of the days you have left.</p></div></div>`);
+  $('#pay').onclick = async e => { e.target.disabled = true; try { const r = await api('/billing/pay', { method: 'POST' }); location.href = r.url; } catch (err) { toast(err.message, true); e.target.disabled = false; } };
+}
+async function profileView() {
+  if (!(await requireAuth())) return;
+  let p; try { p = await api('/profile'); } catch (e) { toast(e.message, true); return; }
+  const row = (a, b) => `<div class="flex justify-between gap-4 py-3 border-t border-gray-200 dark:border-zinc-800 first:border-0"><span class="text-gray-500">${a}</span><span class="text-right break-all">${b}</span></div>`;
+  appShell('profile', `<div class="max-w-xl mx-auto">
+    <div class="flex items-center gap-4 mb-8"><div class="h-16 w-16 rounded-full grad-bg text-white grid place-items-center text-2xl font-bold">${esc((p.displayName || p.email)[0].toUpperCase())}</div>
+      <div><h1 class="text-2xl font-extrabold">${esc(p.displayName)}</h1><p class="text-sm text-gray-500">${esc(p.email)}</p></div></div>
+    <div class="${card} px-6 py-2">${row('Plan', badge(p.status === 'paid' ? 'live' : p.status === 'trial' ? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(p.status)}<`))}${row('Days left', p.daysLeft)}${row('Member since', new Date(p.memberSince).toLocaleDateString())}${row('Projects', `${p.projects} (${p.websites} websites, ${p.bots} bots)`)}</div>
+    <div class="mt-6 flex gap-2"><a class="${btn}" href="#/settings">Edit settings</a><a class="${btn2}" href="#/billing">Billing</a></div></div>`);
+}
+async function settingsView() {
+  if (!(await requireAuth())) return;
+  let p; try { p = await api('/profile'); } catch (e) { toast(e.message, true); return; }
+  const dark = document.documentElement.classList.contains('dark');
+  const soon = ['Notifications', 'Language', 'API keys', 'Custom domains', 'Backups', 'Two-factor authentication', 'Team members'];
+  appShell('settings', `<div class="max-w-xl mx-auto space-y-6"><h1 class="text-2xl font-extrabold">Settings</h1>
+    <form id="fn" class="${card} p-6 space-y-3"><h2 class="font-semibold">Profile</h2>
+      <label class="text-sm text-gray-500">Display name</label><input class="${inp}" id="dn" maxlength="40" value="${esc(p.displayName)}" required>
+      <label class="text-sm text-gray-500">Email</label><input class="${inp} opacity-60" value="${esc(p.email)}" disabled>
+      <button class="${btn}">Save</button></form>
+    <form id="fp" class="${card} p-6 space-y-3"><h2 class="font-semibold">Change password</h2>
+      <input class="${inp}" type="password" id="cp" placeholder="Current password" required autocomplete="current-password">
+      <input class="${inp}" type="password" id="np" placeholder="New password (at least 8 characters)" minlength="8" required autocomplete="new-password">
+      <input class="${inp}" type="password" id="np2" placeholder="Confirm new password" required autocomplete="new-password">
+      <button class="${btn}">Update password</button></form>
+    <div class="${card} p-6 space-y-3"><h2 class="font-semibold">Appearance</h2>
+      <div class="flex gap-2"><button id="tl" class="${btn2} ${dark ? '' : '!border-emerald-500 !text-emerald-600'}">☀️ Light</button><button id="td" class="${btn2} ${dark ? '!border-emerald-500 !text-emerald-600' : ''}">🌙 Dark</button></div></div>
+    <div class="${card} p-6"><h2 class="font-semibold mb-3">Coming soon</h2><div class="flex flex-wrap gap-2">${soon.map(s => `<span class="rounded-full border border-gray-300 dark:border-zinc-700 px-3 py-1 text-xs text-gray-500">${s}</span>`).join('')}</div><p class="text-xs text-gray-500 mt-3">These features are planned but not available yet.</p></div>
+    <form id="fd" class="${card} p-6 space-y-3 !border-red-400/60"><h2 class="font-semibold text-red-600">Delete account</h2>
+      <p class="text-sm text-gray-500">This permanently deletes your account and all your projects, and stops your bots. It cannot be undone.</p>
+      <input class="${inp}" type="password" id="dp" placeholder="Confirm with your password" required>
+      <button class="${btnDanger}">Delete my account</button></form></div>`);
+  $('#fn').onsubmit = async e => { e.preventDefault(); try { await api('/profile', { method: 'PUT', body: { displayName: $('#dn').value } }); toast('Profile saved'); await loadMe(); } catch (err) { toast(err.message, true); } };
+  $('#fp').onsubmit = async e => {
+    e.preventDefault();
+    if ($('#np').value !== $('#np2').value) return toast('New passwords do not match', true);
+    try { await api('/settings/password', { method: 'POST', body: { currentPassword: $('#cp').value, newPassword: $('#np').value } }); toast('Password updated'); e.target.reset(); }
+    catch (err) { toast(err.message, true); }
+  };
+  $('#tl').onclick = () => { setTheme(false); settingsView(); };
+  $('#td').onclick = () => { setTheme(true); settingsView(); };
+  $('#fd').onsubmit = async e => {
+    e.preventDefault();
+    if (!confirm('Delete your account permanently?')) return;
+    try { await api('/account', { method: 'DELETE', body: { password: $('#dp').value } }); toast('Account deleted'); logout(); }
+    catch (err) { toast(err.message, true); }
+  };
+}
 
-    // Toggle settings dropdown
-    function toggleSettings() {
-      const dropdown = document.getElementById('settingsDropdown');
-      dropdown.classList.toggle('active');
-      const expanded = dropdown.classList.contains('active');
-      document.getElementById('settingsBtn').setAttribute('aria-expanded', expanded);
-    }
+/* ===================== admin ===================== */
+function adminLogout() { atoken = null; sessionStorage.removeItem('mh_admin'); adminView(); }
+async function adminView() {
+  if (!atoken) {
+    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1><form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
+    $('#f').onsubmit = async e => { e.preventDefault(); try { const r = await api('/admin/login', { method: 'POST', body: { password: $('#pw').value } }, null); atoken = r.token; sessionStorage.setItem('mh_admin', atoken); adminView(); } catch (err) { toast(err.message, true); } };
+    return;
+  }
+  let d; try { d = await api('/admin/overview', {}, atoken); } catch { atoken = null; sessionStorage.removeItem('mh_admin'); return adminView(); }
+  let st = { price: cfg.price, trialDays: cfg.trialDays }; try { st = await api('/admin/settings', {}, atoken); } catch {}
+  await checkHealth();
+  const s = d.stats, stat = (a, b) => `<div class="${card} p-4"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1">${b}</div></div>`;
+  const th = 'text-left text-xs text-gray-500 font-normal py-2 pr-4', td = 'py-2 pr-4 text-sm';
+  const mailWarn = health && health.mail === 'none' ? `<div class="${card} p-4 !border-red-500 text-sm text-red-600">⚠️ Email is not configured, so verification codes cannot be sent. Set BREVO_API_KEY + MAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD on a paid Render plan).</div>` : '';
+  adminShell(`<div class="max-w-6xl mx-auto space-y-8">
+    <h1 class="text-2xl font-extrabold">Admin Panel</h1>${mailWarn}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Unpaid (expired)', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}${stat('Email delivery', esc(health ? health.mail : '?'))}</div>
+    <section class="${card} p-6"><h2 class="font-semibold mb-1">Pricing and free trial</h2><p class="text-sm text-gray-500 mb-4">Changes apply to new payments and new sign-ups. Time that users already paid for is not affected.</p>
+      <form id="fs" class="grid sm:grid-cols-3 gap-3 items-end">
+        <div><label class="text-xs text-gray-500">Monthly price (KES)</label><input class="${inp} mt-1" type="number" min="10" max="100000" id="sp" value="${esc(st.price)}" required></div>
+        <div><label class="text-xs text-gray-500">Free trial (days)</label><input class="${inp} mt-1" type="number" min="0" max="60" id="sd" value="${esc(st.trialDays)}" required></div>
+        <button class="${btn}">Save</button></form></section>
+    <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days left</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
+    ${d.users.map(u => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked ? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
+    <section><h2 class="font-semibold mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}"></th></tr>
+    ${d.projects.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy !== 'admin'}})">${p.suspendedBy === 'admin' ? 'Resume' : 'Suspend'}</button><button class="${btnDanger}" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
+    <section><h2 class="font-semibold mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
+    ${d.payments.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${new Date(p.at).toLocaleString()}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${esc(p.amount)}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('') || `<tr><td class="${td} text-gray-500" colspan="4">No payments yet</td></tr>`}</table></div></section></div>`);
+  $('#fs').onsubmit = async e => {
+    e.preventDefault();
+    try { const r = await api('/admin/settings', { method: 'PUT', body: { price: $('#sp').value, trialDays: $('#sd').value } }, atoken); cfg = { ...cfg, ...r }; toast('Pricing saved'); }
+    catch (err) { toast(err.message, true); }
+  };
+}
+async function adm(path, body, method) { try { await api('/admin' + path, { method: method || 'POST', body }, atoken); toast('Done'); adminView(); } catch (e) { toast(e.message, true); } }
 
-    // Toggle dark/light theme
-    function toggleTheme() {
-      const html = document.documentElement;
-      const isDark = html.classList.toggle('dark');
-      localStorage.setItem('mh_theme', isDark ? 'dark' : 'light');
-      document.getElementById('themeToggle').checked = isDark;
-    }
-
-    // Initialize theme toggle checkbox state
-    function initThemeToggle() {
-      const isDark = localStorage.getItem('mh_theme') === 'dark';
-      document.documentElement.classList.toggle('dark', isDark);
-      document.getElementById('themeToggle').checked = isDark;
-    }
-
-    // Logout function
-    function logout() {
-      if (confirm('Are you sure you want to logout?')) {
-        localStorage.removeItem('mh_token');
-        token = null;
-        me = null;
-        location.href = '#/login';
-      }
-    }
-
-    // Confirm delete account with password prompt
-    async function confirmDeleteAccount(event) {
-      event.preventDefault();
-      const pwdInput = document.getElementById('deletePassword');
-      if (!pwdInput.value) {
-        alert('Please enter your password to confirm account deletion.');
-        return false;
-      }
-      if (!confirm('This will permanently delete your account and all projects. Continue?')) {
-        return false;
-      }
-      try {
-        const res = await fetch(`${API_BASE}/api/account`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ password: pwdInput.value }),
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          alert(data.error || 'Failed to delete account.');
-          return false;
-        }
-        alert('Account deleted successfully.');
-        logout();
-      } catch (e) {
-        alert('Error deleting account: ' + e.message);
-      }
-      return false;
-    }
-
-    // Show tab content and highlight sidebar button
-    async function showTab(tab) {
-      if (!(await checkAuth())) return;
-
-      currentTab = tab;
-      document.querySelectorAll('.tab-content').forEach((el) => {
-        el.classList.add('hidden');
-      });
-      document.getElementById(`tab-content-${tab}`).classList.remove('hidden');
-
-      document.querySelectorAll('aside nav button').forEach((btn) => {
-        btn.classList.remove('active-tab');
-        btn.setAttribute('aria-current', 'false');
-      });
-      const activeBtn = document.getElementById(`tab-${tab}`);
-      if (activeBtn) {
-        activeBtn.classList.add('active-tab');
-        activeBtn.setAttribute('aria-current', 'page');
-      }
-
-      if (tab === 'projects') {
-        loadProjects();
-      } else if (tab === 'github-import') {
-        loadGitHubRepos();
-      } else if (tab === 'billing') {
-        loadBilling();
-      } else if (tab === 'admin') {
-        loadAdminData();
-      }
-    }
-
-    // Check authentication and prompt if no token
-    async function checkAuth() {
-      if (!token) {
-        const t = prompt('Login required - Enter your token or go to home?');
-        if (!t) location.hash = '#/';
-        else {
-          token = t;
-          localStorage.setItem('mh_token', token);
-        }
-        return false;
-      }
-      await loadMe();
-      return true;
-    }
-
-    // Load user profile info (simplified)
-    async function loadMe() {
-      if (!token) return null;
-      try {
-        const res = await fetch(`${API_BASE}/api/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error('Unauthorized');
-        me = await res.json();
-        return me;
-      } catch {
-        localStorage.removeItem('mh_token');
-        token = null;
-        me = null;
-        return null;
-      }
-    }
-
-    // Load projects from API and render
-    async function loadProjects() {
-      const container = document.getElementById('projects-list');
-      const summary = document.getElementById('projects-summary');
-      container.innerHTML = `<div class="col-span-full py-20 text-center text-gray-500 dark:text-gray-400">
-        <i class="fas fa-spinner fa-spin text-3xl mb-4"></i><p>Loading projects...</p></div>`;
-      summary.innerHTML = '';
-      try {
-        if (!token) {
-          container.innerHTML = `<p class="text-center text-red-600">Please login to view projects.</p>`;
-          return;
-        }
-        const res = await fetch(`${API_BASE}/api/projects`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error('Failed to load projects');
-        const projects = await res.json();
-
-        if (!projects.length) {
-          container.innerHTML = `<div class="col-span-full py-20 text-center text-gray-500 dark:text-gray-400">
-            <p>No deployments yet.</p>
-            <button onclick="showTab('github-import')" class="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg">Import from GitHub</button>
-          </div>`;
-          summary.innerHTML = '';
-          return;
-        }
-
-        // Summary stats
-        const count = projects.length;
-        const online = projects.filter(p => p.status === 'live' || p.status === 'running').length;
-        const stopped = projects.filter(p => p.status === 'stopped').length;
-        const suspended = projects.filter(p => p.status === 'suspended').length;
-        summary.innerHTML = `
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
-            <div class="text-xs text-gray-500 dark:text-gray-400">Projects</div>
-            <div class="text-2xl font-bold">${count}</div>
-          </div>
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
-            <div class="text-xs text-green-600 dark:text-green-400">Online (live / running)</div>
-            <div class="text-2xl font-bold text-green-600">${online}</div>
-          </div>
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
-            <div class="text-xs text-gray-500 dark:text-gray-400">Stopped</div>
-            <div class="text-2xl font-bold">${stopped}</div>
-          </div>
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow text-center">
-            <div class="text-xs text-red-600 dark:text-red-400">Suspended</div>
-            <div class="text-2xl font-bold text-red-600">${suspended}</div>
-          </div>
-        `;
-
-        // Projects list
-        container.innerHTML = projects
-          .map(
-            (p) => `
-          <div class="bg-white dark:bg-gray-800 rounded-xl p-5 flex flex-col gap-3 shadow-sm">
-            <div class="flex justify-between items-start gap-2">
-              <div>
-                <div class="font-semibold">${esc(p.name)}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">${p.type === 'website' ? '🌐 Website' : '🤖 ' + esc(p.botType)}</div>
-              </div>
-              <span class="rounded-full px-2 py-0.5 text-xs ${
-                p.status === 'live' || p.status === 'running'
-                  ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                  : p.status === 'stopped'
-                  ? 'bg-gray-300/15 text-gray-500 border border-gray-300/30'
-                  : p.status === 'suspended'
-                  ? 'bg-red-500/15 text-red-500 border border-red-500/30'
-                  : 'bg-gray-300/15 text-gray-500 border border-gray-300/30'
-              }">${esc(p.status)}</span>
-            </div>
-            ${
-              p.url
-                ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" class="text-sm text-emerald-500 break-all hover:underline">${esc(p.url)}</a>`
-                : '<div class="text-sm text-gray-500 dark:text-gray-400">Bots have no URL — check the logs</div>'
-            }
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              ${
-                p.type === 'bot'
-                  ? p.status === 'running'
-                    ? `⏱ Uptime ${formatUptime(p.stats?.uptimeSec)} · Crashes ${p.stats?.crashes || 0} · Auto-restarts ${p.stats?.autoRestarts || 0}`
-                    : `Crashes ${p.stats?.crashes || 0}${p.stats?.lastExit ? ` · Last exit code ${esc(p.stats.lastExit.code)}` : ''}`
-                  : `${p.stats?.files || 0} files · ${formatBytes(p.stats?.bytes || 0)} · Deployed ${new Date(p.stats?.deployedAt || p.createdAt).toLocaleDateString()}`
-              }
-            </div>
-            <div class="flex flex-wrap gap-2 mt-auto">
-              ${
-                p.type === 'bot'
-                  ? `<button class="btn-secondary" onclick="showLogs('${p.id}')">Logs</button>
-                     <button class="btn-secondary" onclick="editEnv('${p.id}')">Env</button>
-                     ${
-                       p.status === 'running' || p.status === 'starting'
-                         ? `<button class="btn-secondary" onclick="controlBot('${p.id}', 'restart')">Restart</button>
-                            <button class="btn-secondary" onclick="controlBot('${p.id}', 'stop')">Stop</button>`
-                         : `<button class="btn-secondary" onclick="controlBot('${p.id}', 'start')">Start</button>`
-                     }`
-                  : ''
-              }
-              <button class="btn-danger" onclick="deleteProject('${p.id}')">Delete</button>
-            </div>
-          </div>
-        `
-          )
-          .join('');
-      } catch (e) {
-        container.innerHTML = `<p class="text-center text-red-600">Failed to load projects: ${esc(e.message)}</p>`;
-        summary.innerHTML = '';
-      }
-    }
-
-    // Format uptime seconds to d/h/m
-    function formatUptime(sec) {
-      if (!sec) return '—';
-      const d = Math.floor(sec / 86400);
-      const h = Math.floor((sec % 86400) / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      if (d) return `${d}d ${h}h`;
-      if (h) return `${h}h ${m}m`;
-      return `${m}m`;
-    }
-
-    // Format bytes to KB or MB
-    function formatBytes(b) {
-      if (!b) return '0 KB';
-      if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
-      return Math.max(1, Math.round(b / 1024)) + ' KB';
-    }
-
-    // Load GitHub repos (mocked example)
-    async function loadGitHubRepos() {
-      const repoList = document.getElementById('repo-list');
-      repoList.innerHTML = `<div class="p-4 text-center text-gray-500 dark:text-gray-400">Loading repositories...</div>`;
-      try {
-        // Replace with real API call if available
-        const repos = [
-          { name: 'my-website', updated: '2 days ago' },
-          { name: 'whatsapp-bot', updated: '5 hours ago' },
-          { name: 'portfolio', updated: '1 week ago' },
-        ];
-        repoList.innerHTML = repos
-          .map(
-            (r) => `
-          <div class="flex justify-between items-center p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-            <div>
-              <p class="font-semibold">${esc(r.name)}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Updated ${esc(r.updated)}</p>
-            </div>
-            <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-sm" onclick="openImportForm('${esc(r.name)}')">Import</button>
-          </div>
-        `
-          )
-          .join('');
-      } catch (e) {
-        repoList.innerHTML = `<p class="text-center text-red-600">Failed to load repos: ${esc(e.message)}</p>`;
-      }
-    }
-
-    // Open import form with repo name prefilled
-    function openImportForm(repoName) {
-      document.getElementById('repo-selection').classList.add('hidden');
-      document.getElementById('importForm').classList.remove('hidden');
-      document.getElementById('deploySuccess').classList.add('hidden');
-      document.getElementById('githubUrl').value = `https://github.com/user/${repoName}`;
-      document.getElementById('branch').value = 'main';
-      document.getElementById('buildCommand').value = 'npm run build';
-      document.getElementById('outputDirectory').value = '.next';
-      document.getElementById('nodeVersion').value = '18.x';
-      deployType = 'website';
-      updateDeployOptionUI();
-    }
-
-    // Deploy option cards toggle
-    document.getElementById('deployOptionWebsite').addEventListener('click', () => {
-      deployType = 'website';
-      updateDeployOptionUI();
-    });
-    document.getElementById('deployOptionBot').addEventListener('click', () => {
-      deployType = 'bot';
-      updateDeployOptionUI();
-    });
-
-    function updateDeployOptionUI() {
-      const web = document.getElementById('deployOptionWebsite');
-      const bot = document.getElementById('deployOptionBot');
-      const deployBtn = document.getElementById('deployBtn');
-      if (deployType === 'website') {
-        web.classList.add('border-emerald-500');
-        bot.classList.remove('border-emerald-500');
-        deployBtn.textContent = 'Deploy Website →';
-      } else {
-        bot.classList.add('border-emerald-500');
-        web.classList.remove('border-emerald-500');
-        deployBtn.textContent = 'Deploy Bot →';
-      }
-    }
-
-    // CHANGE 2 LINES ONLY in your file:
-    // Badilisha function ya importForm submit kuwa hivi:
-    document.getElementById('importForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const githubUrl = document.getElementById('githubUrl').value.trim();
-
-      const formDataType = deployType; // website or bot
-      const endpoint = formDataType === 'website' ? '/projects/website' : '/projects/bot';
-      const fd = new FormData();
-      fd.append('name', githubUrl.split('/').pop() || 'my-site');
-      fd.append('githubUrl', githubUrl);
-      if (formDataType === 'bot') {
-        fd.append('botType', 'baileys');
-      }
-
-      const deployBtn = document.getElementById('deployBtn');
-      deployBtn.disabled = true;
-      deployBtn.textContent = 'Deploying...';
-
-      try {
-        const res = await fetch(`${API_BASE}/api${endpoint}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || 'Deployment failed');
-        }
-        const project = await res.json();
-
-        // Show success UI
-        document.getElementById('importForm').classList.add('hidden');
-        const successDiv = document.getElementById('deploySuccess');
-        successDiv.classList.remove('hidden');
-        const liveLink = `https://${project.subdomain}.mtaanihost.com`;
-        document.getElementById('deployLiveLink').textContent = liveLink;
-        const openBtn = document.getElementById('openLiveBtn');
-        openBtn.href = liveLink;
-
-        deployBtn.disabled = false;
-        deployBtn.textContent = formDataType === 'website' ? 'Deploy Website →' : 'Deploy Bot →';
-
-        // Refresh projects list
-        showTab('projects');
-      } catch (err) {
-        alert(err.message);
-        deployBtn.disabled = false;
-        deployBtn.textContent = formDataType === 'website' ? 'Deploy Website →' : 'Deploy Bot →';
-      }
-    });
-
-    // Na ongeza juu ya showTab:
-    async function checkAuth() {
-      if (!token) {
-        const t = prompt('Login required - Enter your token or go to home?');
-        if (!t) location.hash = '#/';
-        else {
-          token = t;
-          localStorage.setItem('mh_token', token);
-        }
-        return false;
-      }
-      await loadMe();
-      return true;
-    }
-
-    // Admin panel data loading and actions
-    async function loadAdminData() {
-      try {
-        if (!token) {
-          alert('Admin login required');
-          location.hash = '#/login';
-          return;
-        }
-        const res = await fetch(`${API_BASE}/api/admin/overview`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!res.ok) throw new Error('Failed to load admin data');
-        const data = await res.json();
-
-        // Populate stats
-        document.getElementById('adminUsersCount').textContent = data.stats.users || 0;
-        document.getElementById('adminProjectsCount').textContent = data.stats.projects || 0;
-        document.getElementById('adminRevenue').textContent = data.stats.revenue ? 'KES ' + data.stats.revenue : 'KES 0';
-
-        // Populate users table
-        const usersTbody = document.getElementById('adminUsersTable');
-        usersTbody.innerHTML = data.users.map(u => `
-          <tr class="border-t border-gray-200 dark:border-gray-700">
-            <td class="px-6 py-3 text-sm">${esc(u.email)}</td>
-            <td class="px-6 py-3 text-sm">${esc(u.status)}</td>
-            <td class="px-6 py-3 text-sm">${esc(u.daysLeft)}</td>
-            <td class="px-6 py-3 text-sm">${esc(u.projects)}</td>
-            <td class="px-6 py-3 text-sm flex gap-2">
-              <button class="btn-secondary" onclick="blockUser('${u.id}', ${!u.blocked})">${u.blocked ? 'Unblock' : 'Block'}</button>
-              <button class="btn-secondary" onclick="extendUserSubscription('${u.id}', 30)">+30d</button>
-            </td>
-          </tr>
-        `).join('');
-
-        // Populate projects table
-        const projectsTbody = document.getElementById('adminProjectsTable');
-        projectsTbody.innerHTML = data.projects.map(p => `
-          <tr class="border-t border-gray-200 dark:border-gray-700">
-            <td class="px-6 py-3 text-sm">${esc(p.name)}</td>
-            <td class="px-6 py-3 text-sm">${esc(p.owner)}</td>
-            <td class="px-6 py-3 text-sm">${esc(p.type)}</td>
-            <td class="px-6 py-3 text-sm">${esc(p.status)}</td>
-            <td class="px-6 py-3 text-sm flex gap-2">
-              <button class="btn-secondary" onclick="suspendProject('${p.id}', ${p.suspendedBy !== 'admin'})">${p.suspendedBy === 'admin' ? 'Resume' : 'Suspend'}</button>
-              <button class="btn-danger" onclick="deleteProjectAdmin('${p.id}')">Delete</button>
-            </td>
-          </tr>
-        `).join('');
-
-        // Populate payments table
-        const paymentsTbody = document.getElementById('adminPaymentsTable');
-        paymentsTbody.innerHTML = data.payments.map(p => `
-          <tr class="border-t border-gray-200 dark:border-gray-700">
-            <td class="px-6 py-3 text-sm">${new Date(p.at).toLocaleString()}</td>
-            <td class="px-6 py-3 text-sm">${esc(p.email)}</td>
-            <td class="px-6 py-3 text-sm">KES ${esc(p.amount)}</td>
-            <td class="px-6 py-3 text-sm">${esc(p.channel)}</td>
-          </tr>
-        `).join('');
-      } catch (e) {
-        alert('Error loading admin data: ' + e.message);
-      }
-    }
-
-    async function blockUser(userId, block) {
-      if (!confirm(`${block ? 'Block' : 'Unblock'} this user?`)) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/users/${userId}/block`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-          body: JSON.stringify({ blocked: block }),
-        });
-        if (!res.ok) throw new Error('Failed to update user status');
-        showToast(`User ${block ? 'blocked' : 'unblocked'}`);
-        loadAdminData();
-      } catch (e) {
-        alert('Failed to update user status: ' + e.message);
-      }
-    }
-
-    async function extendUserSubscription(userId, days) {
-      if (!confirm(`Extend subscription by ${days} days?`)) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/users/${userId}/extend`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-          body: JSON.stringify({ days }),
-        });
-        if (!res.ok) throw new Error('Failed to extend subscription');
-        showToast('Subscription extended');
-        loadAdminData();
-      } catch (e) {
-        alert('Failed to extend subscription: ' + e.message);
-      }
-    }
-
-    async function suspendProject(projectId, suspend) {
-      if (!confirm(`${suspend ? 'Suspend' : 'Resume'} this project?`)) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/projects/${projectId}/suspend`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-          body: JSON.stringify({ suspended: suspend }),
-        });
-        if (!res.ok) throw new Error('Failed to update project status');
-        showToast(`Project ${suspend ? 'suspended' : 'resumed'}`);
-        loadAdminData();
-      } catch (e) {
-        alert('Failed to update project status: ' + e.message);
-      }
-    }
-
-    async function deleteProjectAdmin(projectId) {
-      if (!confirm('Delete this project permanently?')) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/projects/${projectId}`, {
-          method: 'DELETE',
-          headers: { Authorization: 'Bearer ' + token },
-        });
-        if (!res.ok) throw new Error('Failed to delete project');
-        showToast('Project deleted');
-        loadAdminData();
-      } catch (e) {
-        alert('Failed to delete project: ' + e.message);
-      }
-    }
-
-    // Initialize theme toggle checkbox state on page load
-    initThemeToggle();
-
-    // Initialize page with projects tab
-    showTab('projects');
-
-    // Close settings dropdown on outside click
-    window.addEventListener('click', (e) => {
-      if (!e.target.closest('#settingsBtn') && !e.target.closest('#settingsDropdown')) {
-        document.getElementById('settingsDropdown').classList.remove('active');
-        document.getElementById('settingsBtn').setAttribute('aria-expanded', 'false');
-      }
-    });
-  </script>
+/* ===================== router ===================== */
+function route() {
+  clearInterval(pollT); $('#modal').innerHTML = '';
+  const h = (location.hash || '#/').split('?')[0];
+  window.scrollTo(0, 0);
+  if (token && (h === '#/login' || h === '#/signup')) { location.hash = '#/dashboard'; return; }
+  const R = {
+    '#/': landing, '#/login': () => authView('login'), '#/signup': () => authView('signup'), '#/verify': verifyView,
+    '#/dashboard': dashboardView, '#/deploy/website': () => deployView('website'), '#/deploy/bot': () => deployView('bot'), '#/github': () => deployView('github'),
+    '#/billing': billingView, '#/profile': profileView, '#/settings': settingsView, '#/admin': adminView
+  };
+  (R[h] || landing)();
+}
+addEventListener('hashchange', route);
+Promise.all([loadCfg(), checkHealth()]).finally(route);
+setInterval(checkHealth, 60000);
+</script>
 </body>
 </html>
-
