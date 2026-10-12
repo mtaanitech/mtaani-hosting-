@@ -6,7 +6,6 @@
 <title>MtaaniHost — Deploy websites and bots in Kenya</title>
 <meta name="description" content="Host your website or WhatsApp, Telegram and Discord bots in Kenya. Free trial, pay with M-Pesa.">
 <script>
-  // Tailwind must be told to use the "dark" class, otherwise the theme button does nothing.
   tailwind = { config: { darkMode: 'class' } };
   if (localStorage.getItem('mh_theme') === 'dark') document.documentElement.classList.add('dark');
 </script>
@@ -14,38 +13,31 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <style>
   body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
-  .grad-text{background:linear-gradient(90deg,#10b981,#06b6d4,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .grad-bg{background:linear-gradient(135deg,#10b981,#06b6d4 55%,#8b5cf6)}
-  .glow{box-shadow:0 12px 40px -12px rgba(16,185,129,.55)}
-  .hero-bg{background:radial-gradient(55rem 26rem at 15% -10%,rgba(16,185,129,.25),transparent),radial-gradient(50rem 26rem at 95% 0%,rgba(139,92,246,.25),transparent),radial-gradient(40rem 20rem at 50% 100%,rgba(6,182,212,.16),transparent)}
-  .lift{transition:transform .2s,border-color .2s}.lift:hover{transform:translateY(-3px);border-color:rgba(16,185,129,.6)}
+ .grad-text{background:linear-gradient(90deg,#10b981,#06b6d4,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
+ .grad-bg{background:linear-gradient(135deg,#10b981,#06b6d4 55%,#8b5cf6)}
+ .glow{box-shadow:0 12px 40px -12px rgba(16,185,129,.55)}
+ .hero-bg{background:radial-gradient(55rem 26rem at 15% -10%,rgba(16,185,129,.25),transparent),radial-gradient(50rem 26rem at 95% 0%,rgba(139,92,246,.25),transparent),radial-gradient(40rem 20rem at 50% 100%,rgba(6,182,212,.16),transparent)}
+ .lift{transition:transform.2s,border-color.2s}.lift:hover{transform:translateY(-3px);border-color:rgba(16,185,129,.6)}
   details>summary::-webkit-details-marker{display:none}
   @keyframes fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-  .fadein{animation:fadein .25s ease}
+ .fadein{animation:fadein.25s ease}
 </style>
 </head>
 <body class="bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
 <div id="root" class="flex flex-col flex-1 min-h-screen"></div>
 <div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 max-w-xs"></div>
 <div id="modal"></div>
-
 <script>
-/* ===================== config & state ===================== */
-const SUPPORT_WHATSAPP = ''; // optional: your number like 2547XXXXXXXX (shows a WhatsApp support link)
-// Same origin when served from Render/localhost, otherwise talk to the Render backend (needs CORS_ORIGINS on the server)
-const API_BASE = (typeof window.MH_API === 'string') ? window.MH_API
-  : (/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname) ? '' : 'https://mtaani-hosting.onrender.com');
-
+const SUPPORT_WHATSAPP = '';
+const API_BASE = (typeof window.MH_API === 'string')? window.MH_API : (/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname)? '' : 'https://mtaani-hosting.onrender.com');
 let token = localStorage.getItem('mh_token');
 let atoken = sessionStorage.getItem('mh_admin');
 let me = null, health = null, pollT = null, ghKind = 'website';
 let cfg = { price: 130, trialDays: 7, human: 'math' };
 let humanTok = '', cfToken = '';
 let pendingEmail = localStorage.getItem('mh_pending') || '';
-
-/* ===================== helpers ===================== */
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = s => String(s?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inp = 'w-full rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500';
 const btn = 'grad-bg inline-flex items-center justify-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50';
 const btn2 = 'inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:border-emerald-500';
@@ -53,32 +45,31 @@ const btnDanger = 'inline-flex items-center justify-center gap-2 rounded-lg bord
 const card = 'rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900';
 const ddItem = 'flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:text-emerald-600 cursor-pointer';
 const logo = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><path d="M12 2 22 20H2L12 2Z" fill="url(#lg1)"/><path d="M12 9l4.5 8h-9L12 9Z" fill="#fff" fill-opacity=".9"/></svg>`;
-
 function toast(msg, bad) {
   const box = $('#toast-container'); if (!box) return;
   const d = document.createElement('div');
-  d.className = `rounded-lg px-4 py-3 text-sm shadow-lg text-white fadein ${bad ? 'bg-red-600' : 'bg-emerald-600'}`;
+  d.className = `rounded-lg px-4 py-3 text-sm shadow-lg text-white fadein ${bad? 'bg-red-600' : 'bg-emerald-600'}`;
   d.textContent = msg; box.appendChild(d); setTimeout(() => d.remove(), 4000);
 }
 async function api(p, o = {}, t = token) {
   const fd = o.body instanceof FormData;
-  const h = fd ? {} : { 'Content-Type': 'application/json' };
+  const h = fd? {} : { 'Content-Type': 'application/json' };
   if (t) h.Authorization = 'Bearer ' + t;
   let r;
-  try { r = await fetch(API_BASE + '/api' + p, { ...o, headers: h, body: o.body && !fd ? JSON.stringify(o.body) : o.body }); }
-  catch { throw new Error('Cannot reach the server. Check your internet or try again in a minute (free servers wake up slowly).'); }
+  try { r = await fetch(API_BASE + '/api' + p, {...o, headers: h, body: o.body &&!fd? JSON.stringify(o.body) : o.body }); }
+  catch { throw new Error('Cannot reach the server. Check your internet or try again in a minute.'); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(j.error || 'Something went wrong'); e.status = r.status; e.data = j; throw e; }
   return j;
 }
-function setTheme(d) { document.documentElement.classList.toggle('dark', d); localStorage.setItem('mh_theme', d ? 'dark' : 'light'); }
+function setTheme(d) { document.documentElement.classList.toggle('dark', d); localStorage.setItem('mh_theme', d? 'dark' : 'light'); }
 function toggleTheme() { setTheme(!document.documentElement.classList.contains('dark')); }
 function logout() { token = null; me = null; localStorage.removeItem('mh_token'); location.hash = '#/'; }
 async function loadCfg() { try { cfg = await api('/config', {}, null); } catch {} }
 async function loadMe() { if (!token) return null; try { me = await api('/me'); } catch (e) { if (e.status === 401) { token = null; localStorage.removeItem('mh_token'); } me = null; } return me; }
 async function requireAuth() {
   if (await loadMe()) return true;
-  if (token) { // still have a token but the server did not answer (e.g. free server waking up): do not bounce to login
+  if (token) {
     publicShell(`<div class="max-w-md mx-auto px-4 py-24 text-center"><div class="text-4xl mb-3">⏳</div><h1 class="text-xl font-bold mb-2">The server is waking up</h1><p class="text-sm text-gray-500 mb-6">Free servers sleep when idle and can take up to a minute to start. Please try again.</p><button class="${btn}" onclick="route()">Try again</button></div>`);
     return false;
   }
@@ -86,15 +77,13 @@ async function requireAuth() {
 }
 function goTo(id) {
   const scroll = () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  if (location.hash && location.hash !== '#/') { location.hash = '#/'; setTimeout(scroll, 150); } else scroll();
+  if (location.hash && location.hash!== '#/') { location.hash = '#/'; setTimeout(scroll, 150); } else scroll();
 }
-const statusHtml = () => health === null ? 'Checking system…' : health.ok ? '<span class="text-emerald-500">●</span> API online' : '<span class="text-red-500">●</span> API unreachable';
+const statusHtml = () => health === null? 'Checking system…' : health.ok? '<span class="text-emerald-500">●</span> API online' : '<span class="text-red-500">●</span> API unreachable';
 async function checkHealth() { try { health = await api('/health', {}, null); } catch { health = { ok: false }; } const el = $('#apiStatus'); if (el) el.innerHTML = statusHtml(); }
-function fmtUp(s) { if (!s) return '—'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`; }
-function fmtB(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB'; }
+function fmtUp(s) { if (!s) return '—'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d? `${d}d ${h}h` : h? `${h}h ${m}m` : `${m}m`; }
+function fmtB(b) { return b > 1048576? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB'; }
 const badge = s => { const c = { live: 'emerald', running: 'emerald', starting: 'amber', stopped: 'zinc', suspended: 'red' }[s] || 'zinc'; return `<span class="rounded-full px-2 py-0.5 text-xs bg-${c}-500/15 text-${c}-500 border border-${c}-500/30">${esc(s)}</span>`; };
-
-/* ===================== shells ===================== */
 function headerHtml(mode) {
   const themeBtn = `<button onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme" class="h-9 w-9 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 grid place-items-center"><i class="fas fa-adjust"></i></button>`;
   const lk = 'hidden sm:block px-2 text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer text-sm';
@@ -108,19 +97,19 @@ function headerHtml(mode) {
         <div class="px-3 py-2 mb-1 border-b border-gray-200 dark:border-zinc-700"><div class="font-semibold text-sm truncate">${esc(nm)}</div><div class="text-xs text-gray-500 truncate">${esc(me?.email || '')}</div></div>
         <a class="${ddItem}" href="#/profile"><i class="fas fa-user w-4"></i> My Profile</a>
         <a class="${ddItem}" href="#/settings"><i class="fas fa-cog w-4"></i> Settings</a>
-        <a class="${ddItem}" href="#/billing"><i class="fas fa-credit-card w-4"></i> Billing &amp; Payments</a>
+        <a class="${ddItem}" href="#/billing"><i class="fas fa-credit-card w-4"></i> Billing</a>
         <button class="${ddItem}" onclick="toggleTheme()"><i class="fas fa-adjust w-4"></i> Switch Dark / Light</button>
         <div class="my-1 border-t border-gray-200 dark:border-zinc-700"></div>
-        <button class="${ddItem} !text-red-600" onclick="logout()"><i class="fas fa-sign-out-alt w-4"></i> Logout</button>
+        <button class="${ddItem}!text-red-600" onclick="logout()"><i class="fas fa-sign-out-alt w-4"></i> Logout</button>
       </div></div>`;
   } else if (mode === 'admin') {
-    right = `${themeBtn}${atoken ? `<button class="${btn2}" onclick="adminLogout()">Admin logout</button>` : ''}<a class="${btn2}" href="#/">Home</a>`;
+    right = `${themeBtn}${atoken? `<button class="${btn2}" onclick="adminLogout()">Admin logout</button>` : ''}<a class="${btn2}" href="#/">Home</a>`;
   } else {
     right = `<a class="${lk}" onclick="goTo('features')">Features</a><a class="${lk}" onclick="goTo('how')">How it works</a><a class="${lk}" onclick="goTo('pricing')">Pricing</a><a class="${lk}" onclick="goTo('faq')">FAQ</a>${themeBtn}
-      ${token ? `<a class="${btn}" href="#/dashboard">Dashboard</a>` : `<a class="${btn2}" href="#/login">Login</a><a class="${btn}" href="#/signup">Sign Up</a>`}`;
+      ${token? `<a class="${btn}" href="#/dashboard">Dashboard</a>` : `<a class="${btn2}" href="#/login">Login</a><a class="${btn}" href="#/signup">Sign Up</a>`}`;
   }
   return `<header class="sticky top-0 z-40 backdrop-blur border-b border-gray-200 dark:border-zinc-800 bg-white/85 dark:bg-zinc-950/85">
-    <div class="px-4 h-16 flex items-center justify-between gap-2 ${mode === 'public' ? 'max-w-6xl mx-auto' : ''}">
+    <div class="px-4 h-16 flex items-center justify-between gap-2 ${mode === 'public'? 'max-w-6xl mx-auto' : ''}">
       <div class="flex items-center gap-2">${left}<a href="#/" class="flex items-center gap-2 font-bold text-lg">${logo}<span>Mtaani<span class="grad-text">Host</span></span></a></div>
       <div class="flex items-center gap-2">${right}</div></div></header>`;
 }
@@ -131,7 +120,7 @@ function footerHtml() {
       <div><h4 class="${h4}">MtaaniHost</h4><p>Deploy websites and bots in Kenya with ease.</p></div>
       <div><h4 class="${h4}">How it works</h4><ul class="space-y-2"><li>1. Sign up with your email and password</li><li>2. Upload a ZIP or import from GitHub</li><li>3. Share your live link</li></ul></div>
       <div><h4 class="${h4}">Pricing</h4><p>KES ${esc(cfg.price)} per month after a ${esc(cfg.trialDays)}-day free trial.</p></div>
-      <div><h4 class="${h4}">Support</h4><ul class="space-y-2"><li><a class="hover:text-emerald-600 cursor-pointer" onclick="goTo('faq')">FAQ</a></li><li><a class="hover:text-emerald-600" href="#/billing">Billing</a></li>${SUPPORT_WHATSAPP ? `<li><a class="hover:text-emerald-600" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}" target="_blank" rel="noopener">WhatsApp support</a></li>` : ''}<li><a class="hover:text-emerald-600" href="#/admin">Admin</a></li></ul></div>
+      <div><h4 class="${h4}">Support</h4><ul class="space-y-2"><li><a class="hover:text-emerald-600 cursor-pointer" onclick="goTo('faq')">FAQ</a></li><li><a class="hover:text-emerald-600" href="#/billing">Billing</a></li>${SUPPORT_WHATSAPP? `<li><a class="hover:text-emerald-600" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}" target="_blank" rel="noopener">WhatsApp support</a></li>` : ''}<li><a class="hover:text-emerald-600" href="#/admin">Admin</a></li></ul></div>
     </div>
     <div class="mt-8 text-center text-xs">© ${new Date().getFullYear()} MtaaniHost · Nairobi, Kenya · <span id="apiStatus">${statusHtml()}</span></div></footer>`;
 }
@@ -145,7 +134,7 @@ const NAV = [
   ['settings', 'fas fa-cog', 'Settings', '#/settings']
 ];
 function appShell(active, inner) {
-  const items = NAV.map(n => `<a href="${n[3]}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${n[0] === active ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800'}"><i class="${n[1]} w-4 text-center"></i> ${n[2]}</a>`).join('');
+  const items = NAV.map(n => `<a href="${n[3]}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${n[0] === active? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800'}"><i class="${n[1]} w-4 text-center"></i> ${n[2]}</a>`).join('');
   $('#root').innerHTML = `${headerHtml('app')}
     <div class="flex flex-1 min-h-0">
       <aside id="sidebar" class="fixed md:static top-16 bottom-0 left-0 z-30 w-56 shrink-0 -translate-x-full md:translate-x-0 transition-transform bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 shadow-lg md:shadow-none"><nav class="p-3 space-y-1">${items}</nav></aside>
@@ -158,10 +147,8 @@ function toggleSidebar() { $('#sidebar')?.classList.toggle('-translate-x-full');
 function toggleSettings(ev) { ev?.stopPropagation(); $('#settingsDropdown')?.classList.toggle('hidden'); }
 document.addEventListener('click', e => {
   const dd = $('#settingsDropdown');
-  if (dd && !e.target.closest('#settingsDropdown') && !e.target.closest('#settingsBtn')) dd.classList.add('hidden');
+  if (dd &&!e.target.closest('#settingsDropdown') &&!e.target.closest('#settingsBtn')) dd.classList.add('hidden');
 });
-
-/* ===================== public pages ===================== */
 function landing() {
   const T = cfg.trialDays, P = cfg.price;
   const feats = [
@@ -199,7 +186,7 @@ function landing() {
     <span class="inline-block rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1 text-xs font-medium text-emerald-600 mb-6">🇰🇪 Built in Kenya · ${esc(T)} days free · Pay with M-Pesa</span>
     <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight">Deploy your website or bot <span class="grad-text">in minutes</span></h1>
     <p class="mt-6 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Like Vercel and Render, but made for Kenya. Upload your files, get a live link, keep your bots running 24/7 and pay simply with M-Pesa. No dollars, no stress.</p>
-    <div class="mt-10 flex flex-wrap gap-3 justify-center"><a href="#/signup" class="${btn} glow !px-7 !py-3 text-base">Deploy website or bot</a><a href="#/login" class="${btn2} !px-7 !py-3 text-base">Login</a></div>
+    <div class="mt-10 flex flex-wrap gap-3 justify-center"><a href="#/signup" class="${btn} glow!px-7!py-3 text-base">Deploy website or bot</a><a href="#/login" class="${btn2}!px-7!py-3 text-base">Login</a></div>
     <p class="mt-4 text-xs text-gray-500">No card needed to start · Cancel any time</p>
     <div class="mt-14 max-w-2xl mx-auto text-left rounded-2xl border border-zinc-800 bg-zinc-950 glow overflow-hidden">
       <div class="flex gap-1.5 px-4 py-3 border-b border-zinc-800"><span class="h-3 w-3 rounded-full bg-red-500"></span><span class="h-3 w-3 rounded-full bg-amber-400"></span><span class="h-3 w-3 rounded-full bg-emerald-500"></span><span class="ml-3 text-xs text-zinc-500">deploy</span></div>
@@ -208,49 +195,40 @@ function landing() {
 ✔ Deployed to the edge network
 🌍 Live at https://mybiz.mtaanihost.dev</pre></div>
   </div></section>
-
   <section class="max-w-6xl mx-auto px-4 -mt-8 relative z-10"><div class="grid grid-cols-2 md:grid-cols-4 gap-3">
     ${[['60s', 'Average time to go live', 'text-emerald-500'], ['24/7', 'Bots that keep running', 'text-violet-500'], ['KES ' + P, 'Per month, all included', 'text-cyan-500'], ['M-Pesa', 'and cards via Paystack', 'text-amber-500']].map(s => `<div class="${card} p-5 text-center shadow-lg"><div class="text-2xl sm:text-3xl font-extrabold ${s[2]}">${esc(s[0])}</div><div class="text-xs text-gray-500 mt-1">${s[1]}</div></div>`).join('')}
   </div></section>
-
   <section id="features" class="max-w-6xl mx-auto px-4 py-24">
     <div class="text-center mb-14"><p class="text-sm font-semibold text-emerald-600">FEATURES</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Everything you need to go online</h2><p class="mt-4 text-gray-500 max-w-2xl mx-auto">From your first web page to a bot serving thousands of chats, MtaaniHost gives you the tools without the complicated setup.</p></div>
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${feats.map(f => `<div class="${card} lift p-6"><div class="h-12 w-12 rounded-xl ${col[f[3]]} grid place-items-center text-2xl mb-4">${f[0]}</div><h3 class="font-semibold mb-2">${f[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${f[2]}</p></div>`).join('')}</div>
   </section>
-
   <section id="how" class="bg-white dark:bg-zinc-900/40 border-y border-gray-200 dark:border-zinc-800"><div class="max-w-6xl mx-auto px-4 py-24">
     <div class="text-center mb-14"><p class="text-sm font-semibold text-violet-600">HOW IT WORKS</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Live in three simple steps</h2></div>
     <div class="grid md:grid-cols-3 gap-6">${steps.map(s => `<div class="${card} p-8 text-center lift"><div class="mx-auto h-14 w-14 rounded-full grad-bg text-white text-xl font-extrabold grid place-items-center mb-5 glow">${s[0]}</div><h3 class="font-semibold text-lg mb-2">${s[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${s[2]}</p></div>`).join('')}</div>
   </div></section>
-
   <section class="max-w-6xl mx-auto px-4 py-24">
     <div class="text-center mb-14"><p class="text-sm font-semibold text-cyan-600">WHO IT IS FOR</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Built for everyone online in Kenya</h2></div>
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${uses.map(u => `<div class="${card} p-6 lift"><div class="text-3xl mb-3">${u[0]}</div><h3 class="font-semibold mb-1">${u[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${u[2]}</p></div>`).join('')}</div>
   </section>
-
   <section id="pricing" class="hero-bg"><div class="max-w-6xl mx-auto px-4 py-24">
     <div class="text-center mb-14"><p class="text-sm font-semibold text-amber-600">PRICING</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">One simple price</h2><p class="mt-4 text-gray-500">Start free, then pay only when you are ready.</p></div>
     <div class="grid sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
       <div class="${card} p-8"><h3 class="font-semibold text-lg">Free trial</h3><p class="text-5xl font-extrabold mt-4">KES 0</p><p class="text-gray-500 text-sm mt-1">for ${esc(T)} days</p>
-        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Deploy websites and bots</li><li>✓ Free yourname.mtaanihost.dev link</li><li>✓ Live logs and stats</li><li>✓ No card required</li></ul><a href="#/signup" class="${btn2} w-full mt-8 !py-3">Start free</a></div>
-      <div class="${card} p-8 !border-emerald-500 relative glow"><span class="absolute -top-3 right-6 grad-bg text-white text-xs font-semibold rounded-full px-3 py-1">Most popular</span><h3 class="font-semibold text-lg">Monthly plan</h3><p class="text-5xl font-extrabold mt-4 grad-text">KES ${esc(P)}</p><p class="text-gray-500 text-sm mt-1">per month</p>
-        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Everything in the free trial</li><li>✓ Websites and bots online 24/7</li><li>✓ Pay with M-Pesa or card</li><li>✓ Back online automatically after you pay</li></ul><a href="#/signup" class="${btn} w-full mt-8 !py-3">Get started</a></div>
+        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Deploy websites and bots</li><li>✓ Free yourname.mtaanihost.dev link</li><li>✓ Live logs and stats</li><li>✓ No card required</li></ul><a href="#/signup" class="${btn2} w-full mt-8!py-3">Start free</a></div>
+      <div class="${card} p-8!border-emerald-500 relative glow"><span class="absolute -top-3 right-6 grad-bg text-white text-xs font-semibold rounded-full px-3 py-1">Most popular</span><h3 class="font-semibold text-lg">Monthly plan</h3><p class="text-5xl font-extrabold mt-4 grad-text">KES ${esc(P)}</p><p class="text-gray-500 text-sm mt-1">per month</p>
+        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Everything in the free trial</li><li>✓ Websites and bots online 24/7</li><li>✓ Pay with M-Pesa or card</li><li>✓ Back online automatically after you pay</li></ul><a href="#/signup" class="${btn} w-full mt-8!py-3">Get started</a></div>
     </div>
   </div></section>
-
   <section id="faq" class="max-w-3xl mx-auto px-4 py-24">
     <div class="text-center mb-12"><p class="text-sm font-semibold text-rose-600">FAQ</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Questions? We have answers</h2></div>
     <div class="space-y-3">${faqs.map(f => `<details class="group ${card} p-5"><summary class="cursor-pointer list-none flex justify-between items-center gap-4 font-semibold">${f[0]}<span class="text-emerald-500 text-xl transition group-open:rotate-45">+</span></summary><p class="mt-3 text-sm text-gray-500 leading-relaxed">${f[1]}</p></details>`).join('')}</div>
   </section>
-
   <section class="max-w-5xl mx-auto px-4 pb-24"><div class="grad-bg rounded-3xl p-10 sm:p-14 text-center text-white glow">
     <h2 class="text-3xl sm:text-4xl font-extrabold">Ready to put your project online?</h2>
     <p class="mt-4 text-white/90 max-w-xl mx-auto">Create your free account today and have your website or bot live before you finish your tea.</p>
     <a href="#/signup" class="inline-flex mt-8 rounded-lg bg-white text-gray-900 font-semibold px-8 py-3 hover:opacity-90">Create free account</a>
   </div></section>`);
 }
-
-/* "Verify you are human": Cloudflare Turnstile when the server has keys, otherwise a small math question */
 function loadTurnstile() {
   return new Promise((ok, no) => {
     const t0 = Date.now();
@@ -273,14 +251,14 @@ async function setupHuman() {
     box.innerHTML = '<div id="cft"></div>';
     try {
       await loadTurnstile();
-      window.turnstile.render('#cft', { sitekey: cfg.turnstileSiteKey, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light', callback: t => { cfToken = t; }, 'expired-callback': () => { cfToken = ''; } });
+      window.turnstile.render('#cft', { sitekey: cfg.turnstileSiteKey, theme: document.documentElement.classList.contains('dark')? 'dark' : 'light', callback: t => { cfToken = t; }, 'expired-callback': () => { cfToken = ''; } });
     } catch (e) { box.innerHTML = `<p class="text-xs text-red-600">${esc(e.message)}. Refresh the page.</p>`; }
     return;
   }
   try {
     const h = await api('/human', {}, null);
     humanTok = h.token;
-    box.innerHTML = `<label class="text-sm text-gray-500">Verify you're human: what is <b>${esc(h.question)}</b> ?</label>
+    box.innerHTML = `<label class="text-sm text-gray-500">Verify you're human: what is <b>${esc(h.question)}</b>?</label>
       <div class="flex gap-2 mt-1"><input class="${inp}" id="ha" inputmode="numeric" autocomplete="off" placeholder="Your answer" required><button type="button" class="${btn2}" id="hr" title="New question">↻</button></div>`;
     $('#hr').onclick = setupHuman;
   } catch (e) { box.innerHTML = `<p class="text-xs text-red-600">${esc(e.message)}</p>`; }
@@ -288,48 +266,59 @@ async function setupHuman() {
 function authView(mode) {
   const su = mode === 'signup', q = new URLSearchParams(location.hash.split('?')[1] || '');
   publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 glow">
-    <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-bold text-center mb-1">${su ? 'Create your account' : 'Welcome back'}</h1>
-    <p class="text-center text-sm text-gray-500 mb-6">${su ? `Start your ${esc(cfg.trialDays)}-day free trial. No card needed.` : 'Log in to manage your projects.'}</p>
-    ${q.get('verified') ? '<p class="mb-4 text-sm text-emerald-600 text-center">Email verified! You can log in now.</p>' : ''}
-    ${su && health && health.requireVerify && health.mail === 'none' ? '<p class="mb-4 text-xs text-amber-600 text-center">⚠️ Email sending is not set up yet, so verification codes cannot be delivered. Please contact the admin.</p>' : ''}
-    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email (Gmail or any email)" required autocomplete="email"><input class="${inp}" type="password" id="pw" placeholder="Password ${su ? '(at least 8 characters)' : ''}" required autocomplete="${su ? 'new-password' : 'current-password'}">
+    <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-bold text-center mb-1">${su? 'Create your account' : 'Welcome back'}</h1>
+    <p class="text-center text-sm text-gray-500 mb-6">${su? `Start your ${esc(cfg.trialDays)}-day free trial. No card needed.` : 'Log in to manage your projects.'}</p>
+    <a href="${API_BASE}/auth/github" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-black text-white dark:bg-white dark:text-black px-4 py-3 text-sm font-semibold hover:opacity-80 mb-4"><i class="fab fa-github text-lg"></i> Continue with GitHub</a>
+    <div class="flex items-center gap-3 my-3"><div class="h-px flex-1 bg-gray-200 dark:bg-zinc-800"></div><span class="text-xs text-gray-500">OR</span><div class="h-px flex-1 bg-gray-200 dark:bg-zinc-800"></div></div>
+    ${q.get('verified')? '<p class="mb-4 text-sm text-emerald-600 text-center">Email verified! You can log in now.</p>' : ''}
+    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email" required><input class="${inp}" type="password" id="pw" placeholder="Password ${su? '(at least 8 chars)' : ''}" required>
     <div id="human" class="space-y-1"><p class="text-xs text-gray-500">Loading human check…</p></div>
-    <button class="${btn} w-full !py-2.5" id="sb">${su ? 'Sign Up' : 'Login'}</button></form>
-    <p class="text-center text-sm text-gray-500 mt-4">${su ? 'Already have an account? <a class="underline" href="#/login">Login</a>' : 'Don\'t have an account? <a class="underline" href="#/signup">Sign Up</a>'}</p></div></div></div>`);
+    <button class="${btn} w-full!py-2.5" id="sb">${su? 'Sign Up' : 'Login'}</button></form>
+    <p class="text-center text-sm text-gray-500 mt-4">${su? 'Already have an account? <a class="underline" href="#/login">Login</a>' : 'Don\'t have an account? <a class="underline" href="#/signup">Sign Up</a>'}</p></div></div></div>`);
   setupHuman();
   $('#f').onsubmit = async e => {
     e.preventDefault();
     const email = $('#em').value.trim(), password = $('#pw').value;
     const turnstileMode = cfg.human === 'turnstile' && cfg.turnstileSiteKey;
-    if (turnstileMode && !cfToken) return toast('Please complete the human check first', true);
-    if (!turnstileMode && !humanTok) return toast('The human check did not load. Press ↻ and try again.', true);
-    const body = { email, password, humanToken: humanTok, humanAnswer: $('#ha') ? $('#ha').value : '', cfToken };
+    if (turnstileMode &&!cfToken) return toast('Please complete the human check first', true);
+    if (!turnstileMode &&!humanTok) return toast('The human check did not load. Press ↻ and try again.', true);
+    const body = { email, password, humanToken: humanTok, humanAnswer: $('#ha')? $('#ha').value : '', cfToken };
     const b = $('#sb'); b.disabled = true;
     try {
-      const r = await api(su ? '/auth/signup' : '/auth/login', { method: 'POST', body }, null);
-      if (su && !r.token) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; return; } // email verification is switched on
+      const r = await api(su? '/auth/signup' : '/auth/login', { method: 'POST', body }, null);
+      if (su &&!r.token) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; return; }
       token = r.token; localStorage.setItem('mh_token', token); me = r.user; location.hash = '#/dashboard';
     } catch (err) {
       if (err.data && err.data.needVerify) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; return; }
-      toast(err.message, true); b.disabled = false; setupHuman(); // challenges are single-use: get a fresh one
+      toast(err.message, true); b.disabled = false; setupHuman();
     }
   };
+}
+function githubAuthView(){
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const t = params.get('token');
+  if(t){
+    localStorage.setItem('mh_token', t);
+    token = t;
+    toast('Logged in with GitHub ✅');
+    location.hash = '#/dashboard';
+  } else {
+    publicShell(`<div class="max-w-md mx-auto py-24 text-center"><h1 class="text-xl font-bold">GitHub login failed</h1><p class="text-sm text-gray-500 mt-2">Try again</p><a class="${btn} mt-4" href="#/login">Back</a></div>`);
+  }
 }
 function verifyView() {
   if (!pendingEmail) { location.hash = '#/signup'; return; }
   publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 text-center glow">
     <div class="text-4xl mb-3">✉️</div><h1 class="text-xl font-bold mb-2">Verify your email</h1><p class="text-sm text-gray-500 mb-6">We sent a 6-digit code to<br><b>${esc(pendingEmail)}</b></p>
-    <form id="f" class="space-y-3"><input class="${inp} text-center text-2xl tracking-[.5em]" id="cd" maxlength="6" inputmode="numeric" placeholder="······" required><button class="${btn} w-full !py-2.5">Verify</button></form>
+    <form id="f" class="space-y-3"><input class="${inp} text-center text-2xl tracking-[.5em]" id="cd" maxlength="6" inputmode="numeric" placeholder="······" required><button class="${btn} w-full!py-2.5">Verify</button></form>
     <button id="rs" class="text-sm text-gray-500 underline mt-4">Resend code</button></div></div></div>`);
   $('#f').onsubmit = async e => { e.preventDefault(); try { await api('/auth/verify', { method: 'POST', body: { email: pendingEmail, code: $('#cd').value.trim() } }, null); location.hash = '#/login?verified=1'; } catch (err) { toast(err.message, true); } };
   $('#rs').onclick = async () => { try { await api('/auth/resend', { method: 'POST', body: { email: pendingEmail } }, null); toast('A new code has been sent'); } catch (err) { toast(err.message, true); } };
 }
-
-/* ===================== projects ===================== */
 function banner() {
   if (!me) return '';
-  if (me.status === 'trial') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3 !border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
-  if (me.status === 'expired') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3 !border-red-500"><span class="text-sm text-red-600">⛔ Your trial has ended. Your projects are suspended.</span><a href="#/billing" class="${btn}">Pay Now</a></div>`;
+  if (me.status === 'trial') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3!border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
+  if (me.status === 'expired') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3!border-red-500"><span class="text-sm text-red-600">⛔ Your trial has ended. Your projects are suspended.</span><a href="#/billing" class="${btn}">Pay Now</a></div>`;
   if (me.status === 'paid') return `<div class="${card} p-4 text-sm">✅ You're paid up. ${me.daysLeft} days left.</div>`;
   return '';
 }
@@ -337,18 +326,18 @@ async function dashboardView() {
   if (!(await requireAuth())) return;
   appShell('dashboard', `<div class="max-w-6xl mx-auto"><h1 class="text-2xl font-extrabold mb-4">Welcome back, <span class="grad-text">${esc(me.displayName)}</span> 👋</h1><div class="mb-6">${banner()}</div><div id="plist"></div></div>`);
   await renderProjects();
-  pollT = setInterval(() => { if (location.hash.startsWith('#/dashboard') && !$('#modal>*')) renderProjects(); }, 6000);
+  pollT = setInterval(() => { if (location.hash.startsWith('#/dashboard') &&!$('#modal>*')) renderProjects(); }, 6000);
 }
 function summaryHtml(l) {
   const c = f => l.filter(f).length;
   const box = (a, b, cl = '') => `<div class="${card} p-4 text-center"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1 ${cl}">${b}</div></div>`;
-  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${box('Projects', l.length)}${box('Online (live / running)', c(p => p.status === 'live' || p.status === 'running'), 'text-emerald-500')}${box('Stopped', c(p => p.status === 'stopped'))}${box('Suspended', c(p => p.status === 'suspended'), 'text-red-500')}</div>`;
+  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${box('Projects', l.length)}${box('Online', c(p => p.status === 'live' || p.status === 'running'), 'text-emerald-500')}${box('Stopped', c(p => p.status === 'stopped'))}${box('Suspended', c(p => p.status === 'suspended'), 'text-red-500')}</div>`;
 }
 function statLine(p) {
   const s = p.stats || {}; let t;
-  if (p.type === 'bot') t = p.status === 'running' ? `⏱ Uptime ${fmtUp(s.uptimeSec)} · Crashes ${s.crashes} · Auto-restarts ${s.autoRestarts}` : `Crashes ${s.crashes || 0}${s.lastExit ? ` · Last exit code ${esc(s.lastExit.code)}` : ''}`;
+  if (p.type === 'bot') t = p.status === 'running'? `⏱ Uptime ${fmtUp(s.uptimeSec)} · Crashes ${s.crashes} · Auto-restarts ${s.autoRestarts}` : `Crashes ${s.crashes || 0}${s.lastExit? ` · Last exit ${esc(s.lastExit.code)}` : ''}`;
   else t = `${s.files || 0} files · ${fmtB(s.bytes)} · Deployed ${new Date(s.deployedAt || p.createdAt).toLocaleDateString()}`;
-  const w = p.suspendedBy === 'admin' ? '<div class="text-xs text-red-600">⛔ Suspended by admin</div>' : p.suspendedBy === 'billing' ? '<div class="text-xs text-red-600">⛔ Pay to bring it back online</div>' : '';
+  const w = p.suspendedBy === 'admin'? '<div class="text-xs text-red-600">⛔ Suspended by admin</div>' : p.suspendedBy === 'billing'? '<div class="text-xs text-red-600">⛔ Pay to bring it back</div>' : '';
   return `<div class="text-xs text-gray-500">${t}</div>${w}`;
 }
 async function renderProjects() {
@@ -356,63 +345,97 @@ async function renderProjects() {
   let list; try { list = await api('/projects'); } catch (e) { if (e.status === 401) { logout(); return; } el.innerHTML = `<p class="text-center text-red-600">${esc(e.message)}</p>`; return; }
   if (!list.length) { el.innerHTML = `<div class="${card} p-12 text-center"><div class="text-4xl mb-3">🚀</div><p class="text-gray-500 mb-4">You have no projects yet.</p><div class="flex gap-2 justify-center flex-wrap"><a class="${btn}" href="#/deploy/website">Deploy a website</a><a class="${btn2}" href="#/deploy/bot">Deploy a bot</a><a class="${btn2}" href="#/github">Import from GitHub</a></div></div>`; return; }
   el.innerHTML = summaryHtml(list) + `<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${list.map(p => `<div class="${card} lift p-5 flex flex-col gap-3">
-    <div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-semibold truncate">${esc(p.name)}</div><div class="text-xs text-gray-500">${p.type === 'website' ? '🌐 Website' : '🤖 ' + esc(p.botType)}</div></div>${badge(p.status)}</div>
-    ${p.url ? `<a class="text-sm text-emerald-600 break-all hover:underline" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>` : '<div class="text-sm text-gray-500">Bots have no URL — check the logs</div>'}
+    <div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-semibold truncate">${esc(p.name)}</div><div class="text-xs text-gray-500">${p.type === 'website'? '🌐 Website' : '🤖 ' + esc(p.botType)}</div></div>${badge(p.status)}</div>
+    ${p.url? `<a class="text-sm text-emerald-600 break-all hover:underline" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>` : '<div class="text-sm text-gray-500">Bots have no URL — check the logs</div>'}
     ${statLine(p)}
     <div class="flex flex-wrap gap-2 mt-auto">
-      ${p.type === 'bot' ? `<button class="${btn2}" onclick="showLogs('${p.id}')">Logs</button><button class="${btn2}" onclick="editEnv('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting' ? `<button class="${btn2}" onclick="controlBot('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="controlBot('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="controlBot('${p.id}','start')">Start</button>`}` : ''}
+      ${p.type === 'bot'? `<button class="${btn2}" onclick="showLogs('${p.id}')">Logs LIVE</button><button class="${btn2}" onclick="editEnv('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting'? `<button class="${btn2}" onclick="controlBot('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="controlBot('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="controlBot('${p.id}','start')">Start</button>`}` : ''}
       <button class="${btnDanger}" onclick="deleteProject('${p.id}')">Delete</button></div></div>`).join('')}</div>`;
 }
 async function controlBot(id, a) { try { await api(`/projects/${id}/${a}`, { method: 'POST' }); toast('Done'); renderProjects(); } catch (e) { toast(e.message, true); } }
 async function deleteProject(id) { if (!confirm('Delete this project permanently?')) return; try { await api('/projects/' + id, { method: 'DELETE' }); toast('Project deleted'); renderProjects(); } catch (e) { toast(e.message, true); } }
+
 async function showLogs(id) {
-  const m = $('#modal'); let live = true;
-  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><div class="${card} w-full max-w-3xl p-4"><div class="flex justify-between mb-2"><b>Logs</b><button id="cl" class="${btn2}">Close</button></div><pre id="lg" class="bg-black text-green-400 text-xs p-3 rounded-lg h-96 overflow-auto whitespace-pre-wrap"></pre><p class="text-xs text-gray-500 mt-2">A WhatsApp pairing code or QR will show up here if your bot prints it to the console.</p></div></div>`;
-  $('#cl').onclick = () => { live = false; m.innerHTML = ''; };
-  const load = async () => { if (!live) return; try { const r = await api(`/projects/${id}/logs`); const el = $('#lg'); if (el) { const bottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20; el.textContent = r.logs || '(no logs yet)'; if (bottom) el.scrollTop = el.scrollHeight; } } catch {} setTimeout(load, 2500); };
-  load();
+  const m = $('#modal');
+  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><div class="${card} w-full max-w-3xl p-4"><div class="flex justify-between items-center mb-2"><b>Live Logs <span class="text-emerald-500 animate-pulse">● LIVE</span></b><button id="cl" class="${btn2}">Close</button></div><pre id="lg" class="bg-black text-green-400 text-xs p-3 rounded-lg h-96 overflow-auto whitespace-pre-wrap">Connecting to live logs...</pre><p class="text-xs text-gray-500 mt-2">QR code / Pairing code will appear here live</p></div></div>`;
+  const lg = $('#lg');
+  let stop = false;
+  $('#cl').onclick = () => { stop = true; m.innerHTML = ''; };
+  try {
+    const res = await fetch(API_BASE + '/api/projects/' + id + '/logs/stream', { headers: { Authorization: 'Bearer ' + token } });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (!stop) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream:true});
+      let parts = buf.split('\n\n'); buf = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith('data:')) continue;
+        try {
+          const data = JSON.parse(part.slice(5).trim());
+          if (data.type === 'history') { lg.textContent = (data.logs||[]).join('\n') || '(no logs yet)'; lg.scrollTop = lg.scrollHeight; }
+          else if (data.type === 'log') { lg.textContent += '\n' + data.line; lg.scrollTop = lg.scrollHeight; }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    // fallback to old polling if SSE not available
+    lg.textContent = 'Live stream failed, falling back to polling...';
+    let live = true;
+    $('#cl').onclick = () => { live = false; m.innerHTML = ''; };
+    const load = async () => { if (!live || stop) return; try { const r = await api(`/projects/${id}/logs`); lg.textContent = r.logs || '(no logs)'; lg.scrollTop = lg.scrollHeight; } catch {} setTimeout(load, 2000); };
+    load();
+  }
 }
+
 async function editEnv(id) {
   let keys = [];
   try { keys = (await api(`/projects/${id}/env`)).keys; } catch (e) { return toast(e.message, true); }
   const m = $('#modal');
   m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><form id="fe" class="${card} w-full max-w-lg p-5 space-y-3">
     <div class="flex justify-between"><b>Environment variables</b><button type="button" id="ce" class="${btn2}">Close</button></div>
-    <p class="text-xs text-gray-500">Current keys: ${keys.length ? keys.map(esc).join(', ') : 'none'}. Values are hidden. Saving replaces ALL variables and restarts the bot.</p>
+    <p class="text-xs text-gray-500">Current keys: ${keys.length? keys.map(esc).join(', ') : 'none'}. Values are hidden. Saving replaces ALL and restarts bot.</p>
     <textarea class="${inp} font-mono" rows="6" id="ev" placeholder="BOT_TOKEN=123:abc"></textarea>
     <button class="${btn}">Save and restart</button></form></div>`;
   $('#ce').onclick = () => { m.innerHTML = ''; };
   $('#fe').onsubmit = async e => {
     e.preventDefault();
-    try { await api(`/projects/${id}/env`, { method: 'PUT', body: { envVars: $('#ev').value } }); m.innerHTML = ''; toast('Saved. Your bot is restarting.'); renderProjects(); }
+    try { await api(`/projects/${id}/env`, { method: 'PUT', body: { envVars: $('#ev').value } }); m.innerHTML = ''; toast('Saved. Restarting...'); renderProjects(); }
     catch (err) { toast(err.message, true); }
   };
 }
-
-/* ===================== deploy (website / bot / github) ===================== */
 async function deployView(mode) {
   if (!(await requireAuth())) return;
   const github = mode === 'github';
-  const kind = github ? ghKind : mode;
-  const title = github ? 'Import from GitHub' : kind === 'website' ? 'Deploy Website' : 'Deploy Bot';
+  const kind = github? ghKind : mode;
+  const title = github? 'Import from GitHub' : kind === 'website'? 'Deploy Website' : 'Deploy Bot';
   const label = 'text-sm text-gray-500';
-  const kindCards = github ? `<div class="grid grid-cols-2 gap-3">
-      ${[['website', 'Website', 'Static site (index.html in the root)'], ['bot', 'Bot', 'Node.js bot (package.json in the root)']].map(k => `<button type="button" data-kind="${k[0]}" class="rounded-xl border p-4 text-center ${ghKind === k[0] ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-gray-300 dark:border-zinc-700 hover:border-emerald-500'}"><div class="font-semibold">${k[1]}</div><div class="text-xs text-gray-500 mt-1">${k[2]}</div></button>`).join('')}</div>` : '';
-  appShell(github ? 'github' : 'deploy-' + kind, `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1><div id="dp">
+  const kindCards = github? `<div class="grid grid-cols-2 gap-3">
+      ${[['website', 'Website', 'Static site'], ['bot', 'Bot', 'Node.js bot']].map(k => `<button type="button" data-kind="${k[0]}" class="rounded-xl border p-4 text-center ${ghKind === k[0]? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-gray-300 dark:border-zinc-700 hover:border-emerald-500'}"><div class="font-semibold">${k[1]}</div><div class="text-xs text-gray-500 mt-1">${k[2]}</div></button>`).join('')}</div>` : '';
+  appShell(github? 'github' : 'deploy-' + kind, `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1><div id="dp">
     <form id="f" class="${card} p-6 space-y-4">${kindCards}
-      <div><label class="${label}">${kind === 'bot' ? 'Bot' : 'Project'} name${github ? ' (optional)' : ''}</label><input class="${inp} mt-1" id="n" maxlength="40" ${github ? '' : 'required'}></div>
-      ${kind === 'bot' ? `<div><label class="${label}">Bot type</label><select class="${inp} mt-1" id="t"><option value="baileys">WhatsApp (Baileys)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>` : ''}
-      <div><label class="${label}">GitHub URL ${github ? '' : '(optional)'}</label><input class="${inp} mt-1" id="g" type="url" placeholder="https://github.com/user/repo" ${github ? 'required' : ''}></div>
-      ${github ? `<div><label class="${label}">Branch (optional, defaults to the repository's default)</label><input class="${inp} mt-1" id="br" placeholder="main"></div>` : `<div><label class="${label}">${kind === 'bot' ? 'OR upload a ZIP (must contain package.json)' : 'OR upload a ZIP (must contain index.html)'}</label><input class="${inp} mt-1" type="file" id="z" accept=".zip"></div>`}
-      ${kind === 'bot' ? `<div><label class="${label}">Environment variables (optional, one per line: KEY=value)</label><textarea class="${inp} mt-1 font-mono" rows="4" id="e" placeholder="BOT_TOKEN=123:abc"></textarea></div>` : ''}
-      ${github ? '<p class="text-xs text-gray-500">The repository must be public. Websites must have an index.html in the root (build steps are not run). Bots must have a package.json.</p>' : ''}
-      <button class="${btn} w-full !py-2.5" id="sb">${kind === 'bot' ? 'Deploy Bot →' : 'Deploy Website →'}</button>
+      <div><label class="${label}">${kind === 'bot'? 'Bot' : 'Project'} name${github? ' (optional)' : ''}</label><input class="${inp} mt-1" id="n" maxlength="40" ${github? '' : 'required'}></div>
+      ${kind === 'bot'? `<div><label class="${label}">Bot type</label><select class="${inp} mt-1" id="t"><option value="baileys">WhatsApp (Baileys)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>` : ''}
+      <div><label class="${label}">GitHub URL ${github? '' : '(optional)'}</label><input class="${inp} mt-1" id="g" type="url" placeholder="https://github.com/user/repo" ${github? 'required' : ''}></div>
+      ${github? `<div><label class="${label}">Branch (optional)</label><input class="${inp} mt-1" id="br" placeholder="main"></div><div id="ghrepos" class="border border-dashed border-gray-300 dark:border-zinc-700 rounded-lg p-3 text-sm"><p class="text-xs text-gray-500 mb-2">Your GitHub repos — click to select:</p><div id="ghlist" class="space-y-1 max-h-64 overflow-auto">Loading... <a class="underline" href="${API_BASE}/auth/github">Login with GitHub</a> if not logged in with GitHub</div></div>` : `<div><label class="${label}">${kind === 'bot'? 'OR upload ZIP (must contain package.json)' : 'OR upload ZIP (must contain index.html)'}</label><input class="${inp} mt-1" type="file" id="z" accept=".zip"></div>`}
+      ${kind === 'bot'? `<div><label class="${label}">Environment variables (optional, KEY=value per line)</label><textarea class="${inp} mt-1 font-mono" rows="4" id="e" placeholder="BOT_TOKEN=123:abc"></textarea></div>` : ''}
+      <button class="${btn} w-full!py-2.5" id="sb">${kind === 'bot'? 'Deploy Bot →' : 'Deploy Website →'}</button>
     </form></div></div>`);
   document.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { ghKind = b.dataset.kind; deployView('github'); });
+  if(github){
+    try{
+      const repos = await api('/github/repos');
+      $('#ghlist').innerHTML = repos.map(r=>`<button type="button" onclick="document.getElementById('g').value='${r.url}'; document.getElementById('n').value='${r.name}'; toast('Selected ${r.name}')" class="${btn2} w-full!justify-start text-left"><i class="fab fa-github"></i> ${esc(r.full_name)} ${r.private?'🔒':''}</button>`).join('') || 'No repos';
+    }catch(e){
+      $('#ghlist').innerHTML = `<span class="text-red-500 text-xs">${esc(e.message)}</span> <a class="text-emerald-600 underline text-xs" href="${API_BASE}/auth/github">Login with GitHub</a>`;
+    }
+  }
   $('#f').onsubmit = async e => {
     e.preventDefault();
     const gh = ($('#g').value || '').trim(), file = $('#z') && $('#z').files[0];
-    if (!gh && !file) return toast('Upload a ZIP or enter a GitHub URL', true);
+    if (!gh &&!file) return toast('Upload a ZIP or enter a GitHub URL', true);
     let name = ($('#n').value || '').trim() || gh.split('/').filter(Boolean).pop().replace(/\.git$/, '') || 'my-project';
     const fd = new FormData(); fd.append('name', name); fd.append('githubUrl', gh);
     if ($('#br')) fd.append('branch', $('#br').value.trim());
@@ -420,25 +443,22 @@ async function deployView(mode) {
     if (kind === 'bot') { fd.append('botType', $('#t').value); fd.append('envVars', $('#e').value); }
     const b = $('#sb'); b.disabled = true; b.textContent = 'Deploying…';
     try {
-      const p = await api(kind === 'bot' ? '/projects/bot' : '/projects/website', { method: 'POST', body: fd });
+      const p = await api(kind === 'bot'? '/projects/bot' : '/projects/website', { method: 'POST', body: fd });
       $('#dp').innerHTML = `<div class="${card} p-8 text-center glow"><div class="text-5xl mb-3">✅</div><h2 class="text-xl font-bold mb-2">Project deployed!</h2>
-        ${p.url ? `<p class="text-sm break-all mb-5"><a class="text-emerald-600 hover:underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></p><a class="${btn}" href="${esc(p.url)}" target="_blank" rel="noopener">Open site</a>` : '<p class="text-sm text-gray-500 mb-5">Your bot is starting. Open Logs on your dashboard to follow the progress.</p>'}
+        ${p.url? `<p class="text-sm break-all mb-5"><a class="text-emerald-600 hover:underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></p><a class="${btn}" href="${esc(p.url)}" target="_blank" rel="noopener">Open site</a>` : '<p class="text-sm text-gray-500 mb-5">Your bot is starting. Open LIVE Logs on dashboard.</p>'}
         <a class="${btn2} ml-2" href="#/dashboard">Go to projects</a></div>`;
-    } catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; b.disabled = false; b.textContent = kind === 'bot' ? 'Deploy Bot →' : 'Deploy Website →'; }
+    } catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; b.disabled = false; b.textContent = kind === 'bot'? 'Deploy Bot →' : 'Deploy Website →'; }
   };
 }
-
-/* ===================== billing / profile / settings ===================== */
 async function billingView() {
   if (!(await requireAuth())) return;
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   const exp = me.paidUntil || me.trialEndsAt;
   const row = (a, b) => `<div class="flex justify-between"><span class="text-gray-500">${a}</span><span class="font-semibold">${b}</span></div>`;
   appShell('billing', `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">Billing</h1>
-    ${q.get('paid') === '1' ? `<div class="${card} p-4 mb-4 !border-emerald-500 text-sm">✅ Payment received! Your projects are coming back online.</div>` : q.get('paid') === '0' ? `<div class="${card} p-4 mb-4 !border-red-500 text-sm">Payment not confirmed yet. If you have paid, refresh in a minute.</div>` : ''}
-    <div class="${card} p-6 space-y-4">${row('Status', badge(me.status === 'paid' ? 'live' : me.status === 'trial' ? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(me.status)}<`))}${row('Days left', me.daysLeft)}${row('Expires', exp ? new Date(exp).toLocaleDateString() : '-')}${row('Price', `KES ${esc(me.price)} / month`)}
-      <button id="pay" class="${btn} w-full !py-3 glow">Pay KES ${esc(me.price)} (M-Pesa / Card)</button>
-      <p class="text-xs text-gray-500">Secure payment via Paystack. When you pay, 30 days are added on top of the days you have left.</p></div></div>`);
+    ${q.get('paid') === '1'? `<div class="${card} p-4 mb-4!border-emerald-500 text-sm">✅ Payment received!</div>` : q.get('paid') === '0'? `<div class="${card} p-4 mb-4!border-red-500 text-sm">Payment not confirmed yet.</div>` : ''}
+    <div class="${card} p-6 space-y-4">${row('Status', badge(me.status === 'paid'? 'live' : me.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(me.status)}<`))}${row('Days left', me.daysLeft)}${row('Expires', exp? new Date(exp).toLocaleDateString() : '-')}${row('Price', `KES ${esc(me.price)} / month`)}
+      <button id="pay" class="${btn} w-full!py-3 glow">Pay KES ${esc(me.price)} (M-Pesa / Card)</button></div></div>`);
   $('#pay').onclick = async e => { e.target.disabled = true; try { const r = await api('/billing/pay', { method: 'POST' }); location.href = r.url; } catch (err) { toast(err.message, true); e.target.disabled = false; } };
 }
 async function profileView() {
@@ -448,7 +468,7 @@ async function profileView() {
   appShell('profile', `<div class="max-w-xl mx-auto">
     <div class="flex items-center gap-4 mb-8"><div class="h-16 w-16 rounded-full grad-bg text-white grid place-items-center text-2xl font-bold">${esc((p.displayName || p.email)[0].toUpperCase())}</div>
       <div><h1 class="text-2xl font-extrabold">${esc(p.displayName)}</h1><p class="text-sm text-gray-500">${esc(p.email)}</p></div></div>
-    <div class="${card} px-6 py-2">${row('Plan', badge(p.status === 'paid' ? 'live' : p.status === 'trial' ? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(p.status)}<`))}${row('Days left', p.daysLeft)}${row('Member since', new Date(p.memberSince).toLocaleDateString())}${row('Projects', `${p.projects} (${p.websites} websites, ${p.bots} bots)`)}</div>
+    <div class="${card} px-6 py-2">${row('Plan', badge(p.status === 'paid'? 'live' : p.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(p.status)}<`))}${row('Days left', p.daysLeft)}${row('Member since', new Date(p.memberSince).toLocaleDateString())}${row('Projects', `${p.projects} (${p.websites} websites, ${p.bots} bots)`)}</div>
     <div class="mt-6 flex gap-2"><a class="${btn}" href="#/settings">Edit settings</a><a class="${btn2}" href="#/billing">Billing</a></div></div>`);
 }
 async function settingsView() {
@@ -462,21 +482,21 @@ async function settingsView() {
       <label class="text-sm text-gray-500">Email</label><input class="${inp} opacity-60" value="${esc(p.email)}" disabled>
       <button class="${btn}">Save</button></form>
     <form id="fp" class="${card} p-6 space-y-3"><h2 class="font-semibold">Change password</h2>
-      <input class="${inp}" type="password" id="cp" placeholder="Current password" required autocomplete="current-password">
-      <input class="${inp}" type="password" id="np" placeholder="New password (at least 8 characters)" minlength="8" required autocomplete="new-password">
-      <input class="${inp}" type="password" id="np2" placeholder="Confirm new password" required autocomplete="new-password">
+      <input class="${inp}" type="password" id="cp" placeholder="Current password" required>
+      <input class="${inp}" type="password" id="np" placeholder="New password (at least 8 chars)" minlength="8" required>
+      <input class="${inp}" type="password" id="np2" placeholder="Confirm new password" required>
       <button class="${btn}">Update password</button></form>
     <div class="${card} p-6 space-y-3"><h2 class="font-semibold">Appearance</h2>
-      <div class="flex gap-2"><button id="tl" class="${btn2} ${dark ? '' : '!border-emerald-500 !text-emerald-600'}">☀️ Light</button><button id="td" class="${btn2} ${dark ? '!border-emerald-500 !text-emerald-600' : ''}">🌙 Dark</button></div></div>
-    <div class="${card} p-6"><h2 class="font-semibold mb-3">Coming soon</h2><div class="flex flex-wrap gap-2">${soon.map(s => `<span class="rounded-full border border-gray-300 dark:border-zinc-700 px-3 py-1 text-xs text-gray-500">${s}</span>`).join('')}</div><p class="text-xs text-gray-500 mt-3">These features are planned but not available yet.</p></div>
-    <form id="fd" class="${card} p-6 space-y-3 !border-red-400/60"><h2 class="font-semibold text-red-600">Delete account</h2>
-      <p class="text-sm text-gray-500">This permanently deletes your account and all your projects, and stops your bots. It cannot be undone.</p>
+      <div class="flex gap-2"><button id="tl" class="${btn2} ${dark? '' : '!border-emerald-500!text-emerald-600'}">☀️ Light</button><button id="td" class="${btn2} ${dark? '!border-emerald-500!text-emerald-600' : ''}">🌙 Dark</button></div></div>
+    <div class="${card} p-6"><h2 class="font-semibold mb-3">Coming soon</h2><div class="flex flex-wrap gap-2">${soon.map(s => `<span class="rounded-full border border-gray-300 dark:border-zinc-700 px-3 py-1 text-xs text-gray-500">${s}</span>`).join('')}</div></div>
+    <form id="fd" class="${card} p-6 space-y-3!border-red-400/60"><h2 class="font-semibold text-red-600">Delete account</h2>
+      <p class="text-sm text-gray-500">This permanently deletes your account and all your projects.</p>
       <input class="${inp}" type="password" id="dp" placeholder="Confirm with your password" required>
       <button class="${btnDanger}">Delete my account</button></form></div>`);
   $('#fn').onsubmit = async e => { e.preventDefault(); try { await api('/profile', { method: 'PUT', body: { displayName: $('#dn').value } }); toast('Profile saved'); await loadMe(); } catch (err) { toast(err.message, true); } };
   $('#fp').onsubmit = async e => {
     e.preventDefault();
-    if ($('#np').value !== $('#np2').value) return toast('New passwords do not match', true);
+    if ($('#np').value!== $('#np2').value) return toast('New passwords do not match', true);
     try { await api('/settings/password', { method: 'POST', body: { currentPassword: $('#cp').value, newPassword: $('#np').value } }); toast('Password updated'); e.target.reset(); }
     catch (err) { toast(err.message, true); }
   };
@@ -489,55 +509,50 @@ async function settingsView() {
     catch (err) { toast(err.message, true); }
   };
 }
-
-/* ===================== admin ===================== */
 function adminLogout() { atoken = null; sessionStorage.removeItem('mh_admin'); adminView(); }
 async function adminView() {
   if (!atoken) {
-    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1>${health && health.adminConfigured === false ? '<p class="mb-4 text-sm text-red-600">⚠️ ADMIN_PASSWORD is not set, so the server made a temporary admin password. Open Render → your service → Logs and search for “ADMIN PASSWORD”. To choose your own, add ADMIN_PASSWORD under Environment and redeploy.</p>' : ''}<form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
+    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1><form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
     $('#f').onsubmit = async e => { e.preventDefault(); try { const r = await api('/admin/login', { method: 'POST', body: { password: $('#pw').value } }, null); atoken = r.token; sessionStorage.setItem('mh_admin', atoken); adminView(); } catch (err) { toast(err.message, true); } };
     return;
   }
   let d;
   try { d = await api('/admin/overview', {}, atoken); }
   catch (e) {
-    if (e.status === 401) { atoken = null; sessionStorage.removeItem('mh_admin'); toast('Admin session expired. Please log in again.', true); return adminView(); }
-    adminShell(`<div class="max-w-md mx-auto py-16 text-center"><h1 class="text-xl font-bold mb-2">Could not load the admin panel</h1><p class="text-sm text-red-600 mb-4">${esc(e.message)}</p><button class="${btn}" onclick="adminView()">Try again</button></div>`);
+    if (e.status === 401) { atoken = null; sessionStorage.removeItem('mh_admin'); toast('Admin session expired.', true); return adminView(); }
+    adminShell(`<div class="max-w-md mx-auto py-16 text-center"><h1 class="text-xl font-bold mb-2">Could not load admin</h1><p class="text-sm text-red-600 mb-4">${esc(e.message)}</p><button class="${btn}" onclick="adminView()">Try again</button></div>`);
     return;
   }
   let st = { price: cfg.price, trialDays: cfg.trialDays }; try { st = await api('/admin/settings', {}, atoken); } catch {}
   await checkHealth();
   const s = d.stats, stat = (a, b) => `<div class="${card} p-4"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1">${b}</div></div>`;
   const th = 'text-left text-xs text-gray-500 font-normal py-2 pr-4', td = 'py-2 pr-4 text-sm';
-  const storeWarn = health && health.onRender && !health.persistent ? `<div class="${card} p-4 !border-amber-500 text-sm text-amber-600">⚠️ Data is not on a persistent disk. Accounts and projects disappear whenever the server restarts or redeploys. Add a Render Disk and set DATA_DIR.</div>` : '';
-  const mailWarn = health && health.requireVerify && health.mail === 'none' ? `<div class="${card} p-4 !border-red-500 text-sm text-red-600">⚠️ Email is not configured, so verification codes cannot be sent. Set BREVO_API_KEY + MAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD on a paid Render plan).</div>` : '';
   adminShell(`<div class="max-w-6xl mx-auto space-y-8">
-    <h1 class="text-2xl font-extrabold">Admin Panel</h1>${mailWarn}${storeWarn}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Unpaid (expired)', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}${stat('Email delivery', esc(health ? health.mail : '?'))}</div>
-    <section class="${card} p-6"><h2 class="font-semibold mb-1">Pricing and free trial</h2><p class="text-sm text-gray-500 mb-4">Changes apply to new payments and new sign-ups. Time that users already paid for is not affected.</p>
+    <h1 class="text-2xl font-extrabold">Admin Panel</h1>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Expired', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}</div>
+    <section class="${card} p-6"><h2 class="font-semibold mb-1">Pricing and free trial</h2>
       <form id="fs" class="grid sm:grid-cols-3 gap-3 items-end">
         <div><label class="text-xs text-gray-500">Monthly price (KES)</label><input class="${inp} mt-1" type="number" min="10" max="100000" id="sp" value="${esc(st.price)}" required></div>
         <div><label class="text-xs text-gray-500">Free trial (days)</label><input class="${inp} mt-1" type="number" min="0" max="60" id="sd" value="${esc(st.trialDays)}" required></div>
         <button class="${btn}">Save</button></form></section>
-    <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days left</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
-    ${d.users.map(u => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}"><div class="flex gap-2">${u.status === 'unverified' ? `<button class="${btn2}" onclick="adm('/users/${u.id}/verify',{})">Verify</button>` : ''}<button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked ? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
+    <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
+    ${d.users.map(u => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}"><div class="flex gap-2">${u.status === 'unverified'? `<button class="${btn2}" onclick="adm('/users/${u.id}/verify',{})">Verify</button>` : ''}<button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
     <section><h2 class="font-semibold mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}"></th></tr>
-    ${d.projects.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy !== 'admin'}})">${p.suspendedBy === 'admin' ? 'Resume' : 'Suspend'}</button><button class="${btnDanger}" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
-    <section><h2 class="font-semibold mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
-    ${d.payments.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${new Date(p.at).toLocaleString()}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${esc(p.amount)}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('') || `<tr><td class="${td} text-gray-500" colspan="4">No payments yet</td></tr>`}</table></div></section></div>`);
+    ${d.projects.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy!== 'admin'}})">${p.suspendedBy === 'admin'? 'Resume' : 'Suspend'}</button><button class="${btnDanger}" onclick="if(confirm('Delete?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
+    </div>`);
   $('#fs').onsubmit = async e => {
     e.preventDefault();
-    try { const r = await api('/admin/settings', { method: 'PUT', body: { price: $('#sp').value, trialDays: $('#sd').value } }, atoken); cfg = { ...cfg, ...r }; toast('Pricing saved'); }
+    try { const r = await api('/admin/settings', { method: 'PUT', body: { price: $('#sp').value, trialDays: $('#sd').value } }, atoken); cfg = {...cfg,...r }; toast('Pricing saved'); }
     catch (err) { toast(err.message, true); }
   };
 }
 async function adm(path, body, method) { try { await api('/admin' + path, { method: method || 'POST', body }, atoken); toast('Done'); adminView(); } catch (e) { toast(e.message, true); } }
-
-/* ===================== router ===================== */
 function route() {
   clearInterval(pollT); $('#modal').innerHTML = '';
-  const h = (location.hash || '#/').split('?')[0];
+  const raw = (location.hash || '#/');
+  const h = raw.split('?')[0];
   window.scrollTo(0, 0);
+  if (raw.startsWith('#/auth')) return githubAuthView();
   if (token && (h === '#/login' || h === '#/signup')) { location.hash = '#/dashboard'; return; }
   const R = {
     '#/': landing, '#/login': () => authView('login'), '#/signup': () => authView('signup'), '#/verify': verifyView,
