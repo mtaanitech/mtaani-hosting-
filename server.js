@@ -17,8 +17,16 @@ const cf = require('./cf');
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) { console.error('Set JWT_SECRET in the environment'); process.exit(1); }
-const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || '').trim();
-const SKIP_EMAIL_VERIFY = process.env.SKIP_EMAIL_VERIFY === '1'; // TEMPORARY: lets people sign up without an email code until email sending works
+// Admin password: set ADMIN_PASSWORD in the environment. If it is missing, a temporary random one is created at startup and printed in the logs.
+const ADMIN_ENV = (process.env.ADMIN_PASSWORD || '').trim();
+const ADMIN_PASSWORD = ADMIN_ENV || crypto.randomBytes(9).toString('base64url');
+// Email verification is OFF by default (people sign up with email + password and log in right away).
+// Set REQUIRE_EMAIL_VERIFY=1 once email sending works (BREVO_API_KEY or Gmail on a paid plan).
+const REQUIRE_EMAIL_VERIFY = process.env.REQUIRE_EMAIL_VERIFY === '1';
+// "Verify you are human": Cloudflare Turnstile if both keys are set, otherwise a built-in math question.
+const TURNSTILE_SECRET = (process.env.TURNSTILE_SECRET || '').trim();
+const TURNSTILE_SITE_KEY = (process.env.TURNSTILE_SITE_KEY || '').trim();
+const TURNSTILE_ON = !!(TURNSTILE_SECRET && TURNSTILE_SITE_KEY);
 const PSK = process.env.PAYSTACK_SECRET_KEY;
 const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const BASE_DOMAIN = (process.env.BASE_DOMAIN || '').toLowerCase();
@@ -120,9 +128,11 @@ else if (mailMode === 'smtp') {
   console.log('Mail: using Gmail SMTP as ' + MAIL_USER);
   smtp.verify().then(() => console.log('Mail: SMTP login OK'))
     .catch(e => console.error('Mail: SMTP check FAILED (' + (e.code || 'error') + '): ' + e.message + ' -- on Render FREE, SMTP ports are blocked: use BREVO_API_KEY or a paid instance. For Gmail you also need 2-Step Verification + an App Password.'));
-} else console.warn('Mail: NOT configured - verification emails cannot be sent');
-console.log('Admin login: ' + (ADMIN_PASSWORD ? 'ADMIN_PASSWORD is set' : 'ADMIN_PASSWORD is NOT set - admin cannot log in'));
-if (SKIP_EMAIL_VERIFY) console.warn('Email verification is SKIPPED (SKIP_EMAIL_VERIFY=1). Remove it once email sending works.');
+} else console.warn('Mail: NOT configured' + (REQUIRE_EMAIL_VERIFY ? ' - but REQUIRE_EMAIL_VERIFY=1, so nobody can verify!' : ' (fine while email verification is off)'));
+if (ADMIN_ENV) console.log('Admin login: ADMIN_PASSWORD is set');
+else console.warn('ADMIN PASSWORD (temporary, changes on every restart): ' + ADMIN_PASSWORD + '  <- set ADMIN_PASSWORD in the environment to choose your own');
+console.log('Email verification: ' + (REQUIRE_EMAIL_VERIFY ? 'REQUIRED' : 'off (people log in right after signing up)'));
+console.log('Human check: ' + (TURNSTILE_ON ? 'Cloudflare Turnstile' : 'built-in math question'));
 if (process.env.RENDER && !process.env.DATA_DIR) console.warn('WARNING: DATA_DIR is not set. Without a persistent disk, users and projects are lost on every restart/redeploy.');
 
 /* ---------- billing: Paystack ---------- */
@@ -191,9 +201,38 @@ app.use('/p/:slug', (req, res, next) => serveSite(req.params.slug, req, res, nex
 
 app.use(express.json({ limit: '100kb' }));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, mail: mailMode, skipVerify: SKIP_EMAIL_VERIFY, adminConfigured: !!ADMIN_PASSWORD, persistent: !!process.env.DATA_DIR, onRender: !!process.env.RENDER, cf: cf.enabled }));
+app.get('/api/health', (req, res) => res.json({ ok: true, mail: mailMode, requireVerify: REQUIRE_EMAIL_VERIFY, adminConfigured: !!ADMIN_ENV, persistent: !!process.env.DATA_DIR, onRender: !!process.env.RENDER, cf: cf.enabled }));
 
-app.get('/api/config', (req, res) => res.json({ price: getPrice(), trialDays: getTrialDays(), currency: 'KES' })); // public: used by the landing page
+app.get('/api/config', (req, res) => res.json({ price: getPrice(), trialDays: getTrialDays(), currency: 'KES', human: TURNSTILE_ON ? 'turnstile' : 'math', turnstileSiteKey: TURNSTILE_ON ? TURNSTILE_SITE_KEY : '' })); // public: used by the landing page
+
+/* ---------- "verify you are human" (users only) ---------- */
+const usedHuman = new Map(); // one-time tokens of the math challenge: id -> expiry
+setInterval(() => { for (const [k, exp] of usedHuman) if (now() > exp) usedHuman.delete(k); }, 300000);
+const humanSig = text => crypto.createHmac('sha256', JWT_SECRET).update(text).digest('base64url');
+app.get('/api/human', limiter(60, 15 * 60000), (req, res) => {
+  if (TURNSTILE_ON) return res.json({ type: 'turnstile' });
+  const a = crypto.randomInt(2, 10), b = crypto.randomInt(2, 10), n = uid(), exp = now() + 5 * 60000;
+  // the token never contains the answer: it only holds an HMAC that can be recomputed with the secret
+  res.json({ type: 'math', question: `${a} + ${b}`, token: `${n}.${exp}.${humanSig(`${n}.${exp}.${a + b}`)}` });
+});
+async function verifyHuman(req) {
+  try {
+    if (TURNSTILE_ON) {
+      const token = String(req.body.cfToken || ''); if (!token) return false;
+      const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: token, remoteip: req.ip || '' })
+      });
+      const j = await r.json(); return !!j.success;
+    }
+    const [n, exp, sig] = String(req.body.humanToken || '').split('.');
+    const answer = String(req.body.humanAnswer || '').trim();
+    if (!n || !exp || !sig || !answer || now() > Number(exp) || usedHuman.has(n)) return false;
+    usedHuman.set(n, Number(exp)); // burn the token on every attempt so answers cannot be guessed repeatedly
+    return safeEq(sig, humanSig(`${n}.${exp}.${answer}`));
+  } catch (e) { console.error('human check', e.message); return false; }
+}
+const HUMAN_FAIL = { error: 'Human check failed. Please try again.' };
 
 /* ---------- auth ---------- */
 function auth(req, res, next) {
@@ -216,6 +255,7 @@ function adminAuth(req, res, next) {
 const authLimit = limiter(20, 15 * 60000);
 
 app.post('/api/auth/signup', authLimit, async (req, res) => {
+  if (!(await verifyHuman(req))) return res.status(400).json(HUMAN_FAIL);
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Invalid email' });
@@ -226,9 +266,9 @@ app.post('/api/auth/signup', authLimit, async (req, res) => {
   const passHash = await bcrypt.hash(password, 10);
   if (!u) { u = { id: uid(), email, verified: false, trialEndsAt: 0, paidUntil: 0, blocked: false, createdAt: now() }; db.users.push(u); }
   Object.assign(u, { passHash, code, codeExp: now() + 15 * 60000, codeTries: 0 });
-  if (SKIP_EMAIL_VERIFY) { // no email check: verify right away and start the trial
+  if (!REQUIRE_EMAIL_VERIFY) { // no email check: activate right away, start the trial and log the person in
     u.verified = true; u.trialEndsAt = now() + getTrialDays() * DAY; u.code = null; save();
-    return res.json({ ok: true, verified: true });
+    return res.json({ ok: true, verified: true, token: jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' }), user: publicUser(u) });
   }
   save();
   try { await sendCode(email, code); } catch (e) { console.error('mail', e.message); return res.status(500).json({ error: 'Could not send the verification email. Please try again later.' }); }
@@ -252,9 +292,10 @@ app.post('/api/auth/verify', authLimit, (req, res) => {
   res.json({ ok: true });
 });
 app.post('/api/auth/login', authLimit, async (req, res) => {
+  if (!(await verifyHuman(req))) return res.status(400).json(HUMAN_FAIL);
   const u = db.users.find(x => x.email === String(req.body.email || '').trim().toLowerCase());
   if (!u || !(await bcrypt.compare(String(req.body.password || ''), u.passHash))) return res.status(401).json({ error: 'Incorrect email or password' });
-  if (!u.verified && SKIP_EMAIL_VERIFY) { u.verified = true; u.trialEndsAt = now() + getTrialDays() * DAY; u.code = null; save(); }
+  if (!u.verified && !REQUIRE_EMAIL_VERIFY) { u.verified = true; u.trialEndsAt = now() + getTrialDays() * DAY; u.code = null; save(); }
   if (!u.verified) return res.status(403).json({ error: 'Please verify your email first', needVerify: true });
   if (u.blocked) return res.status(403).json({ error: 'Your account has been blocked. Please contact the admin.' });
   res.json({ token: jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' }), user: publicUser(u) });
@@ -468,7 +509,6 @@ app.get('/billing/return', async (req, res) => {
 
 /* ---------- admin ---------- */
 app.post('/api/admin/login', limiter(10, 15 * 60000), (req, res) => {
-  if (!ADMIN_PASSWORD) return res.status(503).json({ error: 'ADMIN_PASSWORD is not set on the server. Add it in the Render environment and redeploy.' });
   if (!safeEq(String(req.body.password || '').trim(), ADMIN_PASSWORD)) return res.status(401).json({ error: 'Incorrect password' });
   res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) });
 });
