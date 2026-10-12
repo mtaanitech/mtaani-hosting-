@@ -39,7 +39,8 @@ const API_BASE = (typeof window.MH_API === 'string') ? window.MH_API
 let token = localStorage.getItem('mh_token');
 let atoken = sessionStorage.getItem('mh_admin');
 let me = null, health = null, pollT = null, ghKind = 'website';
-let cfg = { price: 130, trialDays: 7 };
+let cfg = { price: 130, trialDays: 7, human: 'math' };
+let humanTok = '', cfToken = '';
 let pendingEmail = localStorage.getItem('mh_pending') || '';
 
 /* ===================== helpers ===================== */
@@ -128,7 +129,7 @@ function footerHtml() {
   return `<footer class="border-t border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-10 text-sm text-gray-500">
     <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
       <div><h4 class="${h4}">MtaaniHost</h4><p>Deploy websites and bots in Kenya with ease.</p></div>
-      <div><h4 class="${h4}">How it works</h4><ul class="space-y-2"><li>1. Sign up and verify your email</li><li>2. Upload a ZIP or import from GitHub</li><li>3. Share your live link</li></ul></div>
+      <div><h4 class="${h4}">How it works</h4><ul class="space-y-2"><li>1. Sign up with your email and password</li><li>2. Upload a ZIP or import from GitHub</li><li>3. Share your live link</li></ul></div>
       <div><h4 class="${h4}">Pricing</h4><p>KES ${esc(cfg.price)} per month after a ${esc(cfg.trialDays)}-day free trial.</p></div>
       <div><h4 class="${h4}">Support</h4><ul class="space-y-2"><li><a class="hover:text-emerald-600 cursor-pointer" onclick="goTo('faq')">FAQ</a></li><li><a class="hover:text-emerald-600" href="#/billing">Billing</a></li>${SUPPORT_WHATSAPP ? `<li><a class="hover:text-emerald-600" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}" target="_blank" rel="noopener">WhatsApp support</a></li>` : ''}<li><a class="hover:text-emerald-600" href="#/admin">Admin</a></li></ul></div>
     </div>
@@ -170,11 +171,11 @@ function landing() {
     ['📊', 'Live logs and stats', 'See whether each project is online, how long your bot has been running, how many times it restarted, and read its logs in real time.', 'amber'],
     ['🔐', 'Secret keys stay secret', 'Add bot tokens as environment variables. Values are hidden after you save them and are never shown to anyone else.', 'rose'],
     ['💳', 'Pay the Kenyan way', 'Pay with M-Pesa or your card through Paystack. The moment your payment is confirmed, your projects come back online automatically.', 'emerald'],
-    ['✉️', 'Verified accounts', 'Every account is verified with a 6-digit code sent to your email, so your projects are tied to a real owner.', 'cyan'],
+    ['⚡', 'Simple sign-up', 'Create an account with your email and password and start deploying straight away. No waiting for codes.', 'cyan'],
     ['🛡️', 'Fair and controlled', 'Admins can pause any project that breaks the rules. Your projects are never deleted just because a payment is late. They are paused until you pay.', 'violet']
   ];
   const steps = [
-    ['1', 'Create your account', 'Sign up with your email and password. We send a verification code, you enter it, and your free trial starts immediately.'],
+    ['1', 'Create your account', 'Sign up with your email and password and prove you are human. Your free trial starts immediately.'],
     ['2', 'Upload and deploy', 'Choose Deploy Website or Deploy Bot, give it a name, upload your ZIP (or a GitHub link) and press Deploy.'],
     ['3', 'Share it with the world', 'Copy your link, send it to customers and friends, and watch your project stats from your dashboard.']
   ];
@@ -186,11 +187,11 @@ function landing() {
   ];
   const faqs = [
     ['What can I deploy on MtaaniHost?', 'Static websites (HTML, CSS and JavaScript, uploaded as a ZIP or pulled from a public GitHub repository) and Node.js bots for WhatsApp (Baileys), Telegram and Discord.'],
-    ['How does the free trial work?', `When you verify your email you get ${T} days free. You can deploy anything during the trial and no card is needed.`],
+    ['How does the free trial work?', `When you create your account you get ${T} days free. You can deploy anything during the trial and no card is needed.`],
     ['How much does it cost after the trial?', `KES ${P} per month, paid with M-Pesa or card through Paystack. Each payment adds 30 days to your account. If you pay early, the days are added on top of what you have left.`],
     ['What happens if I stop paying?', 'Your websites show a "suspended" page and your bots are stopped, but nothing is deleted. As soon as you pay, everything comes back online automatically.'],
     ['Does my bot need a special setup?', 'Your project must contain a package.json in its root. We run npm install, then npm start (or your main file). Add tokens as environment variables from the Env button on your project.'],
-    ['Is my account safe?', 'Passwords are stored encrypted, your email is verified, and your secret keys are hidden once saved. Never share your password or bot tokens with anyone.']
+    ['Is my account safe?', 'Passwords are stored encrypted and your secret keys are hidden once saved. Never share your password or bot tokens with anyone.']
   ];
   const col = { emerald: 'bg-emerald-500/15 text-emerald-500', violet: 'bg-violet-500/15 text-violet-500', cyan: 'bg-cyan-500/15 text-cyan-500', amber: 'bg-amber-500/15 text-amber-500', rose: 'bg-rose-500/15 text-rose-500' };
   publicShell(`
@@ -249,23 +250,68 @@ function landing() {
   </div></section>`);
 }
 
+/* "Verify you are human": Cloudflare Turnstile when the server has keys, otherwise a small math question */
+function loadTurnstile() {
+  return new Promise((ok, no) => {
+    const t0 = Date.now();
+    if (!document.querySelector('script[data-turnstile]')) {
+      const s = document.createElement('script'); s.dataset.turnstile = '1'; s.async = true;
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.onerror = () => no(new Error('Could not load the human check'));
+      document.head.appendChild(s);
+    }
+    const iv = setInterval(() => {
+      if (window.turnstile) { clearInterval(iv); ok(); }
+      else if (Date.now() - t0 > 8000) { clearInterval(iv); no(new Error('Could not load the human check')); }
+    }, 60);
+  });
+}
+async function setupHuman() {
+  const box = $('#human'); if (!box) return;
+  humanTok = ''; cfToken = '';
+  if (cfg.human === 'turnstile' && cfg.turnstileSiteKey) {
+    box.innerHTML = '<div id="cft"></div>';
+    try {
+      await loadTurnstile();
+      window.turnstile.render('#cft', { sitekey: cfg.turnstileSiteKey, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light', callback: t => { cfToken = t; }, 'expired-callback': () => { cfToken = ''; } });
+    } catch (e) { box.innerHTML = `<p class="text-xs text-red-600">${esc(e.message)}. Refresh the page.</p>`; }
+    return;
+  }
+  try {
+    const h = await api('/human', {}, null);
+    humanTok = h.token;
+    box.innerHTML = `<label class="text-sm text-gray-500">Verify you're human: what is <b>${esc(h.question)}</b> ?</label>
+      <div class="flex gap-2 mt-1"><input class="${inp}" id="ha" inputmode="numeric" autocomplete="off" placeholder="Your answer" required><button type="button" class="${btn2}" id="hr" title="New question">↻</button></div>`;
+    $('#hr').onclick = setupHuman;
+  } catch (e) { box.innerHTML = `<p class="text-xs text-red-600">${esc(e.message)}</p>`; }
+}
 function authView(mode) {
   const su = mode === 'signup', q = new URLSearchParams(location.hash.split('?')[1] || '');
   publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 glow">
     <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-bold text-center mb-1">${su ? 'Create your account' : 'Welcome back'}</h1>
     <p class="text-center text-sm text-gray-500 mb-6">${su ? `Start your ${esc(cfg.trialDays)}-day free trial. No card needed.` : 'Log in to manage your projects.'}</p>
     ${q.get('verified') ? '<p class="mb-4 text-sm text-emerald-600 text-center">Email verified! You can log in now.</p>' : ''}
-    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email" required autocomplete="email"><input class="${inp}" type="password" id="pw" placeholder="Password ${su ? '(at least 8 characters)' : ''}" required autocomplete="${su ? 'new-password' : 'current-password'}">
+    ${su && health && health.requireVerify && health.mail === 'none' ? '<p class="mb-4 text-xs text-amber-600 text-center">⚠️ Email sending is not set up yet, so verification codes cannot be delivered. Please contact the admin.</p>' : ''}
+    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email (Gmail or any email)" required autocomplete="email"><input class="${inp}" type="password" id="pw" placeholder="Password ${su ? '(at least 8 characters)' : ''}" required autocomplete="${su ? 'new-password' : 'current-password'}">
+    <div id="human" class="space-y-1"><p class="text-xs text-gray-500">Loading human check…</p></div>
     <button class="${btn} w-full !py-2.5" id="sb">${su ? 'Sign Up' : 'Login'}</button></form>
     <p class="text-center text-sm text-gray-500 mt-4">${su ? 'Already have an account? <a class="underline" href="#/login">Login</a>' : 'Don\'t have an account? <a class="underline" href="#/signup">Sign Up</a>'}</p></div></div></div>`);
+  setupHuman();
   $('#f').onsubmit = async e => {
-    e.preventDefault(); const b = $('#sb'); b.disabled = true; const email = $('#em').value.trim(), password = $('#pw').value;
+    e.preventDefault();
+    const email = $('#em').value.trim(), password = $('#pw').value;
+    const turnstileMode = cfg.human === 'turnstile' && cfg.turnstileSiteKey;
+    if (turnstileMode && !cfToken) return toast('Please complete the human check first', true);
+    if (!turnstileMode && !humanTok) return toast('The human check did not load. Press ↻ and try again.', true);
+    const body = { email, password, humanToken: humanTok, humanAnswer: $('#ha') ? $('#ha').value : '', cfToken };
+    const b = $('#sb'); b.disabled = true;
     try {
-      if (su) { await api('/auth/signup', { method: 'POST', body: { email, password } }, null); pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; }
-      else { const r = await api('/auth/login', { method: 'POST', body: { email, password } }, null); token = r.token; localStorage.setItem('mh_token', token); me = r.user; location.hash = '#/dashboard'; }
+      const r = await api(su ? '/auth/signup' : '/auth/login', { method: 'POST', body }, null);
+      if (su && !r.token) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; return; } // email verification is switched on
+      token = r.token; localStorage.setItem('mh_token', token); me = r.user; location.hash = '#/dashboard';
     } catch (err) {
-      if (err.data && err.data.needVerify) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; }
-      toast(err.message, true); b.disabled = false;
+      if (err.data && err.data.needVerify) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; return; }
+      toast(err.message, true); b.disabled = false; setupHuman(); // challenges are single-use: get a fresh one
     }
   };
 }
@@ -448,18 +494,25 @@ async function settingsView() {
 function adminLogout() { atoken = null; sessionStorage.removeItem('mh_admin'); adminView(); }
 async function adminView() {
   if (!atoken) {
-    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1><form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
+    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1>${health && health.adminConfigured === false ? '<p class="mb-4 text-sm text-red-600">⚠️ ADMIN_PASSWORD is not set, so the server made a temporary admin password. Open Render → your service → Logs and search for “ADMIN PASSWORD”. To choose your own, add ADMIN_PASSWORD under Environment and redeploy.</p>' : ''}<form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
     $('#f').onsubmit = async e => { e.preventDefault(); try { const r = await api('/admin/login', { method: 'POST', body: { password: $('#pw').value } }, null); atoken = r.token; sessionStorage.setItem('mh_admin', atoken); adminView(); } catch (err) { toast(err.message, true); } };
     return;
   }
-  let d; try { d = await api('/admin/overview', {}, atoken); } catch { atoken = null; sessionStorage.removeItem('mh_admin'); return adminView(); }
+  let d;
+  try { d = await api('/admin/overview', {}, atoken); }
+  catch (e) {
+    if (e.status === 401) { atoken = null; sessionStorage.removeItem('mh_admin'); toast('Admin session expired. Please log in again.', true); return adminView(); }
+    adminShell(`<div class="max-w-md mx-auto py-16 text-center"><h1 class="text-xl font-bold mb-2">Could not load the admin panel</h1><p class="text-sm text-red-600 mb-4">${esc(e.message)}</p><button class="${btn}" onclick="adminView()">Try again</button></div>`);
+    return;
+  }
   let st = { price: cfg.price, trialDays: cfg.trialDays }; try { st = await api('/admin/settings', {}, atoken); } catch {}
   await checkHealth();
   const s = d.stats, stat = (a, b) => `<div class="${card} p-4"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1">${b}</div></div>`;
   const th = 'text-left text-xs text-gray-500 font-normal py-2 pr-4', td = 'py-2 pr-4 text-sm';
-  const mailWarn = health && health.mail === 'none' ? `<div class="${card} p-4 !border-red-500 text-sm text-red-600">⚠️ Email is not configured, so verification codes cannot be sent. Set BREVO_API_KEY + MAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD on a paid Render plan).</div>` : '';
+  const storeWarn = health && health.onRender && !health.persistent ? `<div class="${card} p-4 !border-amber-500 text-sm text-amber-600">⚠️ Data is not on a persistent disk. Accounts and projects disappear whenever the server restarts or redeploys. Add a Render Disk and set DATA_DIR.</div>` : '';
+  const mailWarn = health && health.requireVerify && health.mail === 'none' ? `<div class="${card} p-4 !border-red-500 text-sm text-red-600">⚠️ Email is not configured, so verification codes cannot be sent. Set BREVO_API_KEY + MAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD on a paid Render plan).</div>` : '';
   adminShell(`<div class="max-w-6xl mx-auto space-y-8">
-    <h1 class="text-2xl font-extrabold">Admin Panel</h1>${mailWarn}
+    <h1 class="text-2xl font-extrabold">Admin Panel</h1>${mailWarn}${storeWarn}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Unpaid (expired)', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}${stat('Email delivery', esc(health ? health.mail : '?'))}</div>
     <section class="${card} p-6"><h2 class="font-semibold mb-1">Pricing and free trial</h2><p class="text-sm text-gray-500 mb-4">Changes apply to new payments and new sign-ups. Time that users already paid for is not affected.</p>
       <form id="fs" class="grid sm:grid-cols-3 gap-3 items-end">
@@ -467,7 +520,7 @@ async function adminView() {
         <div><label class="text-xs text-gray-500">Free trial (days)</label><input class="${inp} mt-1" type="number" min="0" max="60" id="sd" value="${esc(st.trialDays)}" required></div>
         <button class="${btn}">Save</button></form></section>
     <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days left</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
-    ${d.users.map(u => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked ? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
+    ${d.users.map(u => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}"><div class="flex gap-2">${u.status === 'unverified' ? `<button class="${btn2}" onclick="adm('/users/${u.id}/verify',{})">Verify</button>` : ''}<button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked ? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
     <section><h2 class="font-semibold mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}"></th></tr>
     ${d.projects.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy !== 'admin'}})">${p.suspendedBy === 'admin' ? 'Resume' : 'Suspend'}</button><button class="${btnDanger}" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
     <section><h2 class="font-semibold mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
