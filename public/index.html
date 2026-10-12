@@ -27,15 +27,22 @@
 <div id="root" class="flex flex-col flex-1 min-h-screen"></div>
 <div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 max-w-xs"></div>
 <div id="modal"></div>
+
 <script>
+/* ===================== config & state ===================== */
 const SUPPORT_WHATSAPP = '';
-const API_BASE = (typeof window.MH_API === 'string')? window.MH_API : (/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname)? '' : 'https://mtaani-hosting.onrender.com');
+const API_BASE = (typeof window.MH_API === 'string')? window.MH_API
+  : (/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname)? '' : 'https://mtaani-hosting.onrender.com');
+
 let token = localStorage.getItem('mh_token');
 let atoken = sessionStorage.getItem('mh_admin');
 let me = null, health = null, pollT = null, ghKind = 'website';
 let cfg = { price: 130, trialDays: 7, human: 'math' };
 let humanTok = '', cfToken = '';
 let pendingEmail = localStorage.getItem('mh_pending') || '';
+let ghRepos = [];
+
+/* ===================== helpers ===================== */
 const $ = s => document.querySelector(s);
 const esc = s => String(s?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inp = 'w-full rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500';
@@ -45,6 +52,7 @@ const btnDanger = 'inline-flex items-center justify-center gap-2 rounded-lg bord
 const card = 'rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900';
 const ddItem = 'flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:text-emerald-600 cursor-pointer';
 const logo = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><path d="M12 2 22 20H2L12 2Z" fill="url(#lg1)"/><path d="M12 9l4.5 8h-9L12 9Z" fill="#fff" fill-opacity=".9"/></svg>`;
+
 function toast(msg, bad) {
   const box = $('#toast-container'); if (!box) return;
   const d = document.createElement('div');
@@ -57,7 +65,7 @@ async function api(p, o = {}, t = token) {
   if (t) h.Authorization = 'Bearer ' + t;
   let r;
   try { r = await fetch(API_BASE + '/api' + p, {...o, headers: h, body: o.body &&!fd? JSON.stringify(o.body) : o.body }); }
-  catch { throw new Error('Cannot reach the server. Check your internet or try again in a minute.'); }
+  catch { throw new Error('Cannot reach the server. Check your internet or try again in a minute (free servers wake up slowly).'); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(j.error || 'Something went wrong'); e.status = r.status; e.data = j; throw e; }
   return j;
@@ -84,6 +92,8 @@ async function checkHealth() { try { health = await api('/health', {}, null); } 
 function fmtUp(s) { if (!s) return '—'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d? `${d}d ${h}h` : h? `${h}h ${m}m` : `${m}m`; }
 function fmtB(b) { return b > 1048576? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB'; }
 const badge = s => { const c = { live: 'emerald', running: 'emerald', starting: 'amber', stopped: 'zinc', suspended: 'red' }[s] || 'zinc'; return `<span class="rounded-full px-2 py-0.5 text-xs bg-${c}-500/15 text-${c}-500 border border-${c}-500/30">${esc(s)}</span>`; };
+
+/* ===================== shells ===================== */
 function headerHtml(mode) {
   const themeBtn = `<button onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme" class="h-9 w-9 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 grid place-items-center"><i class="fas fa-adjust"></i></button>`;
   const lk = 'hidden sm:block px-2 text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer text-sm';
@@ -97,7 +107,7 @@ function headerHtml(mode) {
         <div class="px-3 py-2 mb-1 border-b border-gray-200 dark:border-zinc-700"><div class="font-semibold text-sm truncate">${esc(nm)}</div><div class="text-xs text-gray-500 truncate">${esc(me?.email || '')}</div></div>
         <a class="${ddItem}" href="#/profile"><i class="fas fa-user w-4"></i> My Profile</a>
         <a class="${ddItem}" href="#/settings"><i class="fas fa-cog w-4"></i> Settings</a>
-        <a class="${ddItem}" href="#/billing"><i class="fas fa-credit-card w-4"></i> Billing</a>
+        <a class="${ddItem}" href="#/billing"><i class="fas fa-credit-card w-4"></i> Billing &amp; Payments</a>
         <button class="${ddItem}" onclick="toggleTheme()"><i class="fas fa-adjust w-4"></i> Switch Dark / Light</button>
         <div class="my-1 border-t border-gray-200 dark:border-zinc-700"></div>
         <button class="${ddItem}!text-red-600" onclick="logout()"><i class="fas fa-sign-out-alt w-4"></i> Logout</button>
@@ -149,6 +159,8 @@ document.addEventListener('click', e => {
   const dd = $('#settingsDropdown');
   if (dd &&!e.target.closest('#settingsDropdown') &&!e.target.closest('#settingsBtn')) dd.classList.add('hidden');
 });
+
+/* ===================== public pages ===================== */
 function landing() {
   const T = cfg.trialDays, P = cfg.price;
   const feats = [
@@ -229,6 +241,7 @@ function landing() {
     <a href="#/signup" class="inline-flex mt-8 rounded-lg bg-white text-gray-900 font-semibold px-8 py-3 hover:opacity-90">Create free account</a>
   </div></section>`);
 }
+
 function loadTurnstile() {
   return new Promise((ok, no) => {
     const t0 = Date.now();
@@ -268,10 +281,9 @@ function authView(mode) {
   publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 glow">
     <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-bold text-center mb-1">${su? 'Create your account' : 'Welcome back'}</h1>
     <p class="text-center text-sm text-gray-500 mb-6">${su? `Start your ${esc(cfg.trialDays)}-day free trial. No card needed.` : 'Log in to manage your projects.'}</p>
-    <a href="${API_BASE}/auth/github" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-black text-white dark:bg-white dark:text-black px-4 py-3 text-sm font-semibold hover:opacity-80 mb-4"><i class="fab fa-github text-lg"></i> Continue with GitHub</a>
-    <div class="flex items-center gap-3 my-3"><div class="h-px flex-1 bg-gray-200 dark:bg-zinc-800"></div><span class="text-xs text-gray-500">OR</span><div class="h-px flex-1 bg-gray-200 dark:bg-zinc-800"></div></div>
     ${q.get('verified')? '<p class="mb-4 text-sm text-emerald-600 text-center">Email verified! You can log in now.</p>' : ''}
-    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email" required><input class="${inp}" type="password" id="pw" placeholder="Password ${su? '(at least 8 chars)' : ''}" required>
+    ${su && health && health.requireVerify && health.mail === 'none'? '<p class="mb-4 text-xs text-amber-600 text-center">⚠️ Email sending is not set up yet, so verification codes cannot be delivered. Please contact the admin.</p>' : ''}
+    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email (Gmail or any email)" required autocomplete="email"><input class="${inp}" type="password" id="pw" placeholder="Password ${su? '(at least 8 characters)' : ''}" required autocomplete="${su? 'new-password' : 'current-password'}">
     <div id="human" class="space-y-1"><p class="text-xs text-gray-500">Loading human check…</p></div>
     <button class="${btn} w-full!py-2.5" id="sb">${su? 'Sign Up' : 'Login'}</button></form>
     <p class="text-center text-sm text-gray-500 mt-4">${su? 'Already have an account? <a class="underline" href="#/login">Login</a>' : 'Don\'t have an account? <a class="underline" href="#/signup">Sign Up</a>'}</p></div></div></div>`);
@@ -294,18 +306,6 @@ function authView(mode) {
     }
   };
 }
-function githubAuthView(){
-  const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  const t = params.get('token');
-  if(t){
-    localStorage.setItem('mh_token', t);
-    token = t;
-    toast('Logged in with GitHub ✅');
-    location.hash = '#/dashboard';
-  } else {
-    publicShell(`<div class="max-w-md mx-auto py-24 text-center"><h1 class="text-xl font-bold">GitHub login failed</h1><p class="text-sm text-gray-500 mt-2">Try again</p><a class="${btn} mt-4" href="#/login">Back</a></div>`);
-  }
-}
 function verifyView() {
   if (!pendingEmail) { location.hash = '#/signup'; return; }
   publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 text-center glow">
@@ -315,6 +315,8 @@ function verifyView() {
   $('#f').onsubmit = async e => { e.preventDefault(); try { await api('/auth/verify', { method: 'POST', body: { email: pendingEmail, code: $('#cd').value.trim() } }, null); location.hash = '#/login?verified=1'; } catch (err) { toast(err.message, true); } };
   $('#rs').onclick = async () => { try { await api('/auth/resend', { method: 'POST', body: { email: pendingEmail } }, null); toast('A new code has been sent'); } catch (err) { toast(err.message, true); } };
 }
+
+/* ===================== projects ===================== */
 function banner() {
   if (!me) return '';
   if (me.status === 'trial') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3!border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
@@ -331,13 +333,13 @@ async function dashboardView() {
 function summaryHtml(l) {
   const c = f => l.filter(f).length;
   const box = (a, b, cl = '') => `<div class="${card} p-4 text-center"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1 ${cl}">${b}</div></div>`;
-  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${box('Projects', l.length)}${box('Online', c(p => p.status === 'live' || p.status === 'running'), 'text-emerald-500')}${box('Stopped', c(p => p.status === 'stopped'))}${box('Suspended', c(p => p.status === 'suspended'), 'text-red-500')}</div>`;
+  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${box('Projects', l.length)}${box('Online (live / running)', c(p => p.status === 'live' || p.status === 'running'), 'text-emerald-500')}${box('Stopped', c(p => p.status === 'stopped'))}${box('Suspended', c(p => p.status === 'suspended'), 'text-red-500')}</div>`;
 }
 function statLine(p) {
   const s = p.stats || {}; let t;
-  if (p.type === 'bot') t = p.status === 'running'? `⏱ Uptime ${fmtUp(s.uptimeSec)} · Crashes ${s.crashes} · Auto-restarts ${s.autoRestarts}` : `Crashes ${s.crashes || 0}${s.lastExit? ` · Last exit ${esc(s.lastExit.code)}` : ''}`;
+  if (p.type === 'bot') t = p.status === 'running'? `⏱ Uptime ${fmtUp(s.uptimeSec)} · Crashes ${s.crashes} · Auto-restarts ${s.autoRestarts}` : `Crashes ${s.crashes || 0}${s.lastExit? ` · Last exit code ${esc(s.lastExit.code)}` : ''}`;
   else t = `${s.files || 0} files · ${fmtB(s.bytes)} · Deployed ${new Date(s.deployedAt || p.createdAt).toLocaleDateString()}`;
-  const w = p.suspendedBy === 'admin'? '<div class="text-xs text-red-600">⛔ Suspended by admin</div>' : p.suspendedBy === 'billing'? '<div class="text-xs text-red-600">⛔ Pay to bring it back</div>' : '';
+  const w = p.suspendedBy === 'admin'? '<div class="text-xs text-red-600">⛔ Suspended by admin</div>' : p.suspendedBy === 'billing'? '<div class="text-xs text-red-600">⛔ Pay to bring it back online</div>' : '';
   return `<div class="text-xs text-gray-500">${t}</div>${w}`;
 }
 async function renderProjects() {
@@ -349,116 +351,165 @@ async function renderProjects() {
     ${p.url? `<a class="text-sm text-emerald-600 break-all hover:underline" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>` : '<div class="text-sm text-gray-500">Bots have no URL — check the logs</div>'}
     ${statLine(p)}
     <div class="flex flex-wrap gap-2 mt-auto">
-      ${p.type === 'bot'? `<button class="${btn2}" onclick="showLogs('${p.id}')">Logs LIVE</button><button class="${btn2}" onclick="editEnv('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting'? `<button class="${btn2}" onclick="controlBot('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="controlBot('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="controlBot('${p.id}','start')">Start</button>`}` : ''}
+      ${p.type === 'bot'? `<button class="${btn2}" onclick="showLogs('${p.id}')">Logs</button><button class="${btn2}" onclick="editEnv('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting'? `<button class="${btn2}" onclick="controlBot('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="controlBot('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="controlBot('${p.id}','start')">Start</button>`}` : ''}
       <button class="${btnDanger}" onclick="deleteProject('${p.id}')">Delete</button></div></div>`).join('')}</div>`;
 }
 async function controlBot(id, a) { try { await api(`/projects/${id}/${a}`, { method: 'POST' }); toast('Done'); renderProjects(); } catch (e) { toast(e.message, true); } }
 async function deleteProject(id) { if (!confirm('Delete this project permanently?')) return; try { await api('/projects/' + id, { method: 'DELETE' }); toast('Project deleted'); renderProjects(); } catch (e) { toast(e.message, true); } }
-
 async function showLogs(id) {
-  const m = $('#modal');
-  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><div class="${card} w-full max-w-3xl p-4"><div class="flex justify-between items-center mb-2"><b>Live Logs <span class="text-emerald-500 animate-pulse">● LIVE</span></b><button id="cl" class="${btn2}">Close</button></div><pre id="lg" class="bg-black text-green-400 text-xs p-3 rounded-lg h-96 overflow-auto whitespace-pre-wrap">Connecting to live logs...</pre><p class="text-xs text-gray-500 mt-2">QR code / Pairing code will appear here live</p></div></div>`;
-  const lg = $('#lg');
-  let stop = false;
-  $('#cl').onclick = () => { stop = true; m.innerHTML = ''; };
-  try {
-    const res = await fetch(API_BASE + '/api/projects/' + id + '/logs/stream', { headers: { Authorization: 'Bearer ' + token } });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    while (!stop) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, {stream:true});
-      let parts = buf.split('\n\n'); buf = parts.pop();
-      for (const part of parts) {
-        if (!part.startsWith('data:')) continue;
-        try {
-          const data = JSON.parse(part.slice(5).trim());
-          if (data.type === 'history') { lg.textContent = (data.logs||[]).join('\n') || '(no logs yet)'; lg.scrollTop = lg.scrollHeight; }
-          else if (data.type === 'log') { lg.textContent += '\n' + data.line; lg.scrollTop = lg.scrollHeight; }
-        } catch {}
-      }
-    }
-  } catch (e) {
-    // fallback to old polling if SSE not available
-    lg.textContent = 'Live stream failed, falling back to polling...';
-    let live = true;
-    $('#cl').onclick = () => { live = false; m.innerHTML = ''; };
-    const load = async () => { if (!live || stop) return; try { const r = await api(`/projects/${id}/logs`); lg.textContent = r.logs || '(no logs)'; lg.scrollTop = lg.scrollHeight; } catch {} setTimeout(load, 2000); };
-    load();
-  }
+  const m = $('#modal'); let live = true;
+  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><div class="${card} w-full max-w-3xl p-4"><div class="flex justify-between mb-2"><b>Logs</b><button id="cl" class="${btn2}">Close</button></div><pre id="lg" class="bg-black text-green-400 text-xs p-3 rounded-lg h-96 overflow-auto whitespace-pre-wrap"></pre><p class="text-xs text-gray-500 mt-2">A WhatsApp pairing code or QR will show up here if your bot prints it to the console.</p></div></div>`;
+  $('#cl').onclick = () => { live = false; m.innerHTML = ''; };
+  const load = async () => { if (!live) return; try { const r = await api(`/projects/${id}/logs`); const el = $('#lg'); if (el) { const bottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20; el.textContent = r.logs || '(no logs yet)'; if (bottom) el.scrollTop = el.scrollHeight; } } catch {} setTimeout(load, 2500); };
+  load();
 }
-
 async function editEnv(id) {
   let keys = [];
   try { keys = (await api(`/projects/${id}/env`)).keys; } catch (e) { return toast(e.message, true); }
   const m = $('#modal');
   m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><form id="fe" class="${card} w-full max-w-lg p-5 space-y-3">
     <div class="flex justify-between"><b>Environment variables</b><button type="button" id="ce" class="${btn2}">Close</button></div>
-    <p class="text-xs text-gray-500">Current keys: ${keys.length? keys.map(esc).join(', ') : 'none'}. Values are hidden. Saving replaces ALL and restarts bot.</p>
+    <p class="text-xs text-gray-500">Current keys: ${keys.length? keys.map(esc).join(', ') : 'none'}. Values are hidden. Saving replaces ALL variables and restarts the bot.</p>
     <textarea class="${inp} font-mono" rows="6" id="ev" placeholder="BOT_TOKEN=123:abc"></textarea>
     <button class="${btn}">Save and restart</button></form></div>`;
   $('#ce').onclick = () => { m.innerHTML = ''; };
   $('#fe').onsubmit = async e => {
     e.preventDefault();
-    try { await api(`/projects/${id}/env`, { method: 'PUT', body: { envVars: $('#ev').value } }); m.innerHTML = ''; toast('Saved. Restarting...'); renderProjects(); }
+    try { await api(`/projects/${id}/env`, { method: 'PUT', body: { envVars: $('#ev').value } }); m.innerHTML = ''; toast('Saved. Your bot is restarting.'); renderProjects(); }
     catch (err) { toast(err.message, true); }
   };
 }
+
+/* ===================== DEPLOY + GITHUB OAUTH - FULL ===================== */
 async function deployView(mode) {
   if (!(await requireAuth())) return;
   const github = mode === 'github';
   const kind = github? ghKind : mode;
   const title = github? 'Import from GitHub' : kind === 'website'? 'Deploy Website' : 'Deploy Bot';
   const label = 'text-sm text-gray-500';
-  const kindCards = github? `<div class="grid grid-cols-2 gap-3">
-      ${[['website', 'Website', 'Static site'], ['bot', 'Bot', 'Node.js bot']].map(k => `<button type="button" data-kind="${k[0]}" class="rounded-xl border p-4 text-center ${ghKind === k[0]? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-gray-300 dark:border-zinc-700 hover:border-emerald-500'}"><div class="font-semibold">${k[1]}</div><div class="text-xs text-gray-500 mt-1">${k[2]}</div></button>`).join('')}</div>` : '';
-  appShell(github? 'github' : 'deploy-' + kind, `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1><div id="dp">
-    <form id="f" class="${card} p-6 space-y-4">${kindCards}
-      <div><label class="${label}">${kind === 'bot'? 'Bot' : 'Project'} name${github? ' (optional)' : ''}</label><input class="${inp} mt-1" id="n" maxlength="40" ${github? '' : 'required'}></div>
+
+  if (github) {
+    const params = new URLSearchParams(window.location.search);
+    const justConnected = params.has('github_connected');
+    appShell('github', `<div class="max-w-3xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1>
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        ${[['website', '🌐 Website', 'Static site (index.html in root)'], ['bot', '🤖 Bot', 'Node.js bot (package.json in root)']].map(k => `<button type="button" data-kind="${k[0]}" class="rounded-xl border p-4 text-center ${ghKind === k[0]? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-gray-300 dark:border-zinc-700 hover:border-emerald-500'}"><div class="font-semibold">${k[1]}</div><div class="text-xs text-gray-500 mt-1">${k[2]}</div></button>`).join('')}
+      </div>
+      ${justConnected? `<div class="${card} p-3 mb-4!border-emerald-500 text-sm text-emerald-600">✅ GitHub connected! Loading your repos...</div>` : ''}
+      <div id="ghBox" class="${card} p-6">
+        <div id="ghNotConnected" class="text-center">
+          <div class="text-5xl mb-3"><i class="fab fa-github"></i></div>
+          <h2 class="font-bold text-lg mb-2">Connect your GitHub</h2>
+          <p class="text-sm text-gray-500 mb-5">Click the button below, authorize MtaaniHost on GitHub, and you'll be returned here to see all your repos.</p>
+          <button id="ghConnectBtn" class="${btn}!px-8!py-3 text-base"><i class="fab fa-github"></i> Authorize GitHub</button>
+          <p class="text-xs text-gray-400 mt-3">We only request repo access to list and clone repos you choose.</p>
+        </div>
+        <div id="ghConnected" class="hidden">
+          <div class="flex justify-between items-center mb-4"><h3 class="font-bold">Your GitHub Repositories</h3><button id="ghRefresh" class="${btn2}"><i class="fas fa-sync"></i> Refresh</button></div>
+          <input class="${inp} mb-3" id="ghSearch" placeholder="Search repos...">
+          <div id="ghList" class="space-y-2 max-h-[500px] overflow-auto"></div>
+        </div>
+      </div>
+    </div>`);
+
+    document.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { ghKind = b.dataset.kind; deployView('github'); });
+    $('#ghConnectBtn').onclick = () => {
+      window.location.href = API_BASE + '/api/github/login?token=' + encodeURIComponent(token);
+    };
+    $('#ghRefresh').onclick = () => checkGitHubRepos(true);
+    $('#ghSearch').oninput = (e) => filterRepos(e.target.value);
+
+    // Check if already connected
+    checkGitHubRepos(justConnected);
+    if (justConnected) { history.replaceState({}, '', location.pathname + '#/github'); }
+    return;
+  }
+
+  // Website / Bot normal deploy - FULL ORIGINAL
+  appShell('deploy-' + kind, `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1><div id="dp">
+    <form id="f" class="${card} p-6 space-y-4">
+      <div><label class="${label}">${kind === 'bot'? 'Bot' : 'Project'} name</label><input class="${inp} mt-1" id="n" maxlength="40" required></div>
       ${kind === 'bot'? `<div><label class="${label}">Bot type</label><select class="${inp} mt-1" id="t"><option value="baileys">WhatsApp (Baileys)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>` : ''}
-      <div><label class="${label}">GitHub URL ${github? '' : '(optional)'}</label><input class="${inp} mt-1" id="g" type="url" placeholder="https://github.com/user/repo" ${github? 'required' : ''}></div>
-      ${github? `<div><label class="${label}">Branch (optional)</label><input class="${inp} mt-1" id="br" placeholder="main"></div><div id="ghrepos" class="border border-dashed border-gray-300 dark:border-zinc-700 rounded-lg p-3 text-sm"><p class="text-xs text-gray-500 mb-2">Your GitHub repos — click to select:</p><div id="ghlist" class="space-y-1 max-h-64 overflow-auto">Loading... <a class="underline" href="${API_BASE}/auth/github">Login with GitHub</a> if not logged in with GitHub</div></div>` : `<div><label class="${label}">${kind === 'bot'? 'OR upload ZIP (must contain package.json)' : 'OR upload ZIP (must contain index.html)'}</label><input class="${inp} mt-1" type="file" id="z" accept=".zip"></div>`}
-      ${kind === 'bot'? `<div><label class="${label}">Environment variables (optional, KEY=value per line)</label><textarea class="${inp} mt-1 font-mono" rows="4" id="e" placeholder="BOT_TOKEN=123:abc"></textarea></div>` : ''}
+      <div><label class="${label}">GitHub URL (optional)</label><input class="${inp} mt-1" id="g" type="url" placeholder="https://github.com/user/repo"></div>
+      <div><label class="${label}">${kind === 'bot'? 'OR upload a ZIP (must contain package.json)' : 'OR upload a ZIP (must contain index.html)'}</label><input class="${inp} mt-1" type="file" id="z" accept=".zip"></div>
+      ${kind === 'bot'? `<div><label class="${label}">Environment variables (optional, one per line: KEY=value)</label><textarea class="${inp} mt-1 font-mono" rows="4" id="e" placeholder="BOT_TOKEN=123:abc"></textarea></div>` : ''}
       <button class="${btn} w-full!py-2.5" id="sb">${kind === 'bot'? 'Deploy Bot →' : 'Deploy Website →'}</button>
     </form></div></div>`);
-  document.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { ghKind = b.dataset.kind; deployView('github'); });
-  if(github){
-    try{
-      const repos = await api('/github/repos');
-      $('#ghlist').innerHTML = repos.map(r=>`<button type="button" onclick="document.getElementById('g').value='${r.url}'; document.getElementById('n').value='${r.name}'; toast('Selected ${r.name}')" class="${btn2} w-full!justify-start text-left"><i class="fab fa-github"></i> ${esc(r.full_name)} ${r.private?'🔒':''}</button>`).join('') || 'No repos';
-    }catch(e){
-      $('#ghlist').innerHTML = `<span class="text-red-500 text-xs">${esc(e.message)}</span> <a class="text-emerald-600 underline text-xs" href="${API_BASE}/auth/github">Login with GitHub</a>`;
-    }
-  }
+
   $('#f').onsubmit = async e => {
     e.preventDefault();
     const gh = ($('#g').value || '').trim(), file = $('#z') && $('#z').files[0];
     if (!gh &&!file) return toast('Upload a ZIP or enter a GitHub URL', true);
     let name = ($('#n').value || '').trim() || gh.split('/').filter(Boolean).pop().replace(/\.git$/, '') || 'my-project';
     const fd = new FormData(); fd.append('name', name); fd.append('githubUrl', gh);
-    if ($('#br')) fd.append('branch', $('#br').value.trim());
     if (file) fd.append('file', file);
     if (kind === 'bot') { fd.append('botType', $('#t').value); fd.append('envVars', $('#e').value); }
     const b = $('#sb'); b.disabled = true; b.textContent = 'Deploying…';
     try {
       const p = await api(kind === 'bot'? '/projects/bot' : '/projects/website', { method: 'POST', body: fd });
       $('#dp').innerHTML = `<div class="${card} p-8 text-center glow"><div class="text-5xl mb-3">✅</div><h2 class="text-xl font-bold mb-2">Project deployed!</h2>
-        ${p.url? `<p class="text-sm break-all mb-5"><a class="text-emerald-600 hover:underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></p><a class="${btn}" href="${esc(p.url)}" target="_blank" rel="noopener">Open site</a>` : '<p class="text-sm text-gray-500 mb-5">Your bot is starting. Open LIVE Logs on dashboard.</p>'}
+        ${p.url? `<p class="text-sm break-all mb-5"><a class="text-emerald-600 hover:underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></p><a class="${btn}" href="${esc(p.url)}" target="_blank" rel="noopener">Open site</a>` : '<p class="text-sm text-gray-500 mb-5">Your bot is starting. Open Logs on your dashboard to follow the progress.</p>'}
         <a class="${btn2} ml-2" href="#/dashboard">Go to projects</a></div>`;
     } catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; b.disabled = false; b.textContent = kind === 'bot'? 'Deploy Bot →' : 'Deploy Website →'; }
   };
 }
+
+async function checkGitHubRepos(force) {
+  const notConn = $('#ghNotConnected'), conn = $('#ghConnected'), listEl = $('#ghList');
+  try {
+    const repos = await api('/github/repos');
+    ghRepos = repos;
+    notConn.classList.add('hidden');
+    conn.classList.remove('hidden');
+    if (!repos.length) { listEl.innerHTML = '<p class="text-sm text-gray-500 text-center py-8">No repositories found in your GitHub account.</p>'; return; }
+    renderRepoList(repos);
+  } catch (e) {
+    if (force) toast(e.message, true);
+    notConn.classList.remove('hidden');
+    conn.classList.add('hidden');
+  }
+}
+function renderRepoList(repos) {
+  const listEl = $('#ghList');
+  listEl.innerHTML = repos.map(r => `<div class="repo-item flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-zinc-700 hover:border-emerald-500 transition" data-name="${esc(r.full_name.toLowerCase())}">
+    <div class="min-w-0"><div class="font-semibold truncate">${esc(r.full_name)} ${r.private? '🔒' : ''}</div><div class="text-xs text-gray-500">Updated ${new Date(r.updated_at).toLocaleDateString()} · ${esc(r.name)}</div></div>
+    <button class="${btn}" onclick="importGhRepo('${esc(r.clone_url)}','${esc(r.name)}')"><i class="fas fa-download"></i> Import</button>
+  </div>`).join('');
+}
+function filterRepos(q) {
+  const v = q.toLowerCase();
+  document.querySelectorAll('.repo-item').forEach(el => {
+    el.style.display = el.dataset.name.includes(v)? '' : 'none';
+  });
+}
+async function importGhRepo(clone_url, defaultName) {
+  const finalName = prompt('Confirm project name:', defaultName) || defaultName;
+  if (!finalName) return;
+  const envVars = ghKind === 'bot'? prompt('Env vars (optional, e.g. BOT_TOKEN=xxx):', '') || '' : '';
+  const fd = new FormData();
+  fd.append('name', finalName);
+  fd.append('githubUrl', clone_url);
+  if (ghKind === 'bot') { fd.append('botType', 'baileys'); fd.append('envVars', envVars); }
+  try {
+    toast('Importing ' + defaultName + ' as ' + ghKind + '... This may take 30s');
+    const p = await api(ghKind === 'bot'? '/projects/bot' : '/projects/website', { method: 'POST', body: fd });
+    toast('✅ ' + defaultName + ' imported!');
+    if (p.url) { window.open(p.url, '_blank'); }
+    location.hash = '#/dashboard';
+  } catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; }
+}
+
+/* ===================== billing / profile / settings ===================== */
 async function billingView() {
   if (!(await requireAuth())) return;
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   const exp = me.paidUntil || me.trialEndsAt;
   const row = (a, b) => `<div class="flex justify-between"><span class="text-gray-500">${a}</span><span class="font-semibold">${b}</span></div>`;
   appShell('billing', `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">Billing</h1>
-    ${q.get('paid') === '1'? `<div class="${card} p-4 mb-4!border-emerald-500 text-sm">✅ Payment received!</div>` : q.get('paid') === '0'? `<div class="${card} p-4 mb-4!border-red-500 text-sm">Payment not confirmed yet.</div>` : ''}
+    ${q.get('paid') === '1'? `<div class="${card} p-4 mb-4!border-emerald-500 text-sm">✅ Payment received! Your projects are coming back online.</div>` : q.get('paid') === '0'? `<div class="${card} p-4 mb-4!border-red-500 text-sm">Payment not confirmed yet. If you have paid, refresh in a minute.</div>` : ''}
     <div class="${card} p-6 space-y-4">${row('Status', badge(me.status === 'paid'? 'live' : me.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(me.status)}<`))}${row('Days left', me.daysLeft)}${row('Expires', exp? new Date(exp).toLocaleDateString() : '-')}${row('Price', `KES ${esc(me.price)} / month`)}
-      <button id="pay" class="${btn} w-full!py-3 glow">Pay KES ${esc(me.price)} (M-Pesa / Card)</button></div></div>`);
+      <button id="pay" class="${btn} w-full!py-3 glow">Pay KES ${esc(me.price)} (M-Pesa / Card)</button>
+      <p class="text-xs text-gray-500">Secure payment via Paystack. When you pay, 30 days are added on top of the days you have left.</p></div></div>`);
   $('#pay').onclick = async e => { e.target.disabled = true; try { const r = await api('/billing/pay', { method: 'POST' }); location.href = r.url; } catch (err) { toast(err.message, true); e.target.disabled = false; } };
 }
 async function profileView() {
@@ -482,15 +533,15 @@ async function settingsView() {
       <label class="text-sm text-gray-500">Email</label><input class="${inp} opacity-60" value="${esc(p.email)}" disabled>
       <button class="${btn}">Save</button></form>
     <form id="fp" class="${card} p-6 space-y-3"><h2 class="font-semibold">Change password</h2>
-      <input class="${inp}" type="password" id="cp" placeholder="Current password" required>
-      <input class="${inp}" type="password" id="np" placeholder="New password (at least 8 chars)" minlength="8" required>
-      <input class="${inp}" type="password" id="np2" placeholder="Confirm new password" required>
+      <input class="${inp}" type="password" id="cp" placeholder="Current password" required autocomplete="current-password">
+      <input class="${inp}" type="password" id="np" placeholder="New password (at least 8 characters)" minlength="8" required autocomplete="new-password">
+      <input class="${inp}" type="password" id="np2" placeholder="Confirm new password" required autocomplete="new-password">
       <button class="${btn}">Update password</button></form>
     <div class="${card} p-6 space-y-3"><h2 class="font-semibold">Appearance</h2>
       <div class="flex gap-2"><button id="tl" class="${btn2} ${dark? '' : '!border-emerald-500!text-emerald-600'}">☀️ Light</button><button id="td" class="${btn2} ${dark? '!border-emerald-500!text-emerald-600' : ''}">🌙 Dark</button></div></div>
-    <div class="${card} p-6"><h2 class="font-semibold mb-3">Coming soon</h2><div class="flex flex-wrap gap-2">${soon.map(s => `<span class="rounded-full border border-gray-300 dark:border-zinc-700 px-3 py-1 text-xs text-gray-500">${s}</span>`).join('')}</div></div>
+    <div class="${card} p-6"><h2 class="font-semibold mb-3">Coming soon</h2><div class="flex flex-wrap gap-2">${soon.map(s => `<span class="rounded-full border border-gray-300 dark:border-zinc-700 px-3 py-1 text-xs text-gray-500">${s}</span>`).join('')}</div><p class="text-xs text-gray-500 mt-3">These features are planned but not available yet.</p></div>
     <form id="fd" class="${card} p-6 space-y-3!border-red-400/60"><h2 class="font-semibold text-red-600">Delete account</h2>
-      <p class="text-sm text-gray-500">This permanently deletes your account and all your projects.</p>
+      <p class="text-sm text-gray-500">This permanently deletes your account and all your projects, and stops your bots. It cannot be undone.</p>
       <input class="${inp}" type="password" id="dp" placeholder="Confirm with your password" required>
       <button class="${btnDanger}">Delete my account</button></form></div>`);
   $('#fn').onsubmit = async e => { e.preventDefault(); try { await api('/profile', { method: 'PUT', body: { displayName: $('#dn').value } }); toast('Profile saved'); await loadMe(); } catch (err) { toast(err.message, true); } };
@@ -509,37 +560,42 @@ async function settingsView() {
     catch (err) { toast(err.message, true); }
   };
 }
+
+/* ===================== admin ===================== */
 function adminLogout() { atoken = null; sessionStorage.removeItem('mh_admin'); adminView(); }
 async function adminView() {
   if (!atoken) {
-    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1><form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
+    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1>${health && health.adminConfigured === false? '<p class="mb-4 text-sm text-red-600">⚠️ ADMIN_PASSWORD is not set, so the server made a temporary admin password. Open Render → your service → Logs and search for “ADMIN PASSWORD”. To choose your own, add ADMIN_PASSWORD under Environment and redeploy.</p>' : ''}<form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
     $('#f').onsubmit = async e => { e.preventDefault(); try { const r = await api('/admin/login', { method: 'POST', body: { password: $('#pw').value } }, null); atoken = r.token; sessionStorage.setItem('mh_admin', atoken); adminView(); } catch (err) { toast(err.message, true); } };
     return;
   }
   let d;
   try { d = await api('/admin/overview', {}, atoken); }
   catch (e) {
-    if (e.status === 401) { atoken = null; sessionStorage.removeItem('mh_admin'); toast('Admin session expired.', true); return adminView(); }
-    adminShell(`<div class="max-w-md mx-auto py-16 text-center"><h1 class="text-xl font-bold mb-2">Could not load admin</h1><p class="text-sm text-red-600 mb-4">${esc(e.message)}</p><button class="${btn}" onclick="adminView()">Try again</button></div>`);
+    if (e.status === 401) { atoken = null; sessionStorage.removeItem('mh_admin'); toast('Admin session expired. Please log in again.', true); return adminView(); }
+    adminShell(`<div class="max-w-md mx-auto py-16 text-center"><h1 class="text-xl font-bold mb-2">Could not load the admin panel</h1><p class="text-sm text-red-600 mb-4">${esc(e.message)}</p><button class="${btn}" onclick="adminView()">Try again</button></div>`);
     return;
   }
   let st = { price: cfg.price, trialDays: cfg.trialDays }; try { st = await api('/admin/settings', {}, atoken); } catch {}
   await checkHealth();
   const s = d.stats, stat = (a, b) => `<div class="${card} p-4"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1">${b}</div></div>`;
   const th = 'text-left text-xs text-gray-500 font-normal py-2 pr-4', td = 'py-2 pr-4 text-sm';
+  const storeWarn = health && health.onRender &&!health.persistent? `<div class="${card} p-4!border-amber-500 text-sm text-amber-600">⚠️ Data is not on a persistent disk. Accounts and projects disappear whenever the server restarts or redeploys. Add a Render Disk and set DATA_DIR.</div>` : '';
+  const mailWarn = health && health.requireVerify && health.mail === 'none'? `<div class="${card} p-4!border-red-500 text-sm text-red-600">⚠️ Email is not configured, so verification codes cannot be sent. Set BREVO_API_KEY + MAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD on a paid Render plan).</div>` : '';
   adminShell(`<div class="max-w-6xl mx-auto space-y-8">
-    <h1 class="text-2xl font-extrabold">Admin Panel</h1>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Expired', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}</div>
-    <section class="${card} p-6"><h2 class="font-semibold mb-1">Pricing and free trial</h2>
+    <h1 class="text-2xl font-extrabold">Admin Panel</h1>${mailWarn}${storeWarn}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Unpaid (expired)', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}${stat('Email delivery', esc(health? health.mail : '?'))}</div>
+    <section class="${card} p-6"><h2 class="font-semibold mb-1">Pricing and free trial</h2><p class="text-sm text-gray-500 mb-4">Changes apply to new payments and new sign-ups. Time that users already paid for is not affected.</p>
       <form id="fs" class="grid sm:grid-cols-3 gap-3 items-end">
         <div><label class="text-xs text-gray-500">Monthly price (KES)</label><input class="${inp} mt-1" type="number" min="10" max="100000" id="sp" value="${esc(st.price)}" required></div>
         <div><label class="text-xs text-gray-500">Free trial (days)</label><input class="${inp} mt-1" type="number" min="0" max="60" id="sd" value="${esc(st.trialDays)}" required></div>
         <button class="${btn}">Save</button></form></section>
-    <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
+    <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days left</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
     ${d.users.map(u => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}"><div class="flex gap-2">${u.status === 'unverified'? `<button class="${btn2}" onclick="adm('/users/${u.id}/verify',{})">Verify</button>` : ''}<button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
     <section><h2 class="font-semibold mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}"></th></tr>
-    ${d.projects.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy!== 'admin'}})">${p.suspendedBy === 'admin'? 'Resume' : 'Suspend'}</button><button class="${btnDanger}" onclick="if(confirm('Delete?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
-    </div>`);
+    ${d.projects.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy!== 'admin'}})">${p.suspendedBy === 'admin'? 'Resume' : 'Suspend'}</button><button class="${btnDanger}" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
+    <section><h2 class="font-semibold mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
+    ${d.payments.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${new Date(p.at).toLocaleString()}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${esc(p.amount)}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('') || `<tr><td class="${td} text-gray-500" colspan="4">No payments yet</td></tr>`}</table></div></section></div>`);
   $('#fs').onsubmit = async e => {
     e.preventDefault();
     try { const r = await api('/admin/settings', { method: 'PUT', body: { price: $('#sp').value, trialDays: $('#sd').value } }, atoken); cfg = {...cfg,...r }; toast('Pricing saved'); }
@@ -547,12 +603,12 @@ async function adminView() {
   };
 }
 async function adm(path, body, method) { try { await api('/admin' + path, { method: method || 'POST', body }, atoken); toast('Done'); adminView(); } catch (e) { toast(e.message, true); } }
+
+/* ===================== router ===================== */
 function route() {
   clearInterval(pollT); $('#modal').innerHTML = '';
-  const raw = (location.hash || '#/');
-  const h = raw.split('?')[0];
+  const h = (location.hash || '#/').split('?')[0];
   window.scrollTo(0, 0);
-  if (raw.startsWith('#/auth')) return githubAuthView();
   if (token && (h === '#/login' || h === '#/signup')) { location.hash = '#/dashboard'; return; }
   const R = {
     '#/': landing, '#/login': () => authView('login'), '#/signup': () => authView('signup'), '#/verify': verifyView,
