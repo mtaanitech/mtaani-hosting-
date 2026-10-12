@@ -2,9 +2,6 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const EventEmitter = require('events');
-const logEmitter = new EventEmitter();
-logEmitter.setMaxListeners(200);
 
 const procs = new Map();   // projectId -> child
 const stopping = new Set();
@@ -15,17 +12,14 @@ const m = id => { if (!meta.has(id)) meta.set(id, { startedAt: null, crashes: 0,
 
 function log(id, data) {
   const arr = logs.get(id) || [];
-  String(data).split(/\r?\n/).filter(Boolean).forEach(l => {
-    const line = new Date().toISOString().slice(11, 19) + ' ' + l;
-    arr.push(line);
-    logEmitter.emit('log:'+id, line);
-  });
-  while (arr.length > 500) arr.shift();
+  String(data).split(/\r?\n/).filter(Boolean).forEach(l => arr.push(new Date().toISOString().slice(11, 19) + ' ' + l));
+  while (arr.length > 300) arr.shift();
   logs.set(id, arr);
 }
 const getLogs = id => (logs.get(id) || []).join('\n');
 const isRunning = id => procs.has(id);
 
+// clean env: NO server secrets are passed to user bot
 function cleanEnv(dir, extra) {
   return { PATH: process.env.PATH, HOME: dir, NODE_ENV: 'production', ...extra };
 }
@@ -68,13 +62,13 @@ async function start(project) {
     procs.delete(id);
     const mm = m(id); mm.startedAt = null; mm.lastExit = { code, at: Date.now() };
     if (!stopping.has(id)) mm.crashes++;
-    log(id, `Process ended (code ${code})`);
+    log(id, `Process exited (code ${code})`);
     if (stopping.has(id)) { stopping.delete(id); return; }
     const n = (restarts.get(id) || 0) + 1;
     restarts.set(id, n);
     m(id).autoRestarts++;
     if (n <= 5 && project.desired === 'running') {
-      log(id, `Trying to restart (${n}/5) after 5 seconds...`);
+      log(id, `Trying to restart (${n}/5) in 5 seconds...`);
       setTimeout(() => { if (project.desired === 'running') start(project); }, 5000);
     }
   });
@@ -95,4 +89,4 @@ function stats(id) {
   return { running: procs.has(id), startedAt: mm.startedAt, uptimeSec: mm.startedAt ? Math.floor((Date.now() - mm.startedAt) / 1000) : 0, crashes: mm.crashes, autoRestarts: mm.autoRestarts, lastExit: mm.lastExit };
 }
 
-module.exports = { start, stop, isRunning, getLogs, log, stats, logEmitter };
+module.exports = { start, stop, isRunning, getLogs, log, stats };
