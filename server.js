@@ -1,353 +1,667 @@
-require('dotenv').config();
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const multer = require('multer');
-const AdmZip = require('adm-zip');
-const nodemailer = require('nodemailer');
-const { execFile } = require('child_process');
-const { db, save, DATA } = require('./db');
-const runner = require('./runner');
-const cf = require('./cf');
+"use strict";
+const express = require("express");
+const Database = require("better-sqlite3");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const multer = require("multer");
+const AdmZip = require("adm-zip");
+const nodemailer = require("nodemailer");
+const { spawn } = require("child_process");
+const { EventEmitter } = require("events");
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 
+// ---------------------------------------------------------------- config
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) { console.error('Set JWT_SECRET'); process.exit(1); }
+if (!JWT_SECRET) {
+  console.error("Missing JWT_SECRET environment variable.");
+  process.exit(1);
+}
+const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
+const BASE_DOMAIN = (process.env.BASE_DOMAIN || "").toLowerCase(); // e.g. mtaanihost.dev
+const GH_ID = process.env.GITHUB_CLIENT_ID;
+const GH_SECRET = process.env.GITHUB_CLIENT_SECRET;
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const PROJECTS_DIR = path.join(DATA_DIR, "projects");
+const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
+const RESERVED = new Set(["www", "app", "api", "admin", "mail", "dashboard"]);
+fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const ADMIN_ENV = (process.env.ADMIN_PASSWORD || '').trim();
-const ADMIN_PASSWORD = ADMIN_ENV || crypto.randomBytes(9).toString('base64url');
-const REQUIRE_EMAIL_VERIFY = process.env.REQUIRE_EMAIL_VERIFY === '1';
-const TURNSTILE_SECRET = (process.env.TURNSTILE_SECRET || '').trim();
-const TURNSTILE_SITE_KEY = (process.env.TURNSTILE_SITE_KEY || '').trim();
-const TURNSTILE_ON =!!(TURNSTILE_SECRET && TURNSTILE_SITE_KEY);
-const PSK = process.env.PAYSTACK_SECRET_KEY;
-const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
-const BASE_DOMAIN = (process.env.BASE_DOMAIN || '').toLowerCase();
-const GITHUB_CLIENT_ID = (process.env.GITHUB_CLIENT_ID || '').trim();
-const GITHUB_CLIENT_SECRET = (process.env.GITHUB_CLIENT_SECRET || '').trim();
-const GITHUB_CALLBACK_URL = (process.env.GITHUB_CALLBACK_URL || `${BASE_URL}/auth/github/callback`).trim();
+// ---------------------------------------------------------------- database
+const db = new Database(path.join(DATA_DIR, "host.db"));
+db.pragma("journal_mode = WAL");
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  verified INTEGER NOT NULL DEFAULT 0,
+  code TEXT,
+  github_token TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  repo TEXT,
+  branch TEXT,
+  kind TEXT NOT NULL DEFAULT 'auto',
+  type TEXT,
+  root TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'queued',
+  url TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS env_vars (
+  project_id INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  PRIMARY KEY (project_id, key)
+);`);
 
-const DAY = 86400000, MAX_PROJECTS = 5;
-const getPrice = () => Number(db.settings.price) || 130;
-const getTrialDays = () => db.settings.trialDays === undefined? 7 : Number(db.settings.trialDays);
-const RESERVED = ['www', 'app', 'api', 'admin', 'p', 'mail', 'static'];
+const getProject = (id) => db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+const projectDir = (id) => path.join(PROJECTS_DIR, String(id), "src");
 
-const app = express();
-app.set('trust proxy', 1);
-
-['get', 'post', 'put', 'delete'].forEach(m => {
-  const orig = app[m].bind(app);
-  app[m] = (p,...handlers) => {
-    if (!handlers.length) return orig(p);
-    return orig(p,...handlers.map(h => (typeof h === 'function' && h.length < 4)
-     ? (req, res, next) => { try { const r = h(req, res, next); if (r && r.catch) r.catch(next); } catch (e) { next(e); } } : h));
-  };
-});
-
-const ORIGINS = (process.env.CORS_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
-app.use((req, res, next) => {
-  const o = req.headers.origin;
-  if (o && ORIGINS.includes(o)) {
-    res.setHeader('Access-Control-Allow-Origin', o);
-    res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    if (req.method === 'OPTIONS') return res.sendStatus(204);
-  }
-  next();
-});
-
-const now = () => Date.now();
-const uid = () => crypto.randomBytes(8).toString('hex');
-const expiry = u => Math.max(u.trialEndsAt || 0, u.paidUntil || 0);
-const isActive = u =>!u.blocked && u.verified && now() < expiry(u);
-const daysLeft = u => Math.max(0, Math.ceil((expiry(u) - now()) / DAY));
-const userStatus = u => u.blocked? 'blocked' :!u.verified? 'unverified' : (u.paidUntil && now() < u.paidUntil)? 'paid' : now() < (u.trialEndsAt || 0)? 'trial' : 'expired';
-const publicUser = u => ({ id: u.id, email: u.email, displayName: u.displayName || u.email.split('@')[0], status: userStatus(u), active: isActive(u), daysLeft: daysLeft(u), trialEndsAt: u.trialEndsAt, paidUntil: u.paidUntil || 0, price: getPrice() });
-const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+// ---------------------------------------------------------------- small helpers
+const AES_KEY = crypto.createHash("sha256").update(JWT_SECRET).digest();
+function enc(text) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv("aes-256-gcm", AES_KEY, iv);
+  const body = Buffer.concat([c.update(text, "utf8"), c.final()]);
+  return [iv, c.getAuthTag(), body].map((b) => b.toString("base64")).join(".");
+}
+function dec(text) {
+  const [iv, tag, body] = text.split(".").map((x) => Buffer.from(x, "base64"));
+  const d = crypto.createDecipheriv("aes-256-gcm", AES_KEY, iv);
+  d.setAuthTag(tag);
+  return Buffer.concat([d.update(body), d.final()]).toString("utf8");
+}
+const signToken = (u) => jwt.sign({ uid: u.id }, JWT_SECRET, { expiresIn: "30d" });
+const cleanEmail = (v) => String(v || "").trim().toLowerCase();
 
 const hits = new Map();
-function limiter(max, windowMs) {
-  return (req, res, next) => {
-    const k = req.ip + req.path; const h = hits.get(k) || { c: 0, r: now() + windowMs };
-    if (now() > h.r) { h.c = 0; h.r = now() + windowMs; }
-    if (++h.c > max) return res.status(429).json({ error: 'Too many requests' });
-    hits.set(k, h); next();
-  };
+function limit(req, res, next) {
+  const now = Date.now();
+  const list = (hits.get(req.ip) || []).filter((t) => now - t < 15 * 60 * 1000);
+  if (list.length >= 30) return res.status(429).json({ error: "Too many attempts. Try again in a few minutes." });
+  list.push(now);
+  hits.set(req.ip, list);
+  next();
 }
-setInterval(() => { for (const [k, h] of hits) if (now() > h.r) hits.delete(k); }, 600000);
 
-const MAIL_USER = (process.env.GMAIL_USER || process.env.SMTP_USER || '').trim();
-const MAIL_PASS = (process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || '').replace(/\s+/g, '');
-const MAIL_FROM = (process.env.MAIL_FROM || MAIL_USER).trim();
-const BREVO_KEY = (process.env.BREVO_API_KEY || '').trim();
-const DEV_MODE = process.env.DEV_MODE === '1';
-const smtp = MAIL_USER && MAIL_PASS? nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: MAIL_USER, pass: MAIL_PASS } }) : null;
-const mailMode = BREVO_KEY? 'brevo' : smtp? 'smtp' : 'none';
+// ---------------------------------------------------------------- logs and status (live tail)
+const bus = new EventEmitter();
+bus.setMaxListeners(0);
+const logBuf = new Map(); // projectId -> last 1000 log lines
 
-async function sendEmail(to, subject, html) {
-  if (BREVO_KEY) {
-    const r = await fetch('https://api.brevo.com/v3/smtp/email', { method: 'POST', headers: { 'api-key': BREVO_KEY, 'content-type': 'application/json' }, body: JSON.stringify({ sender: { name: 'MtaaniHost', email: MAIL_FROM }, to: [{ email: to }], subject, htmlContent: html }) });
-    if (!r.ok) throw new Error('Brevo error ' + r.status);
-    return;
+function log(id, stream, text) {
+  for (const line of String(text).split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const entry = { t: Date.now(), s: stream, m: line.slice(0, 2000) };
+    const buf = logBuf.get(id) || [];
+    buf.push(entry);
+    if (buf.length > 1000) buf.shift();
+    logBuf.set(id, buf);
+    bus.emit("log:" + id, entry);
   }
-  if (smtp) { await smtp.sendMail({ from: `"MtaaniHost" <${MAIL_FROM}>`, to, subject, html }); return; }
-  throw new Error('Email not configured');
 }
-async function sendCode(email, code) {
-  if (mailMode === 'none' && DEV_MODE) { console.log(`[DEV] code for ${email}: ${code}`); return; }
-  await sendEmail(email, `Your MtaaniHost code: ${code}`, `<p style="font-size:32px;letter-spacing:6px;font-weight:bold">${code}</p>`);
+function setStatus(id, status) {
+  db.prepare("UPDATE projects SET status = ? WHERE id = ?").run(status, id);
+  bus.emit("status:" + id, status);
 }
 
-// SINGLE AUTH DEFINITION - NO DUPLICATE
-function auth(req, res, next) {
-  try {
-    const t = (req.headers.authorization || '').replace('Bearer ', '');
-    const d = jwt.verify(t, JWT_SECRET);
-    if (d.role!== 'user') throw new Error();
-    const u = db.users.find(x => x.id === d.id);
-    if (!u) throw new Error();
-    req.user = u; next();
-  } catch { res.status(401).json({ error: 'Please log in again' }); }
-}
-function adminAuth(req, res, next) {
-  try {
-    const d = jwt.verify((req.headers.authorization || '').replace('Bearer ', ''), JWT_SECRET);
-    if (d.role!== 'admin') throw new Error();
-    next();
-  } catch { res.status(401).json({ error: 'Admin only' }); }
-}
-const authLimit = limiter(20, 15 * 60000);
-const usedHuman = new Map();
-const humanSig = text => crypto.createHmac('sha256', JWT_SECRET).update(text).digest('base64url');
-
-async function creditPayment(reference) {
-  if (db.payments.find(p => p.reference === reference)) return true;
-  const r = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(reference), { headers: { Authorization: 'Bearer ' + PSK } });
-  const j = await r.json();
-  if (!j.status ||!j.data || j.data.status!== 'success') return false;
-  const d = j.data, userId = d.metadata && d.metadata.userId;
-  const user = db.users.find(u => u.id === userId);
-  if (!user || d.currency!== 'KES') return false;
-  if (db.payments.find(p => p.reference === reference)) return true;
-  user.paidUntil = Math.max(now(), user.paidUntil || 0) + 30 * DAY;
-  db.payments.push({ reference, userId, email: user.email, amount: d.amount / 100, currency: d.currency, channel: d.channel, at: now() });
-  delete db.pending[reference]; save(); resumeUserBots(user.id); syncSites();
-  return true;
-}
-function resumeUserBots(userId) {
-  const o = db.users.find(x => x.id === userId);
-  if (!o ||!isActive(o)) return;
-  db.projects.filter(p => p.userId === userId && p.type === 'bot' && p.desired === 'running' &&!p.adminSuspended).forEach(p => runner.start(p));
+// ---------------------------------------------------------------- GitHub
+async function gh(token, url) {
+  const r = await fetch(url.startsWith("http") ? url : "https://api.github.com" + url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "User-Agent": "mtaani-host",
+    },
+    redirect: "follow",
+  });
+  if (!r.ok) throw new Error(`GitHub error ${r.status}: ${(await r.text()).slice(0, 160)}`);
+  return r;
 }
 
-app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res) => {
-  try {
-    const sig = crypto.createHmac('sha512', PSK || '').update(req.body).digest('hex');
-    if (!safeEq(sig, req.headers['x-paystack-signature'] || '')) return res.sendStatus(401);
-    const ev = JSON.parse(req.body.toString());
-    if (ev.event === 'charge.success') await creditPayment(ev.data.reference);
-    res.sendStatus(200);
-  } catch (e) { res.sendStatus(500); }
-});
-
-// GITHUB
-app.get('/auth/github', (req, res) => {
-  if (!GITHUB_CLIENT_ID) return res.status(500).send('GitHub not configured');
-  const state = crypto.randomBytes(8).toString('hex');
-  const url = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(GITHUB_CALLBACK_URL)}&scope=user:email%20repo&state=${state}`;
-  res.redirect(url);
-});
-app.get('/auth/github/callback', async (req, res) => {
-  try {
-    const code = req.query.code;
-    if (!code) return res.status(400).send('No code');
-    const tokenRes = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ client_id: GITHUB_CLIENT_ID, client_secret: GITHUB_CLIENT_SECRET, code, redirect_uri: GITHUB_CALLBACK_URL }) });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) return res.status(400).send('GitHub auth failed: ' + JSON.stringify(tokenData));
-    const accessToken = tokenData.access_token;
-    const userRes = await fetch('https://api.github.com/user', { headers: { Authorization: `Bearer ${accessToken}` } });
-    const ghUser = await userRes.json();
-    const emailRes = await fetch('https://api.github.com/user/emails', { headers: { Authorization: `Bearer ${accessToken}` } });
-    const emails = await emailRes.json();
-    const primary = Array.isArray(emails)? (emails.find(e => e.primary && e.verified) || emails[0]) : null;
-    const email = (primary?.email || ghUser.email || '').toLowerCase().trim();
-    if (!email) return res.status(400).send('Could not get email from GitHub');
-    let u = db.users.find(x => x.email === email);
-    if (!u) { u = { id: uid(), email, verified: true, displayName: ghUser.name || ghUser.login, trialEndsAt: now() + getTrialDays() * DAY, paidUntil: 0, blocked: false, createdAt: now(), passHash: await bcrypt.hash(crypto.randomBytes(12).toString('hex'), 10) }; db.users.push(u); }
-    else { u.verified = true; }
-    u.githubToken = accessToken; u.githubLogin = ghUser.login; save();
-    const jwtToken = jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.redirect(`/#/auth?token=${jwtToken}`);
-  } catch (e) { res.status(500).send('GitHub error: ' + e.message); }
-});
-app.get('/api/github/repos', auth, async (req, res) => {
-  try {
-    if (!req.user.githubToken) return res.status(400).json({ error: 'Login with GitHub first' });
-    const r = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', { headers: { Authorization: `Bearer ${req.user.githubToken}` } });
-    const j = await r.json();
-    res.json(j.map(repo => ({ name: repo.name, full_name: repo.full_name, url: repo.html_url, private: repo.private, branch: repo.default_branch })));
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-function blockedPage(res, name) {
-  res.status(402).send(`<body style="background:#000;color:#fff;display:grid;place-items:center;height:100vh"><h1>${name} suspended - pay to restore</h1></body>`);
+// ---------------------------------------------------------------- source handling
+function extractZip(buffer, dest) {
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = new AdmZip(buffer).getEntries().filter((e) => !e.entryName.startsWith("__MACOSX"));
+  if (!entries.length) throw new Error("The ZIP file is empty.");
+  // GitHub zips and most manual zips wrap everything in one top-level folder: strip it.
+  const top = entries[0].entryName.split("/")[0] + "/";
+  const strip = entries.every((e) => e.entryName.startsWith(top)) ? top : "";
+  const base = path.resolve(dest);
+  for (const e of entries) {
+    const rel = e.entryName.slice(strip.length);
+    if (!rel) continue;
+    const target = path.resolve(base, rel);
+    if (target !== base && !target.startsWith(base + path.sep)) continue; // zip-slip guard
+    if (e.isDirectory) {
+      fs.mkdirSync(target, { recursive: true });
+    } else {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, e.getData());
+    }
+  }
 }
-function serveSite(slug, req, res, next) {
-  const p = db.projects.find(x => x.slug === slug && x.type === 'website');
-  if (!p) return next();
-  const owner = db.users.find(u => u.id === p.userId);
-  if (!owner ||!isActive(owner) || p.adminSuspended) return blockedPage(res, p.name);
-  express.static(p.dir, { index: 'index.html', extensions: ['html'] })(req, res, () => res.status(404).send('Not found'));
+
+// Returns the folder (relative to dir) that holds index.html, "" for the root, or null if none.
+function findStaticRoot(dir) {
+  for (const c of ["", "public", "dist", "build", "docs", "www", "site", "src"]) {
+    if (fs.existsSync(path.join(dir, c, "index.html"))) return c;
+  }
+  for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!d.isDirectory() || d.name === "node_modules" || d.name.startsWith(".")) continue;
+    for (const c of ["", "public", "dist", "build"]) {
+      if (fs.existsSync(path.join(dir, d.name, c, "index.html"))) return path.join(d.name, c);
+    }
+  }
+  return null;
 }
+
+function detectProject(dir, kind) {
+  let pkg = null;
+  try {
+    pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+  } catch {}
+  const hasStart = !!(pkg && pkg.scripts && pkg.scripts.start);
+  const mainExists = !!(pkg && pkg.main && fs.existsSync(path.join(dir, pkg.main)));
+  const staticRoot = findStaticRoot(dir);
+
+  let type = kind;
+  if (type === "auto") type = hasStart ? "bot" : staticRoot !== null ? "site" : mainExists ? "bot" : null;
+
+  if (type === "bot") {
+    if (!hasStart && !mainExists) throw new Error('A bot needs a package.json with a "start" script or an existing "main" file.');
+    return { type: "bot", root: "", pkg };
+  }
+  if (type === "site") {
+    if (staticRoot === null) {
+      throw new Error("No index.html found (checked the root and public, dist, build, docs, www, site, src). For a bot, add a package.json with a start script.");
+    }
+    return { type: "site", root: staticRoot };
+  }
+  throw new Error("Could not tell if this is a website or a bot. Add an index.html or a package.json with a start script.");
+}
+
+// ---------------------------------------------------------------- process runner
+const procs = new Map(); // projectId -> { child, stopping, restarts, timer, since }
+
+function childEnv(id, dev) {
+  // Never pass the platform's own secrets (JWT_SECRET, GitHub secret...) to user code.
+  const env = { PATH: process.env.PATH, HOME: process.env.HOME || "/tmp", NODE_ENV: dev ? "development" : "production" };
+  for (const r of db.prepare("SELECT key, value FROM env_vars WHERE project_id = ?").all(id)) env[r.key] = r.value;
+  return env;
+}
+
+function runCmd(id, cmd, cwd) {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, { cwd, env: childEnv(id, true), shell: true });
+    child.stdout.on("data", (d) => log(id, "out", d));
+    child.stderr.on("data", (d) => log(id, "err", d));
+    child.on("error", (e) => {
+      log(id, "err", e.message);
+      resolve(1);
+    });
+    child.on("close", (code) => resolve(code));
+  });
+}
+
+function startBot(id) {
+  const dir = projectDir(id);
+  const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+  const cmd = pkg.scripts && pkg.scripts.start ? "npm start" : `node "${pkg.main}"`;
+  const entry = { child: null, stopping: false, restarts: 0, timer: null, since: 0 };
+  procs.set(id, entry);
+
+  const launch = () => {
+    log(id, "sys", `Starting: ${cmd}`);
+    const child = spawn(cmd, { cwd: dir, env: childEnv(id, false), shell: true, detached: true });
+    entry.child = child;
+    entry.since = Date.now();
+    setStatus(id, "running");
+    child.stdout.on("data", (d) => log(id, "out", d));
+    child.stderr.on("data", (d) => log(id, "err", d));
+    child.on("error", (e) => log(id, "err", e.message));
+    child.on("close", (code) => {
+      if (entry.stopping) return log(id, "sys", "Process stopped.");
+      log(id, "sys", `Process exited with code ${code}.`);
+      if (Date.now() - entry.since > 60000) entry.restarts = 0; // it ran fine for a while
+      if (entry.restarts >= 5) {
+        setStatus(id, "crashed");
+        return log(id, "sys", "Crashed too many times. Fix the error, then redeploy.");
+      }
+      entry.restarts++;
+      const wait = Math.min(30000, 2000 * entry.restarts);
+      setStatus(id, "restarting");
+      log(id, "sys", `Restarting in ${wait / 1000}s (attempt ${entry.restarts} of 5)...`);
+      entry.timer = setTimeout(launch, wait);
+    });
+  };
+  launch();
+}
+
+function stopBot(id, silent) {
+  const e = procs.get(id);
+  if (!e) return;
+  e.stopping = true;
+  clearTimeout(e.timer);
+  if (e.child && e.child.exitCode === null) {
+    try {
+      process.kill(-e.child.pid, "SIGTERM"); // kill the whole process group
+    } catch {
+      e.child.kill();
+    }
+  }
+  procs.delete(id);
+  if (!silent) setStatus(id, "stopped");
+}
+
+// ---------------------------------------------------------------- domains
+const siteUrl = (slug) => (BASE_DOMAIN ? `https://${slug}.${BASE_DOMAIN}` : `${PUBLIC_URL}/sites/${slug}/`);
+
+// Optional: register the subdomain in your separate domain system too.
+async function claimDomain(p) {
+  if (!process.env.DOMAIN_API_URL || !process.env.DOMAIN_API_KEY) return;
+  try {
+    const u = db.prepare("SELECT email FROM users WHERE id = ?").get(p.user_id);
+    const r = await fetch(process.env.DOMAIN_API_URL.replace(/\/$/, "") + "/api/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": process.env.DOMAIN_API_KEY },
+      body: JSON.stringify({ name: p.slug, owner: u.email }),
+    });
+    const data = await r.json().catch(() => ({}));
+    log(p.id, "sys", r.ok ? `Domain registered: ${data.domain || p.slug}` : `Domain system said: ${data.message || r.status}`);
+  } catch (e) {
+    log(p.id, "sys", "Domain system unreachable: " + e.message);
+  }
+}
+
+// ---------------------------------------------------------------- deploy pipeline
+async function deploy(id) {
+  const p = getProject(id);
+  const dir = projectDir(id);
+  stopBot(id, true);
+  logBuf.set(id, []);
+  setStatus(id, "building");
+  try {
+    log(id, "sys", "Getting source code...");
+    let zip;
+    if (p.source === "github") {
+      const u = db.prepare("SELECT github_token FROM users WHERE id = ?").get(p.user_id);
+      if (!u || !u.github_token) throw new Error("GitHub is not connected. Connect GitHub and redeploy.");
+      const r = await gh(dec(u.github_token), `/repos/${p.repo}/zipball/${p.branch}`);
+      zip = Buffer.from(await r.arrayBuffer());
+    } else {
+      zip = fs.readFileSync(path.join(PROJECTS_DIR, String(id), "source.zip"));
+    }
+    if (zip.length > 150 * 1024 * 1024) throw new Error("Source is too large (limit 150 MB).");
+    extractZip(zip, dir);
+
+    const info = detectProject(dir, p.kind);
+    db.prepare("UPDATE projects SET type = ?, root = ? WHERE id = ?").run(info.type, info.root, id);
+
+    if (info.type === "site") {
+      log(id, "sys", `Detected a website (folder: ${info.root || "project root"}).`);
+      const url = siteUrl(p.slug);
+      db.prepare("UPDATE projects SET url = ? WHERE id = ?").run(url, id);
+      await claimDomain(p);
+      setStatus(id, "live");
+      log(id, "sys", `Website is live: ${url}`);
+      return;
+    }
+
+    log(id, "sys", "Detected a bot / Node app.");
+    const pkg = info.pkg || {};
+    if (pkg.dependencies || pkg.devDependencies) {
+      log(id, "sys", "Installing dependencies...");
+      if ((await runCmd(id, "npm install --no-audit --no-fund", dir)) !== 0) throw new Error("npm install failed.");
+    }
+    if (pkg.scripts && pkg.scripts.build) {
+      log(id, "sys", "Running build...");
+      if ((await runCmd(id, "npm run build", dir)) !== 0) throw new Error("npm run build failed.");
+    }
+    startBot(id);
+  } catch (e) {
+    log(id, "err", "Deploy failed: " + e.message);
+    setStatus(id, "failed");
+  }
+}
+
+function resumeBots() {
+  const rows = db.prepare("SELECT id, status FROM projects WHERE type = 'bot' AND status IN ('running','restarting','building')").all();
+  for (const { id, status } of rows) {
+    if (status === "building") {
+      deploy(id);
+      continue;
+    }
+    try {
+      startBot(id);
+    } catch {
+      deploy(id);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- app
+const app = express();
+app.set("trust proxy", 1);
+
+function serveSite(slug, req, res) {
+  const p = db.prepare("SELECT * FROM projects WHERE slug = ? AND type = 'site' AND status = 'live'").get(slug);
+  if (!p) return res.status(404).send("This site does not exist or is not live.");
+  const root = path.join(projectDir(p.id), p.root);
+  express.static(root, { extensions: ["html"], index: "index.html" })(req, res, () => {
+    const notFound = path.join(root, "404.html");
+    if (fs.existsSync(notFound)) return res.status(404).sendFile(notFound);
+    if (!path.extname(req.path)) return res.sendFile(path.join(root, "index.html")); // single-page apps
+    res.status(404).send("Not found");
+  });
+}
+
+// Hosted sites on <slug>.BASE_DOMAIN
 app.use((req, res, next) => {
   if (!BASE_DOMAIN) return next();
-  const host = (req.hostname || '').toLowerCase();
-  if (host.endsWith('.' + BASE_DOMAIN)) {
-    const slug = host.slice(0, -(BASE_DOMAIN.length + 1));
-    if (!slug.includes('.') &&!RESERVED.includes(slug)) return serveSite(slug, req, res, () => res.status(404).send('Not found'));
-  }
-  next();
+  const host = (req.headers.host || "").split(":")[0].toLowerCase();
+  if (!host.endsWith("." + BASE_DOMAIN)) return next();
+  const slug = host.slice(0, -(BASE_DOMAIN.length + 1));
+  if (RESERVED.has(slug)) return next();
+  serveSite(slug, req, res);
 });
-app.use('/p/:slug', (req, res, next) => serveSite(req.params.slug, req, res, next));
-app.use(express.json({ limit: '100kb' }));
-app.get('/api/health', (req, res) => res.json({ ok: true, github:!!GITHUB_CLIENT_ID, mail: mailMode }));
-app.get('/api/config', (req, res) => res.json({ price: getPrice(), trialDays: getTrialDays(), human: TURNSTILE_ON? 'turnstile' : 'math', turnstileSiteKey: TURNSTILE_ON? TURNSTILE_SITE_KEY : '' }));
 
-app.get('/api/human', limiter(60, 15 * 60000), (req, res) => {
-  if (TURNSTILE_ON) return res.json({ type: 'turnstile' });
-  const a = crypto.randomInt(2, 10), b = crypto.randomInt(2, 10), n = uid(), exp = now() + 5 * 60000;
-  res.json({ type: 'math', question: `${a} + ${b}`, token: `${n}.${exp}.${humanSig(`${n}.${exp}.${a + b}`)}` });
-});
-async function verifyHuman(req) {
+// Path mode (testing only): hosted sites share this origin, so use BASE_DOMAIN in production.
+if (!BASE_DOMAIN) {
+  app.use("/sites/:slug", (req, res) => {
+    if (req.path === "/" && !req.originalUrl.split("?")[0].endsWith("/")) return res.redirect(301, req.baseUrl + "/");
+    serveSite(req.params.slug, req, res);
+  });
+}
+
+app.use(express.json({ limit: "1mb" }));
+app.get("/health", (req, res) => res.send("ok"));
+
+// ---- auth
+const mailer =
+  process.env.SMTP_USER && process.env.SMTP_PASS
+    ? nodemailer.createTransport({ service: "gmail", auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } })
+    : null;
+
+async function issueCode(user) {
+  const code = String(crypto.randomInt(100000, 1000000));
+  db.prepare("UPDATE users SET code = ? WHERE id = ?").run(code, user.id);
+  await mailer.sendMail({
+    from: `MtaaniHost <${process.env.SMTP_USER}>`,
+    to: user.email,
+    subject: "Your MtaaniHost verification code",
+    text: `Your verification code is ${code}`,
+  });
+}
+
+app.post("/api/auth/register", limit, async (req, res) => {
   try {
-    if (TURNSTILE_ON) {
-      const t = String(req.body.cfToken || ''); if (!t) return false;
-      const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: t }) });
-      const j = await r.json(); return!!j.success;
+    const email = cleanEmail(req.body.email);
+    const password = String(req.body.password || "");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address." });
+    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) {
+      return res.status(409).json({ error: "This email already has an account. Log in instead." });
     }
-    const [n, exp, sig] = String(req.body.humanToken || '').split('.');
-    const ans = String(req.body.humanAnswer || '').trim();
-    if (!n ||!exp ||!sig ||!ans || now() > Number(exp) || usedHuman.has(n)) return false;
-    usedHuman.set(n, Number(exp));
-    return safeEq(sig, humanSig(`${n}.${exp}.${ans}`));
-  } catch { return false; }
+    const hash = await bcrypt.hash(password, 10);
+    const r = db.prepare("INSERT INTO users (email, password_hash, verified, created_at) VALUES (?, ?, ?, ?)").run(email, hash, mailer ? 0 : 1, Date.now());
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(r.lastInsertRowid);
+    if (!mailer) return res.json({ token: signToken(user), email });
+    await issueCode(user);
+    res.json({ needVerify: true, email });
+  } catch (e) {
+    res.status(500).json({ error: "Could not create the account: " + e.message });
+  }
+});
+
+app.post("/api/auth/login", limit, async (req, res) => {
+  try {
+    const email = cleanEmail(req.body.email);
+    const u = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    if (!u || !(await bcrypt.compare(String(req.body.password || ""), u.password_hash))) {
+      return res.status(401).json({ error: "Wrong email or password." });
+    }
+    if (!u.verified) {
+      await issueCode(u);
+      return res.json({ needVerify: true, email });
+    }
+    res.json({ token: signToken(u), email });
+  } catch (e) {
+    res.status(500).json({ error: "Login failed: " + e.message });
+  }
+});
+
+app.post("/api/auth/verify", limit, (req, res) => {
+  const u = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail(req.body.email));
+  if (!u || !u.code || u.code !== String(req.body.code || "").trim()) return res.status(400).json({ error: "That code is not correct." });
+  db.prepare("UPDATE users SET verified = 1, code = NULL WHERE id = ?").run(u.id);
+  res.json({ token: signToken(u), email: u.email });
+});
+
+function auth(req, res, next) {
+  const h = req.headers.authorization || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : req.query.token; // query token is for the live log stream
+  try {
+    const { uid } = jwt.verify(String(token), JWT_SECRET);
+    const user = db.prepare("SELECT * FROM users WHERE id = ? AND verified = 1").get(uid);
+    if (!user) throw new Error("no user");
+    req.user = user;
+    next();
+  } catch {
+    res.status(401).json({ error: "Please log in." });
+  }
 }
 
-app.post('/api/auth/signup', authLimit, async (req, res) => {
-  if (!(await verifyHuman(req))) return res.status(400).json({ error: 'Human check failed' });
-  const email = String(req.body.email || '').trim().toLowerCase();
-  const password = String(req.body.password || '');
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Invalid email' });
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 chars' });
-  let u = db.users.find(x => x.email === email);
-  if (u && u.verified) return res.status(409).json({ error: 'Already exists' });
-  const passHash = await bcrypt.hash(password, 10);
-  if (!u) { u = { id: uid(), email, verified: false, trialEndsAt: 0, paidUntil: 0, blocked: false, createdAt: now() }; db.users.push(u); }
-  Object.assign(u, { passHash, code: null });
-  u.verified = true; u.trialEndsAt = now() + getTrialDays() * DAY; save();
-  res.json({ ok: true, verified: true, token: jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' }), user: publicUser(u) });
-});
-app.post('/api/auth/login', authLimit, async (req, res) => {
-  if (!(await verifyHuman(req))) return res.status(400).json({ error: 'Human check failed' });
-  const u = db.users.find(x => x.email === String(req.body.email || '').trim().toLowerCase());
-  if (!u ||!(await bcrypt.compare(String(req.body.password || ''), u.passHash))) return res.status(401).json({ error: 'Incorrect email or password' });
-  if (u.blocked) return res.status(403).json({ error: 'Blocked' });
-  if (!u.verified) { u.verified = true; u.trialEndsAt = now() + getTrialDays() * DAY; save(); }
-  res.json({ token: jwt.sign({ id: u.id, role: 'user' }, JWT_SECRET, { expiresIn: '30d' }), user: publicUser(u) });
-});
-app.get('/api/me', auth, (req, res) => res.json(publicUser(req.user)));
-
-// projects helpers
-function projectView(p) {
-  const owner = db.users.find(u => u.id === p.userId);
-  const active = owner && isActive(owner) &&!p.adminSuspended;
-  let status =!active? 'suspended' : p.type === 'website'? 'live' : runner.isRunning(p.id)? 'running' : (p.desired === 'running'? 'starting' : 'stopped');
-  let url = p.type === 'website'? (BASE_DOMAIN? `https://${p.slug}.${BASE_DOMAIN}` : `${BASE_URL}/p/${p.slug}/`) : null;
-  return { id: p.id, name: p.name, type: p.type, botType: p.botType, slug: p.slug, url, status, createdAt: p.createdAt, stats: p.type === 'bot'? runner.stats(p.id) : {} };
+function owned(req, res, next) {
+  const p = db.prepare("SELECT * FROM projects WHERE id = ? AND user_id = ?").get(Number(req.params.id), req.user.id);
+  if (!p) return res.status(404).json({ error: "Project not found." });
+  req.project = p;
+  next();
 }
-function slugify(name) { let base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30) || 'project'; let s = base; while (db.projects.some(p => p.slug === s)) s = base + '-' + crypto.randomBytes(2).toString('hex'); return s; }
-function extractZip(zipPath, dest) { const zip = new AdmZip(zipPath); fs.mkdirSync(dest, { recursive: true }); zip.extractAllTo(dest, true); }
-const upload = multer({ dest: path.join(os.tmpdir(), 'mh-uploads'), limits: { fileSize: 50 * 1024 * 1024 } });
-const rm = p => { try { fs.rmSync(p, { recursive: true, force: true }); } catch {} };
-const GH_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?\/?$/;
-const gitClone = (url, dest, branch) => new Promise((ok, no) => { const args = ['clone', '--depth', '1']; if (branch) args.push('--branch', branch); execFile('git', [...args, url, dest], { timeout: 120000 }, e => e? no(new Error('Git clone failed')) : ok()); });
-function checkCanDeploy(req, res) { if (!isActive(req.user)) { res.status(402).json({ error: 'Trial ended, pay' }); return false; } return true; }
-function cleanName(n) { return String(n || '').trim().slice(0, 40); }
-function parseEnv(text) { const env = {}; String(text || '').split(/\r?\n/).forEach(l => { const m = l.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/); if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, ''); }); return env; }
 
-app.get('/api/projects', auth, (req, res) => res.json(db.projects.filter(p => p.userId === req.user.id).map(projectView)));
-app.post('/api/projects/website', auth, upload.single('file'), async (req, res) => {
-  const tmp = req.file?.path;
+app.get("/api/me", auth, (req, res) => res.json({ email: req.user.email, github: !!req.user.github_token }));
+
+// ---- GitHub connect
+app.get("/api/github/connect", auth, (req, res) => {
+  if (!GH_ID || !GH_SECRET) return res.status(500).json({ error: "GitHub login is not configured on this server." });
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", GH_ID);
+  url.searchParams.set("scope", "repo"); // "repo" includes private repositories
+  url.searchParams.set("redirect_uri", `${PUBLIC_URL}/auth/github/callback`);
+  url.searchParams.set("state", jwt.sign({ uid: req.user.id }, JWT_SECRET, { expiresIn: "10m" }));
+  res.json({ url: url.toString() });
+});
+
+app.get("/auth/github/callback", async (req, res) => {
   try {
-    if (!checkCanDeploy(req, res)) return;
-    const name = cleanName(req.body.name); const gh = String(req.body.githubUrl || '').trim();
-    if (!name) return res.status(400).json({ error: 'Enter name' });
-    const id = uid(), dir = path.join(DATA, 'projects', id);
-    try { if (tmp) extractZip(tmp, dir); else await gitClone(gh, dir, String(req.body.branch || '').trim()); } catch (e) { rm(dir); return res.status(400).json({ error: e.message }); }
-    const p = { id, userId: req.user.id, type: 'website', name, slug: slugify(name), dir, createdAt: now() };
-    db.projects.push(p); save(); res.json(projectView(p));
-  } finally { if (tmp) rm(tmp); }
+    const { uid } = jwt.verify(String(req.query.state), JWT_SECRET);
+    const r = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: GH_ID, client_secret: GH_SECRET, code: req.query.code, redirect_uri: `${PUBLIC_URL}/auth/github/callback` }),
+    });
+    const data = await r.json();
+    if (!data.access_token) throw new Error(data.error_description || "GitHub refused the code");
+    db.prepare("UPDATE users SET github_token = ? WHERE id = ?").run(enc(data.access_token), uid);
+    res.redirect("/?github=connected");
+  } catch {
+    res.redirect("/?github=failed");
+  }
 });
-app.post('/api/projects/bot', auth, upload.single('file'), async (req, res) => {
-  const tmp = req.file?.path;
+
+app.get("/api/github/repos", auth, async (req, res) => {
   try {
-    if (!checkCanDeploy(req, res)) return;
-    const name = cleanName(req.body.name); const botType = String(req.body.botType || ''); const gh = String(req.body.githubUrl || '').trim();
-    const env = parseEnv(req.body.envVars);
-    const id = uid(), dir = path.join(DATA, 'projects', id);
-    try { if (tmp) extractZip(tmp, dir); else await gitClone(gh, dir, String(req.body.branch || '').trim()); if (!fs.existsSync(path.join(dir, 'package.json'))) throw new Error('package.json not found'); } catch (e) { rm(dir); return res.status(400).json({ error: e.message }); }
-    const p = { id, userId: req.user.id, type: 'bot', botType, name, slug: slugify(name), dir, env, github: gh || null, desired: 'running', createdAt: now() };
-    db.projects.push(p); save(); runner.start(p); res.json(projectView(p));
-  } finally { if (tmp) rm(tmp); }
+    if (!req.user.github_token) return res.status(400).json({ error: "GitHub is not connected." });
+    const r = await gh(dec(req.user.github_token), "/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member");
+    const repos = (await r.json()).map((x) => ({ full_name: x.full_name, private: x.private, default_branch: x.default_branch }));
+    res.json({ repos });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
 });
-function ownProject(req, res) { const p = db.projects.find(x => x.id === req.params.id && x.userId === req.user.id); if (!p) res.status(404).json({ error: 'Not found' }); return p; }
-app.get('/api/projects/:id/env', auth, (req, res) => { const p = ownProject(req, res); if (p) res.json({ keys: Object.keys(p.env || {}) }); });
-app.put('/api/projects/:id/env', auth, async (req, res) => { const p = ownProject(req, res); if (!p) return; p.env = parseEnv(req.body.envVars); save(); runner.stop(p.id); setTimeout(() => runner.start(p), 1000); res.json({ ok: true }); });
-app.get('/api/projects/:id/logs', auth, (req, res) => { const p = ownProject(req, res); if (p) res.json({ logs: runner.getLogs(p.id) }); });
-app.get('/api/projects/:id/logs/stream', auth, (req, res) => {
-  const p = ownProject(req, res); if (!p) return;
-  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
-  res.write(`data: ${JSON.stringify({ type: 'history', logs: runner.getLogs(p.id) })}\n\n`);
-  const onLog = (line) => res.write(`data: ${JSON.stringify({ type: 'log', line })}\n\n`);
-  if (runner.logEmitter) { runner.logEmitter.on('log:'+p.id, onLog); req.on('close', () => runner.logEmitter.off('log:'+p.id, onLog)); }
+
+// ---- projects
+function makeSlug(name) {
+  let base = String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30);
+  if (base.length < 3) base += "-site";
+  if (RESERVED.has(base)) base += "-site";
+  let slug = base;
+  while (db.prepare("SELECT 1 FROM projects WHERE slug = ?").get(slug)) slug = base + "-" + crypto.randomBytes(2).toString("hex");
+  return slug;
+}
+function createProject(uid, f) {
+  const r = db
+    .prepare("INSERT INTO projects (user_id, name, slug, source, repo, branch, kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(uid, f.name, makeSlug(f.name), f.source, f.repo || null, f.branch || null, f.kind, Date.now());
+  return Number(r.lastInsertRowid);
+}
+const cleanKind = (k) => (["site", "bot"].includes(k) ? k : "auto");
+const cleanName = (n) => String(n || "").trim().slice(0, 60);
+const publicProject = (p) => ({ id: p.id, name: p.name, slug: p.slug, source: p.source, repo: p.repo, branch: p.branch, type: p.type, status: p.status, url: p.url, created_at: p.created_at });
+
+app.get("/api/projects", auth, (req, res) => {
+  const rows = db.prepare("SELECT * FROM projects WHERE user_id = ? ORDER BY id DESC").all(req.user.id);
+  res.json({ projects: rows.map(publicProject) });
 });
-app.post('/api/projects/:id/:action(start|stop|restart)', auth, async (req, res) => {
-  const p = ownProject(req, res); if (!p) return;
-  const a = req.params.action;
-  if (a === 'stop') { p.desired = 'stopped'; runner.stop(p.id); }
-  else { p.desired = 'running'; if (a === 'restart') runner.stop(p.id); setTimeout(() => runner.start(p), 500); else runner.start(p); }
-  save(); res.json(projectView(p));
+
+app.post("/api/projects", auth, (req, res) => {
+  const name = cleanName(req.body.name);
+  const repo = String(req.body.repo || "");
+  const branch = String(req.body.branch || "");
+  if (!name) return res.status(400).json({ error: "Give the project a name." });
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return res.status(400).json({ error: "Pick a repository." });
+  if (!/^[\w./-]+$/.test(branch)) return res.status(400).json({ error: "Invalid branch name." });
+  if (!req.user.github_token) return res.status(400).json({ error: "Connect GitHub first." });
+  const id = createProject(req.user.id, { name, source: "github", repo, branch, kind: cleanKind(req.body.kind) });
+  deploy(id);
+  res.json({ project: publicProject(getProject(id)) });
 });
-function deleteProject(p) { p.desired = 'stopped'; runner.stop(p.id); setTimeout(() => rm(p.dir), 2000); db.projects = db.projects.filter(x => x.id!== p.id); save(); }
-app.delete('/api/projects/:id', auth, (req, res) => { const p = ownProject(req, res); if (p) { deleteProject(p); res.json({ ok: true }); } });
 
-app.get('/api/profile', auth, (req, res) => res.json(publicUser(req.user)));
-app.put('/api/profile', auth, (req, res) => { req.user.displayName = String(req.body.displayName || '').trim(); save(); res.json(publicUser(req.user)); });
-app.post('/api/settings/password', authLimit, auth, async (req, res) => { req.user.passHash = await bcrypt.hash(String(req.body.newPassword || ''), 10); save(); res.json({ ok: true }); });
-app.delete('/api/account', auth, async (req, res) => { db.projects.filter(p => p.userId === req.user.id).forEach(deleteProject); db.users = db.users.filter(u => u.id!== req.user.id); save(); res.json({ ok: true }); });
-
-app.get('/api/billing', auth, (req, res) => res.json(publicUser(req.user)));
-app.post('/api/billing/pay', auth, async (req, res) => {
-  const reference = `mh_${req.user.id}_${Date.now()}`;
-  db.pending[reference] = { userId: req.user.id, amount: getPrice() * 100, at: now() }; save();
-  const r = await fetch('https://api.paystack.co/transaction/initialize', { method: 'POST', headers: { Authorization: 'Bearer ' + PSK, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: req.user.email, amount: getPrice() * 100, currency: 'KES', reference, callback_url: `${BASE_URL}/billing/return`, metadata: { userId: req.user.id } }) });
-  const j = await r.json(); if (!j.status) return res.status(502).json({ error: j.message }); res.json({ url: j.data.authorization_url });
+const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
+app.post("/api/projects/upload", auth, upload.single("file"), (req, res) => {
+  const name = cleanName(req.body.name);
+  if (!req.file) return res.status(400).json({ error: "Choose a ZIP file." });
+  if (!name) {
+    fs.rmSync(req.file.path, { force: true });
+    return res.status(400).json({ error: "Give the project a name." });
+  }
+  const id = createProject(req.user.id, { name, source: "upload", kind: cleanKind(req.body.kind) });
+  fs.mkdirSync(path.join(PROJECTS_DIR, String(id)), { recursive: true });
+  fs.renameSync(req.file.path, path.join(PROJECTS_DIR, String(id), "source.zip"));
+  deploy(id);
+  res.json({ project: publicProject(getProject(id)) });
 });
-app.get('/billing/return', async (req, res) => { const ref = String(req.query.reference || ''); let ok = false; try { ok = ref && await creditPayment(ref); } catch {} res.redirect('/#/billing?paid=' + (ok? '1' : '0')); });
 
-app.post('/api/admin/login', (req, res) => { if (req.body.password!== ADMIN_PASSWORD) return res.status(401).json({ error: 'Wrong' }); res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) }); });
-app.get('/api/admin/overview', adminAuth, (req, res) => { res.json({ stats: { users: db.users.length, projects: db.projects.length }, users: db.users, projects: db.projects, payments: db.payments }); });
+app.get("/api/projects/:id", auth, owned, (req, res) => res.json({ project: publicProject(req.project) }));
 
-const cfBusy = new Set();
-async function syncSites() {}
-app.use(express.static(path.join(__dirname, 'public')));
-app.use((req, res) => res.status(404).send('Not found'));
+app.post("/api/projects/:id/redeploy", auth, owned, (req, res) => {
+  if (req.project.status === "building") return res.status(409).json({ error: "A deploy is already running." });
+  deploy(req.project.id);
+  res.json({ ok: true });
+});
+
+app.post("/api/projects/:id/start", auth, owned, (req, res) => {
+  const p = req.project;
+  if (p.status === "building") return res.status(409).json({ error: "A deploy is running. Wait for it to finish." });
+  if (p.type === "site") {
+    setStatus(p.id, "live");
+  } else {
+    stopBot(p.id, true);
+    try {
+      startBot(p.id);
+    } catch {
+      deploy(p.id); // source is missing on disk, fetch it again
+    }
+  }
+  res.json({ ok: true });
+});
+
+app.post("/api/projects/:id/stop", auth, owned, (req, res) => {
+  stopBot(req.project.id);
+  setStatus(req.project.id, "stopped");
+  log(req.project.id, "sys", "Stopped by you.");
+  res.json({ ok: true });
+});
+
+app.delete("/api/projects/:id", auth, owned, (req, res) => {
+  const id = req.project.id;
+  stopBot(id, true);
+  db.prepare("DELETE FROM env_vars WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+  fs.rmSync(path.join(PROJECTS_DIR, String(id)), { recursive: true, force: true });
+  logBuf.delete(id);
+  res.json({ ok: true });
+});
+
+// ---- environment variables (as many as you want)
+const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+app.get("/api/projects/:id/env", auth, owned, (req, res) => {
+  res.json({ vars: db.prepare("SELECT key, value FROM env_vars WHERE project_id = ? ORDER BY key").all(req.project.id) });
+});
+app.put("/api/projects/:id/env", auth, owned, (req, res) => {
+  const vars = Array.isArray(req.body.vars) ? req.body.vars : [];
+  if (vars.length > 100) return res.status(400).json({ error: "Maximum 100 variables." });
+  const clean = new Map();
+  for (const v of vars) {
+    const key = String((v && v.key) || "").trim();
+    if (!key) continue;
+    if (!KEY_RE.test(key)) return res.status(400).json({ error: `Invalid name "${key}". Use letters, numbers and underscores only.` });
+    clean.set(key, String((v && v.value) ?? "").slice(0, 5000));
+  }
+  db.transaction(() => {
+    db.prepare("DELETE FROM env_vars WHERE project_id = ?").run(req.project.id);
+    for (const [k, v] of clean) db.prepare("INSERT INTO env_vars (project_id, key, value) VALUES (?, ?, ?)").run(req.project.id, k, v);
+  })();
+  res.json({ ok: true, count: clean.size });
+});
+
+// ---- logs: snapshot + live stream (Server-Sent Events)
+app.get("/api/projects/:id/logs", auth, owned, (req, res) => res.json({ logs: logBuf.get(req.project.id) || [] }));
+
+app.get("/api/projects/:id/logs/stream", auth, owned, (req, res) => {
+  const id = req.project.id;
+  res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+  res.flushHeaders();
+  const send = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+  (logBuf.get(id) || []).forEach((e) => send({ type: "log", ...e }));
+  send({ type: "status", status: getProject(id).status });
+  const onLog = (e) => send({ type: "log", ...e });
+  const onStatus = (s) => send({ type: "status", status: s });
+  bus.on("log:" + id, onLog);
+  bus.on("status:" + id, onStatus);
+  const ping = setInterval(() => res.write(": ping\n\n"), 25000);
+  req.on("close", () => {
+    clearInterval(ping);
+    bus.off("log:" + id, onLog);
+    bus.off("status:" + id, onStatus);
+  });
+});
+
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ error: err.message || "Server error." });
+});
+
 app.listen(PORT, () => {
-  console.log('MtaaniHost running on ' + PORT + ' GitHub:' + (GITHUB_CLIENT_ID? 'ON' : 'OFF'));
-  db.projects.filter(p => p.type === 'bot' && p.desired === 'running').forEach(p => { const o = db.users.find(u => u.id === p.userId); if (o && isActive(o)) runner.start(p); });
+  console.log(`MtaaniHost running on port ${PORT}`);
+  resumeBots();
+});
+
+process.on("SIGTERM", () => {
+  for (const id of [...procs.keys()]) stopBot(id, true); // keep status so bots resume on next start
+  process.exit(0);
 });
