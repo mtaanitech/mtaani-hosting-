@@ -3,10 +3,11 @@ const path = require('path');
 const DATA = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 fs.mkdirSync(path.join(DATA, 'projects'), { recursive: true });
 const file = path.join(DATA, 'db.json');
-let db = { users: [], projects: [], payments: [] };
+// settings = admin-editable values (price, trialDays); pending = payments that were started but not confirmed yet
+let db = { users: [], projects: [], payments: [], settings: {}, pending: {} };
 if (fs.existsSync(file)) {
   try { db = Object.assign(db, JSON.parse(fs.readFileSync(file, 'utf8'))); }
-  catch (e) { console.error('db.json imeharibika', e); process.exit(1); }
+  catch (e) { console.error('db.json is corrupted', e); process.exit(1); }
 }
 let timer = null;
 function flush() {
