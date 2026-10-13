@@ -1,794 +1,576 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#09090b">
-  <title>MtaaniHost V2 — Web Hosting</title>
-  <meta name="description" content="Deploy and manage your web projects with MtaaniHost V2.">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="MtaaniHost — deploy websites and bots in Kenya. Start free and pay with M-Pesa or card.">
+<meta name="theme-color" content="#061225"><title>MtaaniHost — Host. Deploy. Grow.</title>
+<script>tailwind={config:{darkMode:'class'}};if(localStorage.getItem('mh_theme')==='light')document.documentElement.classList.remove('dark');else document.documentElement.classList.add('dark');</script>
+<script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+:root{color-scheme:dark}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}.grad-text{background:linear-gradient(90deg,#60a5fa,#8b5cf6,#2dd4bf);-webkit-background-clip:text;background-clip:text;color:transparent}.grad-bg{background:linear-gradient(120deg,#2563eb,#6d28d9)}.hero-bg{background:radial-gradient(50rem 28rem at 12% 0%,#0e749044,transparent),radial-gradient(42rem 28rem at 95% 0%,#6d28d944,transparent)}.panel{background:rgba(8,23,43,.88);border:1px solid #1e3858;border-radius:16px}.lift{transition:transform .2s,border-color .2s}.lift:hover{transform:translateY(-3px);border-color:#3b82f6}.fadein{animation:fade .22s ease}@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}.field{width:100%;border:1px solid #334155;border-radius:10px;background:#08172b;color:#f8fafc;padding:10px 12px;font-size:14px;outline:none}.field:focus{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f633}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(120deg,#2563eb,#6d28d9);color:white;border-radius:10px;padding:10px 15px;font-size:14px;font-weight:650;transition:opacity .15s}.btn:hover{opacity:.9}.btn:disabled{opacity:.5;cursor:not-allowed}.btn2{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #334155;border-radius:10px;padding:9px 13px;font-size:14px}.btn2:hover{background:#12243c}.muted{color:#94a3b8}.side-link{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:#cbd5e1;font-size:14px}.side-link:hover,.side-link.active{background:#123c78;color:#fff}.side-link.active{box-shadow:inset 3px 0 #60a5fa}details>summary{cursor:pointer;list-style:none}details>summary::-webkit-details-marker{display:none} .scroll-table{overflow-x:auto}
+</style></head>
+<body class="bg-[#061225] text-slate-100 min-h-screen"><div id="root"></div><div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm"></div><div id="modal"></div>
+<script>
+'use strict';
+const SUPPORT_WHATSAPP='';
+const API_BASE=typeof window.MH_API==='string'?window.MH_API:(/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname)?'':'https://mtaani-hosting.onrender.com');
+let token=localStorage.getItem('mh_token')||'',atoken=sessionStorage.getItem('mh_admin')||'',me=null,health=null,pollT=null,ghKind='website',cfg={price:130,trialDays:7,human:'math'},humanTok='',cfToken='',pendingEmail=localStorage.getItem('mh_pending')||'',ghRepos=[];
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const card='panel p-5',btn='btn',btn2='btn2';
+const logo='<span class="inline-grid place-items-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 text-xl"><i class="fa-solid fa-cloud"></i></span>';
+function toast(msg,bad=false){const box=$('#toast-container');const el=document.createElement('div');el.className='rounded-xl px-4 py-3 text-sm text-white shadow-xl '+(bad?'bg-red-600':'bg-emerald-600');el.textContent=msg;box.append(el);setTimeout(()=>el.remove(),4000)}
+async function api(path,opts={},auth=token){const fd=opts.body instanceof FormData;const headers={...(fd?{}:{'Content-Type':'application/json'}),...(auth?{Authorization:'Bearer '+auth}:{})};let res;try{res=await fetch(API_BASE+'/api'+path,{...opts,headers,body:opts.body&&!fd?JSON.stringify(opts.body):opts.body})}catch{throw Error('Cannot reach the server. The free server may be waking up; try again shortly.')}const data=await res.json().catch(()=>({}));if(!res.ok){const e=Error(data.error||'Request failed');e.status=res.status;e.data=data;throw e}return data}
+function setTheme(light){document.documentElement.classList.toggle('dark',!light);localStorage.setItem('mh_theme',light?'light':'dark')}
+function logout(){token='';me=null;localStorage.removeItem('mh_token');location.hash='#/'}
+async function loadCfg(){try{cfg={...cfg,...await api('/config',{},null)}}catch{}}
+async function loadMe(){if(!token)return null;try{me=await api('/me');return me}catch(e){if(e.status===401){token='';localStorage.removeItem('mh_token')}me=null;return null}}
+async function checkHealth(){try{health=await api('/health',{},null)}catch{health={ok:false}}const el=$('#apiStatus');if(el)el.innerHTML=health.ok?'<span class="text-emerald-400">●</span> Systems operational':'<span class="text-red-400">●</span> API unavailable'}
+function statusBadge(s){const c=({live:'emerald',running:'emerald',starting:'amber',stopped:'slate',suspended:'red',paid:'emerald',trial:'blue',expired:'red'})[s]||'slate';return `<span class="text-xs px-2.5 py-1 rounded-full border border-${c}-400/30 bg-${c}-400/10 text-${c}-300">${esc(s||'unknown')}</span>`}
+function header(mode='public'){let actions='';if(mode==='public')actions=`<a class="hidden sm:inline text-sm muted hover:text-white" href="#features">Features</a><a class="hidden sm:inline text-sm muted hover:text-white" href="#pricing">Pricing</a><a class="hidden sm:inline text-sm muted hover:text-white" href="#faq">FAQ</a>${token?'<a class="btn" href="#/dashboard">Dashboard</a>':'<a class="btn2" href="#/login">Login</a><a class="btn" href="#/signup">Get started</a>'}`;else if(mode==='admin')actions=`<button class="btn2" onclick="setTheme(document.documentElement.classList.contains('dark'))">Theme</button>${atoken?'<button class="btn2" onclick="adminLogout()">Log out</button>':''}<a class="btn2" href="#/">Home</a>`;else actions=`<button class="btn2" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button><button class="btn2" onclick="setTheme(document.documentElement.classList.contains('dark'))" title="Toggle theme"><i class="fa-solid fa-circle-half-stroke"></i></button><div class="relative"><button class="btn2" id="userMenuBtn" onclick="$('#userMenu').classList.toggle('hidden')"><span class="w-7 h-7 rounded-full grad-bg inline-grid place-items-center">${esc((me?.displayName||me?.email||'U')[0].toUpperCase())}</span><span class="hidden sm:inline">${esc(me?.displayName||me?.email||'Account')}</span><i class="fa-solid fa-chevron-down"></i></button><div id="userMenu" class="hidden absolute right-0 top-full mt-2 w-56 panel p-2 z-50"><a class="side-link" href="#/profile">Profile</a><a class="side-link" href="#/settings">Settings</a><a class="side-link" href="#/billing">Billing</a><button class="side-link w-full" onclick="logout()">Log out</button></div></div>`;return `<header class="sticky top-0 z-40 border-b border-[#1e3858] bg-[#061225]/90 backdrop-blur"><div class="max-w-[1500px] mx-auto h-[68px] px-4 sm:px-6 flex items-center justify-between gap-4"><a href="#/" class="flex items-center gap-3 font-extrabold text-lg">${logo}<span>Mtaani<span class="grad-text">Host</span><span class="block text-[10px] tracking-[.2em] font-medium muted -mt-1">HOST · DEPLOY · GROW</span></span></a><div class="flex items-center gap-3">${actions}</div></div></header>`}
+function footer(){return `<footer class="border-t border-[#1e3858] bg-[#071529] mt-auto"><div class="max-w-6xl mx-auto px-5 py-12 grid grid-cols-2 md:grid-cols-5 gap-8 text-sm"><div class="col-span-2"><div class="font-bold text-lg mb-3">${logo} MtaaniHost</div><p class="muted max-w-xs">Simple hosting for websites and bots. Built for creators, developers and small businesses in Kenya.</p><p class="text-xs muted mt-4">Kenya first 🇰🇪 · Host. Deploy. Grow.</p></div><div><h3 class="font-semibold mb-3">Platform</h3><div class="space-y-2 muted"><p><a href="#features">Features</a></p><p><a href="#how">How it works</a></p><p><a href="#pricing">Pricing</a></p><p><a href="#/signup">Get started</a></p></div></div><div><h3 class="font-semibold mb-3">Resources</h3><div class="space-y-2 muted"><p><a href="#faq">FAQs</a></p><p><a href="#/dashboard">My projects</a></p><p><a href="#/billing">Payments</a></p><p><a href="#/admin">Admin</a></p></div></div><div><h3 class="font-semibold mb-3">Contact</h3><div class="space-y-2 muted"><p>Support via account dashboard</p>${SUPPORT_WHATSAPP?`<p><a target="_blank" rel="noopener" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}">WhatsApp support</a></p>`:''}<p id="apiStatus">Checking systems…</p></div></div></div><div class="border-t border-[#1e3858] py-4 text-center text-xs muted">© ${new Date().getFullYear()} MtaaniHost. All rights reserved.</div></footer>`}
+const navItems=[['dashboard','fa-house','Dashboard','#/dashboard'],['deploy/website','fa-globe','Deploy Website','#/deploy/website'],['deploy/bot','fa-robot','Deploy Bot','#/deploy/bot'],['github','fa-brands fa-github','GitHub Import','#/github'],['billing','fa-credit-card','Billing & Payments','#/billing'],['profile','fa-user','Profile','#/profile'],['settings','fa-gear','Settings','#/settings']];
+function appShell(active,content){const side=navItems.map(n=>`<a class="side-link ${active===n[0]?'active':''}" href="${n[3]}"><i class="fa-solid ${n[1]} w-5 text-center"></i>${n[2]}</a>`).join('');$('#root').innerHTML=header('app')+`<div class="max-w-[1500px] w-full mx-auto flex flex-1 min-h-[calc(100vh-140px)]"><aside id="sidebar" class="w-64 shrink-0 p-4 border-r border-[#1e3858] bg-[#071529] hidden md:block"><div class="text-[10px] uppercase tracking-[.2em] muted px-3 py-3">Workspace</div><nav class="space-y-1">${side}</nav><div class="panel p-4 mt-8"><div class="text-2xl mb-2">🚀</div><b class="text-sm">Ready to grow?</b><p class="text-xs muted my-2">Manage your projects from one place.</p><a class="btn w-full" href="#/billing">View plan</a></div><div class="mt-6 text-xs muted" id="apiStatus">Checking systems…</div></aside><main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 fadein">${content}</main></div>`+footer()}
+function publicShell(content){$('#root').innerHTML=header('public')+`<main class="flex-1 fadein">${content}</main>`+footer()}
+function adminShell(content){$('#root').innerHTML=header('admin')+`<main class="max-w-7xl mx-auto w-full p-4 sm:p-7 fadein">${content}</main>`+footer()}
+function toggleSidebar(){const s=$('#sidebar');if(!s)return;s.classList.toggle('hidden');s.classList.toggle('fixed');s.classList.toggle('z-50');s.classList.toggle('top-16');s.classList.toggle('bottom-0')}
+  function landing(){const faqs=[['What can I host?','Static websites made with HTML, CSS and JavaScript, plus Node.js bots supported by your server setup.'],['How do I deploy a website?','Create an account, open Deploy Website, upload a ZIP containing index.html or connect a supported GitHub repository, then deploy.'],['Can I host a WhatsApp bot?','You can deploy compatible Node.js bots. Follow the platform rules and the WhatsApp library provider terms.'],['Do I need a domain?','No. Start with the platform URL if your backend has configured a project domain. You can connect a custom domain when that feature is supported.'],['Is there a free trial?','The current trial duration is shown below. Trial availability and limits depend on your account and server configuration.'],['How much does hosting cost?','The current monthly price is shown below and can be configured by the platform administrator.'],['How do I pay?','If billing is enabled on the backend, use the Billing page to start a payment through the configured Paystack checkout.'],['What if payment is pending?','Check Billing again after a short time. Do not pay repeatedly while a transaction is still being confirmed.'],['Can I add environment variables?','Yes, for supported projects use the Env controls to store configuration values such as API tokens. Never share secrets publicly.'],['Can I import from GitHub?','Use GitHub Import to connect your GitHub account if the server-side OAuth configuration is enabled.'],['Why is my site offline?','Check project status and logs first. Free hosting services can sleep or restart, and expired billing may pause a project.'],['How do I contact support?','Use the support channel provided by your hosting administrator or account dashboard.']];
+const features=[['fa-globe','Website hosting','Publish static websites and landing pages from a ZIP or supported GitHub repository.'],['fa-robot','Bot hosting','Manage supported Node.js bots and inspect logs from your dashboard.'],['fa-code-branch','GitHub deploy','Connect repositories and simplify your deployment workflow.'],['fa-key','Environment variables','Keep configuration and bot tokens out of your source code.'],['fa-chart-line','Project overview','See project states, recent activity and quick links in one place.'],['fa-credit-card','Local-friendly billing','Use the configured checkout for payments in KES where available.']];
+publicShell(`<section class="hero-bg"><div class="max-w-6xl mx-auto px-5 pt-20 pb-24 grid lg:grid-cols-2 gap-12 items-center"><div><span class="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-2 text-xs text-blue-200 mb-6"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Hosting made for builders in Kenya</span><h1 class="text-4xl sm:text-6xl font-black leading-tight tracking-tight">Your projects.<br><span class="grad-text">Ready for the world.</span></h1><p class="muted text-lg leading-relaxed mt-6 max-w-xl">Deploy websites, manage bots and keep your projects organized with one simple hosting dashboard. Less setup. More building.</p><div class="flex flex-wrap gap-3 mt-8"><a class="btn px-6 py-3" href="#/signup"><i class="fa-solid fa-rocket"></i> Start for free</a><a class="btn2 px-6 py-3" href="#how">See how it works <i class="fa-solid fa-arrow-down"></i></a></div><div class="flex flex-wrap gap-5 mt-7 text-sm muted"><span><i class="fa-solid fa-check text-emerald-400 mr-2"></i>Simple deployment</span><span><i class="fa-solid fa-check text-emerald-400 mr-2"></i>Project controls</span><span><i class="fa-solid fa-check text-emerald-400 mr-2"></i>One dashboard</span></div></div><div class="panel p-4 sm:p-6 shadow-2xl"><div class="flex items-center justify-between border-b border-[#1e3858] pb-4 mb-5"><div><p class="font-bold">Workspace overview</p><p class="text-xs muted">A cleaner way to manage hosting</p></div><span class="text-xs text-emerald-300 bg-emerald-400/10 px-3 py-1 rounded-full">● Ready to deploy</span></div><div class="grid grid-cols-2 gap-3"><div class="rounded-xl p-4 bg-blue-500/10 border border-blue-400/20"><i class="fa-solid fa-globe text-blue-300 text-xl"></i><p class="muted text-xs mt-3">Websites</p><p class="text-2xl font-bold mt-1">Deploy</p></div><div class="rounded-xl p-4 bg-violet-500/10 border border-violet-400/20"><i class="fa-solid fa-robot text-violet-300 text-xl"></i><p class="muted text-xs mt-3">Bots</p><p class="text-2xl font-bold mt-1">Manage</p></div><div class="rounded-xl p-4 bg-emerald-500/10 border border-emerald-400/20"><i class="fa-solid fa-key text-emerald-300 text-xl"></i><p class="muted text-xs mt-3">Configuration</p><p class="text-lg font-bold mt-1">Environment</p></div><div class="rounded-xl p-4 bg-amber-500/10 border border-amber-400/20"><i class="fa-solid fa-credit-card text-amber-300 text-xl"></i><p class="muted text-xs mt-3">Billing</p><p class="text-lg font-bold mt-1">Track plan</p></div></div><div class="mt-4 rounded-xl bg-[#061225] border border-[#1e3858] p-4 font-mono text-xs"><p class="text-emerald-300">$ mtaani deploy my-project</p><p class="muted mt-2">✓ Project files checked</p><p class="muted mt-1">✓ Deployment workflow started</p><p class="text-blue-300 mt-1">→ Your next project starts here</p></div></div></div></section>
+<section class="max-w-6xl mx-auto px-5 -mt-5 relative"><div class="grid grid-cols-2 md:grid-cols-4 gap-3">${[['One place','For your projects'],['Web + bots','Flexible workflows'],['GitHub','Repository import'],['KES billing','When configured']].map(x=>`<div class="panel p-5 text-center"><p class="text-xl font-extrabold grad-text">${x[0]}</p><p class="text-xs muted mt-1">${x[1]}</p></div>`).join('')}</div></section>
+<section id="features" class="max-w-6xl mx-auto px-5 py-24"><div class="max-w-2xl mb-10"><p class="text-sm font-bold text-blue-300 tracking-widest">WHAT WE DO</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Everything you need to get online</h2><p class="muted mt-4">Straightforward tools for students, small businesses and developers who want to launch and manage projects.</p></div><div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">${features.map(f=>`<article class="panel lift p-6"><div class="w-12 h-12 rounded-xl bg-blue-500/15 text-blue-300 grid place-items-center text-xl mb-5"><i class="fa-solid ${f[0]}"></i></div><h3 class="font-bold text-lg">${f[1]}</h3><p class="muted text-sm leading-relaxed mt-2">${f[2]}</p></article>`).join('')}</div></section>
+<section id="how" class="border-y border-[#1e3858] bg-[#071529] py-20"><div class="max-w-6xl mx-auto px-5"><div class="text-center mb-12"><p class="text-sm font-bold text-violet-300 tracking-widest">HOW IT WORKS</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">From files to live project</h2></div><div class="grid md:grid-cols-3 gap-5">${[['01','Create an account','Register, verify your email if required, and open your dashboard.'],['02','Deploy your project','Choose website or bot, add a project name, then upload a ZIP or use a supported GitHub flow.'],['03','Manage with confidence','Review status and logs, update settings and check billing from one place.']].map(x=>`<div class="panel p-7"><p class="text-4xl font-black grad-text">${x[0]}</p><h3 class="font-bold text-lg mt-5">${x[1]}</h3><p class="muted text-sm mt-2 leading-relaxed">${x[2]}</p></div>`).join('')}</div></div></section>
+<section class="max-w-6xl mx-auto px-5 py-20"><div class="text-center mb-10"><p class="text-sm font-bold text-cyan-300 tracking-widest">MADE FOR</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Bring your next idea online</h2></div><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${[['🎓','Students','School projects, portfolios and learning experiments.'],['🏪','Small businesses','A clean home online for services, products and events.'],['🤖','Bot builders','Deploy and monitor supported chat bots.'],['🧑🏽‍💻','Developers','Test ideas, import repositories and organize projects.']].map(x=>`<div class="panel p-6 lift"><div class="text-3xl">${x[0]}</div><h3 class="font-bold mt-4">${x[1]}</h3><p class="muted text-sm mt-2">${x[2]}</p></div>`).join('')}</div></section>
+<section id="pricing" class="hero-bg py-20"><div class="max-w-5xl mx-auto px-5"><div class="text-center mb-10"><p class="text-sm font-bold text-amber-300 tracking-widest">PRICING</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Start simple. Scale when ready.</h2><p class="muted mt-3">Prices below reflect the current server configuration when available.</p></div><div class="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto"><div class="panel p-8"><h3 class="font-bold text-lg">Free trial</h3><p class="text-4xl font-black mt-4">KES 0</p><p class="muted text-sm mt-1">${esc(cfg.trialDays)} days to get started</p><ul class="space-y-3 text-sm mt-6 muted"><li>✓ Create an account</li><li>✓ Try supported project workflows</li><li>✓ Manage projects from your dashboard</li><li>✓ No card needed to register</li></ul><a class="btn2 w-full mt-8" href="#/signup">Start free</a></div><div class="panel p-8 border-blue-400/60 relative"><span class="absolute right-5 top-5 text-xs bg-blue-500/20 text-blue-200 rounded-full px-3 py-1">Monthly</span><h3 class="font-bold text-lg">Standard plan</h3><p class="text-4xl font-black mt-4 grad-text">KES ${esc(cfg.price)}</p><p class="muted text-sm mt-1">per month · subject to configured limits</p><ul class="space-y-3 text-sm mt-6 muted"><li>✓ Access billing checkout</li><li>✓ Manage your projects</li><li>✓ Project status and logs where supported</li><li>✓ Help when you need it</li></ul><a class="btn w-full mt-8" href="#/signup">Get started</a></div></div></div></section>
+<section id="faq" class="max-w-4xl mx-auto px-5 py-24"><div class="text-center mb-10"><p class="text-sm font-bold text-rose-300 tracking-widest">FAQ</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Good questions. Clear answers.</h2></div><div class="space-y-3">${faqs.map((f,i)=>`<details class="panel p-5"><summary class="flex justify-between items-center gap-4 font-semibold"><span>${i+1}. ${f[0]}</span><i class="fa-solid fa-plus text-blue-300"></i></summary><p class="muted text-sm leading-relaxed mt-3">${f[1]}</p></details>`).join('')}</div></section>
+<section class="max-w-6xl mx-auto px-5 pb-20"><div class="rounded-3xl p-8 sm:p-12 bg-gradient-to-r from-blue-600 to-violet-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-6"><div><h2 class="text-3xl font-extrabold">Your next project starts today.</h2><p class="text-blue-100 mt-2">Create an account and explore MtaaniHost.</p></div><a class="rounded-xl bg-white text-blue-950 font-bold px-6 py-3" href="#/signup">Create free account <i class="fa-solid fa-arrow-right ml-2"></i></a></div></section>`)}
+async function loadHuman(){const box=$('#human');if(!box)return;try{const h=await api('/human',{},null);humanTok=h.token;box.innerHTML=`<label class="text-sm muted">Human check: what is <b>${esc(h.question)}</b>?</label><div class="flex gap-2 mt-1"><input class="field" id="ha" inputmode="numeric" placeholder="Your answer" required><button type="button" id="hr" class="btn2">↻</button></div>`;$('#hr').onclick=loadHuman}catch(e){box.innerHTML='<p class="text-xs text-amber-300">Human check unavailable. Try refreshing.</p>';}}
+function authView(mode){const signup=mode==='signup';publicShell(`<section class="hero-bg py-16 px-4"><div class="max-w-md mx-auto panel p-7 sm:p-9"><div class="text-center mb-7">${logo}<h1 class="text-2xl font-extrabold mt-4">${signup?'Create your account':'Welcome back'}</h1><p class="muted text-sm mt-2">${signup?`Start your ${esc(cfg.trialDays)}-day trial.`:'Sign in to manage your projects.'}</p></div><form id="authForm" class="space-y-4"><div><label class="text-sm muted">Email</label><input class="field mt-1" id="em" type="email" autocomplete="email" required placeholder="you@example.com"></div><div><label class="text-sm muted">Password</label><input class="field mt-1" id="pw" type="password" minlength="${signup?8:1}" autocomplete="${signup?'new-password':'current-password'}" required placeholder="${signup?'At least 8 characters':'Your password'}"></div><div id="human" class="space-y-2"><p class="muted text-xs">Loading verification…</p></div><button class="btn w-full py-3" id="authSubmit">${signup?'Create account':'Login'}</button></form><p class="muted text-sm text-center mt-5">${signup?'Already registered? <a class="text-blue-300 underline" href="#/login">Login</a>':'New to MtaaniHost? <a class="text-blue-300 underline" href="#/signup">Create an account</a>'}</p></div></section>`);loadHuman();$('#authForm').onsubmit=async e=>{e.preventDefault();const b=$('#authSubmit');b.disabled=true;try{const r=await api(signup?'/auth/signup':'/auth/login',{method:'POST',body:{email:$('#em').value.trim(),password:$('#pw').value,humanToken:humanTok,humanAnswer:$('#ha')?.value||''}},null);if(signup&&!r.token){pendingEmail=$('#em').value.trim();localStorage.setItem('mh_pending',pendingEmail);location.hash='#/verify';return}token=r.token;localStorage.setItem('mh_token',token);me=r.user;location.hash='#/dashboard'}catch(err){if(err.data?.needVerify){pendingEmail=$('#em').value.trim();localStorage.setItem('mh_pending',pendingEmail);location.hash='#/verify';return}toast(err.message,true);b.disabled=false;loadHuman()}}}
+function verifyView(){if(!pendingEmail){location.hash='#/signup';return}publicShell(`<section class="py-16 px-4"><div class="max-w-md mx-auto panel p-8 text-center"><div class="text-4xl">✉️</div><h1 class="text-2xl font-bold mt-4">Verify your email</h1><p class="muted text-sm mt-3">Enter the code sent to ${esc(pendingEmail)}</p><form id="vf" class="space-y-3 mt-6"><input class="field text-center text-xl tracking-widest" id="code" maxlength="6" required placeholder="000000"><button class="btn w-full">Verify email</button></form><button id="resend" class="text-sm muted underline mt-4">Resend code</button></div></section>`);$('#vf').onsubmit=async e=>{e.preventDefault();try{await api('/auth/verify',{method:'POST',body:{email:pendingEmail,code:$('#code').value.trim()}},null);location.hash='#/login?verified=1'}catch(err){toast(err.message,true)}};$('#resend').onclick=async()=>{try{await api('/auth/resend',{method:'POST',body:{email:pendingEmail}},null);toast('Verification code requested')}catch(e){toast(e.message,true)}}}
+function trialBanner(){if(!me)return'';if(me.status==='trial')return`<div class="panel p-4 mb-6 flex flex-wrap justify-between gap-3"><span>🎁 Trial account · <b>${esc(me.daysLeft)} days left</b></span><a href="#/billing" class="btn2">View billing</a></div>`;if(me.status==='expired')return`<div class="panel p-4 mb-6 border-red-500/50 text-red-200">Your trial has ended. Visit Billing to reactivate eligible projects. <a href="#/billing" class="underline">Billing</a></div>`;if(me.status==='paid')return`<div class="panel p-4 mb-6 text-emerald-200">✓ Plan active · ${esc(me.daysLeft)} days remaining</div>`;return''}
+function statCard(label,value,sub,icon,color='blue'){return`<div class="panel p-5"><div class="flex items-center justify-between"><span class="muted text-sm">${label}</span><span class="w-10 h-10 rounded-xl bg-${color}-500/15 text-${color}-300 grid place-items-center"><i class="fa-solid ${icon}"></i></span></div><div class="text-3xl font-extrabold mt-4">${value}</div><p class="muted text-xs mt-1">${sub}</p></div>`}
+async function dashboardView(){if(!(await requireAuth()))return;appShell('dashboard',`<div class="max-w-6xl mx-auto"><div class="flex flex-wrap items-start justify-between gap-4 mb-7"><div><p class="text-sm muted">YOUR WORKSPACE</p><h1 class="text-3xl sm:text-4xl font-extrabold mt-2">Welcome back, <span class="grad-text">${esc(me.displayName||me.email)}</span> 👋</h1><p class="muted mt-2">Here’s your hosting overview.</p></div><div class="flex gap-2"><a class="btn2" href="#/github"><i class="fa-brands fa-github"></i> Import GitHub</a><a class="btn" href="#/deploy/website"><i class="fa-solid fa-plus"></i> New project</a></div></div>${trialBanner()}<div id="projectSummary" class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">${statCard('Total projects','—','Loading projects','fa-layer-group')}${statCard('Online projects','—','Live websites and running bots','fa-circle-check','emerald')}${statCard('Websites','—','Your hosted sites','fa-globe','blue')}${statCard('Bots','—','Your bot projects','fa-robot','violet')}</div><div class="grid xl:grid-cols-[1fr_300px] gap-5"><section class="panel p-5"><div class="flex items-center justify-between gap-3 mb-5"><div><h2 class="font-bold text-lg">Your projects</h2><p class="muted text-sm mt-1">Manage deployments and status.</p></div><button class="btn2" onclick="renderProjects()"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div id="plist" class="space-y-3"><p class="muted text-sm">Loading your projects…</p></div></section><aside class="panel p-5"><h2 class="font-bold text-lg">Quick actions</h2><p class="muted text-sm mt-1 mb-4">Start something new.</p><div class="space-y-2"><a class="btn w-full" href="#/deploy/website">Deploy website</a><a class="btn2 w-full" href="#/deploy/bot">Deploy bot</a><a class="btn2 w-full" href="#/billing">Manage billing</a></div></aside></div></div>`);renderProjects()}
+  async function requireAuth(){if(await loadMe())return true;if(token){publicShell(`<section class="py-16 px-4"><div class="max-w-md mx-auto panel p-8 text-center"><h1 class="text-2xl font-bold">Session expired</h1><p class="muted mt-3">Please log in again to continue.</p><a class="btn mt-5" href="#/login">Login</a></div></section>`);return false}location.hash='#/login';return false}
+function statLine(p){const s=p.stats||{};if(p.type==='bot')return`<p class="muted text-xs">Uptime: ${esc(s.uptime||'—')} · Restarts: ${esc(s.restarts??'—')}</p>`;return`<p class="muted text-xs">Visits: ${esc(s.visits??'—')} · Updated: ${esc(p.updatedAt?new Date(p.updatedAt).toLocaleDateString():'—')}</p>`}
+async function renderProjects(){const el=$('#plist');if(!el)return;let list;try{list=await api('/projects')}catch(e){if(e.status===401){logout();return}el.innerHTML=`<div class="text-sm text-red-300">${esc(e.message)} <button class="underline" onclick="renderProjects()">Retry</button></div>`;return}list=Array.isArray(list)?list:(list.projects||[]);const sum=$('#projectSummary');if(sum){const online=list.filter(p=>['live','running','online'].includes(p.status)).length;sum.innerHTML=statCard('Total projects',list.length,'All your projects','fa-layer-group')+statCard('Online projects',online,'Live or running','fa-circle-check','emerald')+statCard('Websites',list.filter(p=>p.type==='website').length,'Hosted websites','fa-globe','blue')+statCard('Bots',list.filter(p=>p.type==='bot').length,'Bot projects','fa-robot','violet')}if(!list.length){el.innerHTML=`<div class="text-center py-10"><div class="text-4xl">🚀</div><h3 class="font-bold mt-4">No projects yet</h3><p class="muted text-sm mt-2">Deploy your first website or bot to get started.</p><div class="flex justify-center gap-2 mt-5"><a class="btn" href="#/deploy/website">Deploy website</a><a class="btn2" href="#/deploy/bot">Deploy bot</a></div></div>`;return}el.innerHTML=list.map(p=>`<article class="border border-[#1e3858] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4"><div class="w-11 h-11 shrink-0 rounded-xl bg-blue-500/15 text-blue-300 grid place-items-center text-lg"><i class="fa-solid ${p.type==='bot'?'fa-robot':'fa-globe'}"></i></div><div class="flex-1 min-w-0"><div class="flex flex-wrap gap-2 items-center"><b>${esc(p.name)}</b>${statusBadge(p.status)}<span class="text-xs muted">${esc(p.type||'website')}</span></div>${p.url?`<a class="text-blue-300 text-sm break-all" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>`:''}${statLine(p)}<p class="text-xs muted mt-1">Project ID: ${esc(p.id)}</p></div><div class="flex flex-wrap gap-2"><button class="btn2" onclick="showLogs('${esc(p.id)}')"><i class="fa-solid fa-terminal"></i> Logs</button>${p.type==='bot'?`<button class="btn2" onclick="controlBot('${esc(p.id)}','restart')"><i class="fa-solid fa-rotate"></i> Restart</button>`:''}<button class="btn2" onclick="editEnv('${esc(p.id)}')"><i class="fa-solid fa-key"></i> Env</button><button class="btn2 text-red-300" onclick="deleteProject('${esc(p.id)}')"><i class="fa-solid fa-trash"></i></button></div></article>`).join('')}
+async function controlBot(id,action){try{await api(`/projects/${encodeURIComponent(id)}/${action}`,{method:'POST'});toast('Action requested');renderProjects()}catch(e){toast(e.message,true)}}
+async function deleteProject(id){if(!confirm('Permanently delete this project? This action cannot be undone.'))return;try{await api(`/projects/${encodeURIComponent(id)}`,{method:'DELETE'});toast('Project deleted');renderProjects()}catch(e){toast(e.message,true)}}
+async function showLogs(id){const m=$('#modal');m.innerHTML=`<div class="fixed inset-0 z-[80] bg-black/70 p-3 sm:p-8 grid place-items-center"><section class="panel w-full max-w-3xl max-h-[85vh] flex flex-col p-5"><div class="flex items-center justify-between gap-3"><h2 class="font-bold text-lg">Project logs</h2><button class="btn2" onclick="$('#modal').innerHTML=''">✕</button></div><pre id="logOutput" class="mt-4 p-4 rounded-xl bg-[#020817] text-xs text-emerald-200 overflow-auto whitespace-pre-wrap min-h-48 flex-1">Loading logs…</pre><div class="flex justify-end gap-2 mt-4"><button class="btn2" onclick="refreshLogs('${esc(id)}')">Refresh</button><button class="btn" onclick="$('#modal').innerHTML=''">Close</button></div></section></div>`;await refreshLogs(id)}
+async function refreshLogs(id){const el=$('#logOutput');if(!el)return;try{const r=await api(`/projects/${encodeURIComponent(id)}/logs`);el.textContent=typeof r.logs==='string'?r.logs:JSON.stringify(r.logs??r,null,2)}catch(e){el.textContent='Unable to load logs: '+e.message}}
+async function editEnv(id){let keys=[];try{const r=await api(`/projects/${encodeURIComponent(id)}/env`);keys=r.variables||r.env||[]}catch(e){toast(e.message,true);return}const m=$('#modal');m.innerHTML=`<div class="fixed inset-0 z-[80] bg-black/70 p-3 sm:p-8 grid place-items-center"><section class="panel w-full max-w-xl p-5 max-h-[90vh] overflow-auto"><div class="flex items-center justify-between"><h2 class="font-bold text-lg">Environment variables</h2><button class="btn2" onclick="$('#modal').innerHTML=''">✕</button></div><p class="muted text-sm mt-2">Store API tokens and configuration securely. Never paste secrets into public code.</p><div id="envList" class="space-y-2 mt-4">${keys.map(v=>`<div class="grid grid-cols-2 gap-2"><input class="field" value="${esc(v.key||v.name)}" readonly><input class="field" value="••••••••" readonly></div>`).join('')}</div><form id="envForm" class="mt-5 space-y-3"><label class="text-sm muted">Variable name<input class="field mt-1" id="envKey" required pattern="[A-Za-z_][A-Za-z0-9_]*" placeholder="API_TOKEN"></label><label class="text-sm muted">Variable value<input class="field mt-1" id="envValue" required type="password" placeholder="Secret value"></label><div class="flex gap-2"><button class="btn">Save variable</button><button type="button" class="btn2" onclick="$('#modal').innerHTML=''">Close</button></div></form></section></div>`;$('#envForm').onsubmit=async e=>{e.preventDefault();try{await api(`/projects/${encodeURIComponent(id)}/env`,{method:'POST',body:{key:$('#envKey').value.trim(),value:$('#envValue').value}});toast('Environment variable saved');editEnv(id)}catch(err){toast(err.message,true)}}}
+async function deployView(mode){if(!(await requireAuth()))return;const gh=mode==='github',kind=gh?'website':mode;appShell(gh?'github':`deploy/${kind}`,`<div class="max-w-3xl mx-auto"><a class="text-sm muted" href="#/dashboard">← Back to dashboard</a><h1 class="text-3xl font-extrabold mt-4">${gh?'Import from GitHub':kind==='bot'?'Deploy a bot':'Deploy a website'}</h1><p class="muted mt-2">${gh?'Choose a connected repository to import.':'Configure your project and send it to the hosting backend.'}</p>${trialBanner()}${gh?`<section class="panel p-5 mt-6"><div class="flex justify-between items-center gap-3"><div><h2 class="font-bold">Your repositories</h2><p class="muted text-sm mt-1">Connect GitHub if OAuth is configured on the server.</p></div><button class="btn2" onclick="checkGitHubRepos(true)">Refresh</button></div><div id="ghList" class="space-y-3 mt-5"><button class="btn" onclick="checkGitHubRepos(true)">Load repositories</button></div></section>`:`<form id="deployForm" class="panel p-6 mt-6 space-y-5"><div><label class="text-sm muted">Project name</label><input class="field mt-1" id="projectName" required maxlength="60" pattern="[A-Za-z0-9][A-Za-z0-9_-]*" placeholder="${kind==='bot'?'my-whatsapp-bot':'my-website'}"></div>${kind==='bot'?`<div><label class="text-sm muted">Bot runtime</label><select class="field mt-1" id="runtime"><option value="node">Node.js</option></select><p class="muted text-xs mt-2">Upload a ZIP containing package.json and your bot entry file. Ensure the start script is configured.</p></div>`:`<div><label class="text-sm muted">Website source</label><select class="field mt-1" id="source"><option value="zip">Upload ZIP file</option><option value="github">GitHub repository URL</option></select></div><div id="zipBox"><label class="text-sm muted">Project ZIP</label><input class="field mt-1" type="file" id="projectZip" accept=".zip,application/zip"><p class="muted text-xs mt-2">ZIP should contain index.html at its root, or the correct project build files.</p></div><div id="repoBox" class="hidden"><label class="text-sm muted">Git repository URL</label><input class="field mt-1" type="url" id="repoUrl" placeholder="https://github.com/username/repository"><p class="muted text-xs mt-2">The server must support importing this repository.</p></div>`}<div><label class="text-sm muted">Description (optional)</label><textarea class="field mt-1" id="projectDesc" rows="3" maxlength="300" placeholder="What does this project do?"></textarea></div><div class="rounded-xl bg-blue-500/10 border border-blue-400/20 p-4 text-sm muted">Deployment requires a working API backend and compatible server configuration. This form will submit your project to the configured API.</div><button class="btn w-full py-3" id="deploySubmit"><i class="fa-solid fa-rocket"></i> Deploy project</button><p id="deployStatus" class="muted text-sm"></p></form>`}</div>`);if(gh){checkGitHubRepos()}else{const src=$('#source');if(src)src.onchange=()=>{const isZip=src.value==='zip';$('#zipBox').classList.toggle('hidden',!isZip);$('#repoBox').classList.toggle('hidden',isZip);$('#projectZip').required=isZip;$('#repoUrl').required=!isZip};const form=$('#deployForm');form.onsubmit=async e=>{e.preventDefault();const b=$('#deploySubmit'),status=$('#deployStatus');b.disabled=true;status.textContent='Submitting deployment…';try{let result;if(kind==='bot'){const file=$('#projectZip');if(!file||!file.files.length)throw Error('Choose your bot ZIP file.');const fd=new FormData();fd.append('file',file.files[0]);fd.append('name',$('#projectName').value.trim());fd.append('description',$('#projectDesc').value.trim());fd.append('runtime',$('#runtime').value);result=await api('/deploy/bot',{method:'POST',body:fd})}else if($('#source').value==='zip'){const file=$('#projectZip');if(!file.files.length)throw Error('Choose your website ZIP file.');const fd=new FormData();fd.append('file',file.files[0]);fd.append('name',$('#projectName').value.trim());fd.append('description',$('#projectDesc').value.trim());result=await api('/deploy/website',{method:'POST',body:fd})}else{result=await api('/deploy/website',{method:'POST',body:{name:$('#projectName').value.trim(),description:$('#projectDesc').value.trim(),repoUrl:$('#repoUrl').value.trim()}})}toast('Deployment request submitted');status.textContent=result.message||'Deployment request submitted. Check project status in your dashboard.';setTimeout(()=>location.hash='#/dashboard',900)}catch(err){toast(err.message,true);status.textContent=err.message;b.disabled=false}}}}
+async function checkGitHubRepos(force){
+  try{
+    const repos=await api('/github/repos');
+    ghRepos=repos;
+    renderRepoList(repos)
+  }catch(e){
+    const list=$('#ghList');
+    if(list)list.innerHTML=`<div class="rounded-xl bg-amber-500/10 border border-amber-400/20 p-4 text-sm muted">${esc(e.message)}<p class="mt-2">Use Connect / refresh to authorize GitHub, or confirm GitHub OAuth is configured on the server.</p></div>`;
+    if(force)toast(e.message,true)
+  }
+}
 
-  <script src="https://cdn.tailwindcss.com"></script>
+function renderRepoList(repos){
+  const list=$('#ghList');
+  if(!list)return;
+  if(!repos.length){
+    list.innerHTML='<p class="muted text-sm py-5">No repositories were returned by GitHub.</p>';
+    return
+  }
+  list.innerHTML=repos.map(r=>`<div class="repo-item flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#1e3858] p-4" data-name="${esc(r.full_name.toLowerCase())}"><div class="min-w-0"><b>${esc(r.full_name)} ${r.private?'🔒':''}</b><p class="muted text-xs mt-1">Updated ${esc(r.updated_at?new Date(r.updated_at).toLocaleDateString():'—')}</p></div><button class="btn" onclick="importGhRepo('${esc(r.clone_url)}','${esc(r.name)}')">Import repository</button></div>`).join('')
+}
 
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #09090b;
-      --panel: #111114;
-      --border: #27272a;
-      --green: #4ade80;
-    }
+function filterRepos(q){
+  document.querySelectorAll('.repo-item').forEach(el=>{
+    el.style.display=el.dataset.name.includes(q.toLowerCase())?'':'none'
+  })
+}
 
-    * { box-sizing: border-box; }
+async function importGhRepo(url,name){
+  const finalName=prompt('Project name:',name)||name;
+  if(!finalName)return;
+  let envVars='';
+  if(ghKind==='bot'){
+    envVars=prompt('Environment variables (KEY=value, one per line):','')||''
+  }
+  const fd=new FormData();
+  fd.append('name',finalName);
+  fd.append('githubUrl',url);
+  if(ghKind==='bot'){
+    fd.append('botType','baileys');
+    fd.append('envVars',envVars)
+  }
+  try{
+    toast('Importing repository…');
+    const p=await api(
+      ghKind==='bot'?'/projects/bot':'/projects/website',
+      {method:'POST',body:fd}
+    );
+    toast('Repository import submitted');
+    if(p.url)window.open(p.url,'_blank','noopener');
+    location.hash='#/dashboard'
+  }catch(e){
+    toast(e.message,true);
+    if(e.status===402)location.hash='#/billing'
+  }
+}
 
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: #f4f4f5;
-      font-family: Inter, system-ui, -apple-system, sans-serif;
-    }
+async function billingView(){
+  if(!(await requireAuth()))return;
+  const exp=me.paidUntil||me.trialEndsAt;
 
-    button, input, select { font: inherit; }
+  appShell('billing',`<div class="max-w-3xl mx-auto">
+    <p class="text-sm muted">ACCOUNT</p>
+    <h1 class="text-3xl font-extrabold mt-2 mb-7">Billing & payments</h1>
 
-    button { cursor: pointer; }
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="panel p-6">
+        <p class="muted text-sm">Current status</p>
+        <div class="mt-3">${statusBadge(me.status)}</div>
+        <p class="muted text-sm mt-5">Days remaining</p>
+        <p class="text-3xl font-extrabold mt-1">${esc(me.daysLeft??'—')}</p>
+        <p class="muted text-sm mt-4">Expiry date: ${exp?esc(new Date(exp).toLocaleDateString()):'—'}</p>
+      </div>
 
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 11px 17px;
-      border-radius: 10px;
-      background: var(--green);
-      color: #052e16;
-      font-weight: 800;
-      border: 0;
-    }
-
-    .btn:hover { background: #86efac; }
-
-    .btn-secondary {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 15px;
-      border-radius: 10px;
-      border: 1px solid #3f3f46;
-      color: #f4f4f5;
-      background: #18181b;
-    }
-
-    .field {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid #3f3f46;
-      border-radius: 10px;
-      color: white;
-      background: #09090b;
-      outline: none;
-    }
-
-    .field:focus { border-color: var(--green); }
-
-    .muted { color: #a1a1aa; }
-
-    .nav-link {
-      display: block;
-      width: 100%;
-      padding: 11px 12px;
-      border-radius: 9px;
-      text-align: left;
-      color: #d4d4d8;
-      background: transparent;
-      border: 0;
-    }
-
-    .nav-link:hover, .nav-link.active {
-      background: #27272a;
-      color: var(--green);
-    }
-
-    .status-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      margin-right: 7px;
-    }
-
-    #toast {
-      position: fixed;
-      z-index: 100;
-      right: 16px;
-      bottom: 16px;
-      max-width: calc(100% - 32px);
-      background: #27272a;
-      border: 1px solid #52525b;
-      padding: 13px 16px;
-      border-radius: 12px;
-      display: none;
-    }
-
-    .loader {
-      width: 22px;
-      height: 22px;
-      border: 3px solid #3f3f46;
-      border-top-color: var(--green);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
-</head>
-
-<body>
-  <div id="app">
-    <div class="min-h-screen flex items-center justify-center p-6">
-      <div class="text-center">
-        <div class="loader mx-auto mb-4"></div>
-        <p class="muted">Loading MtaaniHost V2...</p>
+      <div class="panel p-6">
+        <p class="muted text-sm">Monthly plan</p>
+        <p class="text-4xl font-extrabold grad-text mt-3">KES ${esc(me.price??cfg.price)}</p>
+        <p class="muted text-sm mt-1">per month</p>
+        <button class="btn w-full mt-6 py-3" id="payBtn">
+          <i class="fa-solid fa-lock"></i> Continue to secure payment
+        </button>
+        <p class="muted text-xs mt-3">Checkout is provided by your configured Paystack integration.</p>
       </div>
     </div>
-  </div>
 
-  <div id="toast" role="status" aria-live="polite"></div>
+    <div class="panel p-6 mt-5">
+      <h2 class="font-bold">Payment help</h2>
+      <p class="muted text-sm mt-2">If you have completed payment but your account has not updated, wait briefly and refresh this page. Avoid making a second payment until the first transaction status is clear.</p>
+    </div>
+  </div>`);
 
-  <script>
-    "use strict";
+  $('#payBtn').onclick=async e=>{
+    const b=e.currentTarget;
+    b.disabled=true;
+    try{
+      const r=await api('/billing/pay',{method:'POST'});
+      if(!r.url)throw Error('Payment URL was not returned by the server');
+      location.href=r.url
+    }catch(err){
+      toast(err.message,true);
+      b.disabled=false
+    }
+  }
+}
 
-    /*
-      CONFIGURATION
+async function profileView(){
+  if(!(await requireAuth()))return;
+  let p;
+  try{
+    p=await api('/profile')
+  }catch(e){
+    toast(e.message,true);
+    return
+  }
 
-      Set API_BASE to your actual backend URL.
-      Example:
-      const API_BASE = "https://your-backend.example.com";
+  appShell('profile',`<div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-extrabold mb-7">Your profile</h1>
 
-      Leave empty if this frontend is hosted by the same server
-      that provides the API.
-    */
-    const API_BASE = "";
+    <div class="panel p-6 flex items-center gap-4 mb-5">
+      <div class="w-16 h-16 rounded-2xl grad-bg grid place-items-center text-2xl font-bold">${esc((p.displayName||p.email||'U')[0].toUpperCase())}</div>
+      <div>
+        <h2 class="font-bold text-xl">${esc(p.displayName||'MtaaniHost user')}</h2>
+        <p class="muted text-sm">${esc(p.email)}</p>
+        <div class="mt-2">${statusBadge(p.status)}</div>
+      </div>
+    </div>
 
-    const app = document.getElementById("app");
-    const toastBox = document.getElementById("toast");
+    <div class="panel p-6 space-y-4">
+      <div class="flex justify-between gap-4">
+        <span class="muted">Member since</span>
+        <span>${p.memberSince?esc(new Date(p.memberSince).toLocaleDateString()):'—'}</span>
+      </div>
+      <div class="flex justify-between gap-4">
+        <span class="muted">Projects</span>
+        <span>${esc(p.projects??'—')} (${esc(p.websites??0)} websites, ${esc(p.bots??0)} bots)</span>
+      </div>
+      <div class="flex justify-between gap-4">
+        <span class="muted">Plan days left</span>
+        <span>${esc(p.daysLeft??'—')}</span>
+      </div>
+    </div>
 
-    let currentPage = "home";
-    let currentUser = null;
-    let projects = [];
-    let apiStatus = "Checking";
-    let toastTimer = null;
+    <a class="btn mt-5" href="#/settings">Edit profile settings</a>
+  </div>`)
+}
 
-    function escapeHTML(value) {
-      return String(value ?? "").replace(/[&<>"']/g, function (char) {
-        return {
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;"
-        }[char];
+async function settingsView(){
+  if(!(await requireAuth()))return;
+  let p;
+  try{
+    p=await api('/profile')
+  }catch(e){
+    toast(e.message,true);
+    return
+  }
+
+  const light=localStorage.getItem('mh_theme')==='light';
+
+  appShell('settings',`<div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-extrabold mb-2">Settings</h1>
+    <p class="muted mb-7">Manage your profile, password and appearance.</p>
+
+    <form id="profileForm" class="panel p-6 space-y-4 mb-5">
+      <h2 class="font-bold text-lg">Profile information</h2>
+      <div>
+        <label class="text-sm muted">Display name</label>
+        <input class="field mt-1" id="displayName" maxlength="40" required value="${esc(p.displayName||'')}">
+      </div>
+      <div>
+        <label class="text-sm muted">Email address</label>
+        <input class="field mt-1 opacity-60" disabled value="${esc(p.email)}">
+      </div>
+      <button class="btn">Save profile</button>
+    </form>
+
+    <form id="passwordForm" class="panel p-6 space-y-4 mb-5">
+      <h2 class="font-bold text-lg">Change password</h2>
+      <input class="field" id="currentPassword" type="password" autocomplete="current-password" required placeholder="Current password">
+      <input class="field" id="newPassword" type="password" minlength="8" autocomplete="new-password" required placeholder="New password (at least 8 characters)">
+      <input class="field" id="confirmPassword" type="password" required placeholder="Confirm new password">
+      <button class="btn">Update password</button>
+    </form>
+
+    <div class="panel p-6 mb-5">
+      <h2 class="font-bold text-lg">Appearance</h2>
+      <p class="muted text-sm mt-1 mb-4">Choose the theme that feels right for you.</p>
+      <div class="flex gap-3">
+        <button class="btn2" onclick="setTheme(true);settingsView()">☀️ Light</button>
+        <button class="btn2" onclick="setTheme(false);settingsView()">🌙 Dark</button>
+      </div>
+    </div>
+
+    <div class="panel p-6 border-red-500/30">
+      <h2 class="font-bold text-lg text-red-300">Delete account</h2>
+      <p class="muted text-sm mt-2">This is permanent and may remove your projects. Continue only if you are certain.</p>
+      <form id="deleteAccountForm" class="mt-4 space-y-3">
+        <input class="field" id="deletePassword" type="password" required placeholder="Confirm your password">
+        <button class="btn2 text-red-300 border-red-500/40">Delete my account</button>
+      </form>
+    </div>
+  </div>`);
+
+  $('#profileForm').onsubmit=async e=>{
+    e.preventDefault();
+    try{
+      await api('/profile',{
+        method:'PUT',
+        body:{displayName:$('#displayName').value.trim()}
       });
+      toast('Profile saved');
+      await loadMe()
+    }catch(err){
+      toast(err.message,true)
     }
+  };
 
-    function showToast(message) {
-      toastBox.textContent = message;
-      toastBox.style.display = "block";
+  $('#passwordForm').onsubmit=async e=>{
+    e.preventDefault();
+    if($('#newPassword').value!==$('#confirmPassword').value)
+      return toast('Passwords do not match',true);
 
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(function () {
-        toastBox.style.display = "none";
-      }, 3500);
-    }
-
-    function getToken() {
-      return sessionStorage.getItem("mt_host_token") || "";
-    }
-
-    function saveSession(user, token) {
-      currentUser = user || null;
-
-      if (token) {
-        sessionStorage.setItem("mt_host_token", token);
-      }
-
-      if (user) {
-        sessionStorage.setItem("mt_host_user", JSON.stringify(user));
-      }
-    }
-
-    function restoreSession() {
-      try {
-        const saved = sessionStorage.getItem("mt_host_user");
-        currentUser = saved ? JSON.parse(saved) : null;
-      } catch (error) {
-        currentUser = null;
-        sessionStorage.removeItem("mt_host_user");
-      }
-    }
-
-    async function api(path, options = {}) {
-      const headers = {
-        "Content-Type": "application/json",
-        ...(options.headers || {})
-      };
-
-      const token = getToken();
-
-      if (token) {
-        headers.Authorization = "Bearer " + token;
-      }
-
-      const response = await fetch(API_BASE + path, {
-        ...options,
-        headers
+    try{
+      await api('/settings/password',{
+        method:'POST',
+        body:{
+          currentPassword:$('#currentPassword').value,
+          newPassword:$('#newPassword').value
+        }
       });
-
-      const contentType = response.headers.get("content-type") || "";
-      let data = {};
-
-      if (contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        data = { message: text };
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-          data.error ||
-          "Request failed (" + response.status + ")"
-        );
-      }
-
-      return data;
+      toast('Password updated');
+      e.target.reset()
+    }catch(err){
+      toast(err.message,true)
     }
+  };
 
-    async function checkHealth() {
-      apiStatus = "Checking";
+  $('#deleteAccountForm').onsubmit=async e=>{
+    e.preventDefault();
+    if(!confirm('Permanently delete your account and projects?'))return;
 
-      try {
-        const result = await api("/health");
-        apiStatus = "Online";
-        return result;
-      } catch (error) {
-        apiStatus = "Unavailable";
-        return null;
-      }
+    try{
+      await api('/account',{
+        method:'DELETE',
+        body:{password:$('#deletePassword').value}
+      });
+      toast('Account deleted');
+      logout()
+    }catch(err){
+      toast(err.message,true)
     }
+  }
+}
 
-    function navigate(page) {
-      currentPage = page;
-      window.location.hash = page;
-      render();
-    }
+function adminLogout(){
+  atoken='';
+  sessionStorage.removeItem('mh_admin');
+  adminView()
+}
 
-    function publicHeader() {
-      return `
-        <header class="border-b border-zinc-800">
-          <div class="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
-            <button onclick="navigate('home')" class="flex items-center gap-3">
-              <span class="w-10 h-10 rounded-xl bg-green-400 text-black font-black flex items-center justify-center">M</span>
-              <span class="text-lg font-black">Mtaani<span class="text-green-400">Host</span></span>
-            </button>
-
-            <nav class="flex items-center gap-3">
-              <button class="btn-secondary" onclick="navigate('login')">Login</button>
-              <button class="btn" onclick="navigate('register')">Get started</button>
-            </nav>
+async function adminView(){
+  if(!atoken){
+    adminShell(`<div class="max-w-md mx-auto py-12">
+      <div class="panel p-8">
+        <div class="text-center mb-6">
+          <div class="w-14 h-14 rounded-2xl grad-bg grid place-items-center text-2xl mx-auto">
+            <i class="fa-solid fa-shield-halved"></i>
           </div>
-        </header>
-      `;
-    }
-
-    function homePage() {
-      return `
-        ${publicHeader()}
-
-        <main>
-          <section class="max-w-7xl mx-auto px-5 pt-20 pb-24 md:pt-28">
-            <div class="max-w-3xl">
-              <div class="inline-flex items-center gap-2 border border-zinc-700 rounded-full px-4 py-2 text-sm muted mb-8">
-                <span class="status-dot"></span>
-                Your projects, one platform
-              </div>
-
-              <h1 class="text-4xl md:text-7xl font-black tracking-tight leading-tight">
-                Build it.<br>
-                Deploy it.<br>
-                <span class="text-green-400">Own your web.</span>
-              </h1>
-
-              <p class="text-lg md:text-xl muted mt-6 max-w-2xl leading-8">
-                Manage your web projects from one simple dashboard.
-                Keep your deployments and project information organized.
-              </p>
-
-              <div class="flex flex-wrap gap-3 mt-9">
-                <button class="btn" onclick="navigate('register')">
-                  Start building <span aria-hidden="true">→</span>
-                </button>
-                <button class="btn-secondary" onclick="navigate('login')">
-                  Open dashboard
-                </button>
-              </div>
-            </div>
-
-            <div class="grid md:grid-cols-3 gap-4 mt-20">
-              <div class="panel p-6">
-                <div class="text-2xl mb-4">⚡</div>
-                <h2 class="font-bold text-lg">Simple workflow</h2>
-                <p class="muted text-sm leading-6 mt-2">
-                  Keep your project management straightforward.
-                </p>
-              </div>
-
-              <div class="panel p-6">
-                <div class="text-2xl mb-4">◈</div>
-                <h2 class="font-bold text-lg">Project dashboard</h2>
-                <p class="muted text-sm leading-6 mt-2">
-                  Access your projects from one place.
-                </p>
-              </div>
-
-              <div class="panel p-6">
-                <div class="text-2xl mb-4">⌘</div>
-                <h2 class="font-bold text-lg">API connection</h2>
-                <p class="muted text-sm leading-6 mt-2">
-                  Connect your frontend to your hosting API.
-                </p>
-              </div>
-            </div>
-          </section>
-        </main>
-
-        <footer class="border-t border-zinc-800">
-          <div class="max-w-7xl mx-auto px-5 py-7 muted text-sm">
-            © ${new Date().getFullYear()} MtaaniHost V2
-          </div>
-        </footer>
-      `;
-    }
-
-    function authPage(register = false) {
-      return `
-        ${publicHeader()}
-
-        <main class="max-w-md mx-auto px-5 py-16">
-          <div class="panel p-7">
-            <button class="muted text-sm mb-6" onclick="navigate('home')">← Back home</button>
-
-            <h1 class="text-3xl font-black">
-              ${register ? "Create account" : "Welcome back"}
-            </h1>
-
-            <p class="muted mt-2 mb-7">
-              ${register ? "Get started with MtaaniHost." : "Login to your account."}
-            </p>
-
-            <form id="auth-form" onsubmit="submitAuth(event, ${register})">
-              ${register ? `
-                <label class="block text-sm mb-2" for="auth-name">Full name</label>
-                <input class="field mb-4" id="auth-name" name="name"
-                  autocomplete="name" required maxlength="100"
-                  placeholder="Your name">
-              ` : ""}
-
-              <label class="block text-sm mb-2" for="auth-email">Email</label>
-              <input class="field mb-4" id="auth-email" name="email"
-                type="email" autocomplete="email" required
-                placeholder="you@example.com">
-
-              <label class="block text-sm mb-2" for="auth-password">Password</label>
-              <input class="field mb-6" id="auth-password" name="password"
-                type="password" autocomplete="${register ? "new-password" : "current-password"}"
-                required minlength="6" placeholder="Enter password">
-
-              <button id="auth-submit" class="btn w-full" type="submit">
-                ${register ? "Create account" : "Login"}
-              </button>
-            </form>
-
-            <p class="text-sm muted mt-6 text-center">
-              ${register ? "Already have an account?" : "New to MtaaniHost?"}
-              <button class="text-green-400 font-bold"
-                onclick="navigate('${register ? "login" : "register"}')">
-                ${register ? "Login" : "Create account"}
-              </button>
-            </p>
-
-            <p id="auth-error" class="text-red-400 text-sm mt-4" role="alert"></p>
-          </div>
-        </main>
-      `;
-    }
-
-    async function submitAuth(event, register) {
-      event.preventDefault();
-
-      const form = document.getElementById("auth-form");
-      const submitButton = document.getElementById("auth-submit");
-      const errorBox = document.getElementById("auth-error");
-      const formData = new FormData(form);
-
-      const payload = {
-        email: String(formData.get("email") || "").trim(),
-        password: String(formData.get("password") || "")
-      };
-
-      if (register) {
-        payload.name = String(formData.get("name") || "").trim();
-      }
-
-      submitButton.disabled = true;
-      submitButton.textContent = "Please wait...";
-      errorBox.textContent = "";
-
-      /*
-        These endpoint names must match your backend.
-        If your API uses different routes or payload fields,
-        update them to match the actual backend.
-      */
-      const endpoint = register ? "/api/auth/register" : "/api/auth/login";
-
-      try {
-        const result = await api(endpoint, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-
-        const token =
-          result.token ||
-          result.accessToken ||
-          (result.data && (result.data.token || result.data.accessToken));
-
-        const user =
-          result.user ||
-          result.data?.user ||
-          { email: payload.email, name: payload.name || "" };
-
-        if (!token && !register) {
-          throw new Error("Login response did not include an authentication token. Check your API response format.");
-        }
-
-        if (register && !token) {
-          showToast("Account created. Please login.");
-          navigate("login");
-          return;
-        }
-
-        saveSession(user, token);
-        showToast("Welcome to MtaaniHost!");
-        navigate("dashboard");
-      } catch (error) {
-        errorBox.textContent = error.message ||
-          "Unable to connect. Check your backend API settings.";
-      } finally {
-        const button = document.getElementById("auth-submit");
-
-        if (button) {
-          button.disabled = false;
-          button.textContent = register ? "Create account" : "Login";
-        }
-      }
-    }
-
-    function appShell(content) {
-      return `
-        <div class="min-h-screen md:flex">
-          <aside class="md:w-64 border-b md:border-b-0 md:border-r border-zinc-800 p-5">
-            <button onclick="navigate('dashboard')" class="flex items-center gap-3 mb-8">
-              <span class="w-10 h-10 rounded-xl bg-green-400 text-black font-black flex items-center justify-center">M</span>
-              <span class="font-black text-lg">MtaaniHost</span>
-            </button>
-
-            <nav class="space-y-2">
-              <button class="nav-link ${currentPage === "dashboard" ? "active" : ""}"
-                onclick="navigate('dashboard')">▦ &nbsp; Overview</button>
-
-              <button class="nav-link ${currentPage === "projects" ? "active" : ""}"
-                onclick="navigate('projects')">◈ &nbsp; Projects</button>
-
-              <button class="nav-link ${currentPage === "settings" ? "active" : ""}"
-                onclick="navigate('settings')">⚙ &nbsp; Settings</button>
-
-              <button class="nav-link" onclick="logout()">↪ &nbsp; Logout</button>
-            </nav>
-
-            <div class="panel p-4 mt-8">
-              <p class="text-sm font-bold">API status</p>
-              <p class="muted text-sm mt-2">
-                <span class="status-dot" style="background:${apiStatus === "Online" ? "#4ade80" : apiStatus === "Unavailable" ? "#f87171" : "#facc15"}"></span>
-                ${escapeHTML(apiStatus)}
-              </p>
-              <button class="text-green-400 text-sm mt-3" onclick="refreshDashboard()">
-                Check connection
-              </button>
-            </div>
-          </aside>
-
-          <main class="flex-1 min-w-0 p-5 md:p-9">
-            <header class="flex flex-wrap items-center justify-between gap-4 mb-8">
-              <div>
-                <p class="muted text-sm">MtaaniHost V2 / ${escapeHTML(currentPage)}</p>
-                <h1 class="text-2xl md:text-3xl font-black mt-1">
-                  ${currentPage === "projects" ? "Your projects" : currentPage === "settings" ? "Settings" : "Dashboard"}
-                </h1>
-              </div>
-
-              <div class="panel px-4 py-3 text-sm">
-                ${escapeHTML(currentUser?.name || currentUser?.email || "Account")}
-              </div>
-            </header>
-
-            ${content}
-          </main>
+          <h1 class="text-2xl font-extrabold mt-4">Admin sign in</h1>
+          <p class="muted text-sm mt-2">Use the administrator password configured on the server.</p>
         </div>
-      `;
-    }
 
-    function dashboardPage() {
-      return `
-        <section class="panel p-6 md:p-8">
-          <p class="muted text-sm">Welcome to your workspace</p>
-          <h2 class="text-2xl md:text-3xl font-black mt-2">
-            Hello, ${escapeHTML(currentUser?.name || "Developer")} 👋
-          </h2>
-          <p class="muted mt-3 max-w-2xl leading-7">
-            Manage your web projects and check your hosting API connection here.
-          </p>
+        <form id="adminLogin" class="space-y-4">
+          <input class="field" type="password" id="adminPassword" required autocomplete="current-password" placeholder="Admin password">
+          <button class="btn w-full">Sign in securely</button>
+        </form>
+      </div>
+    </div>`);
 
-          <div class="flex flex-wrap gap-3 mt-6">
-            <button class="btn" onclick="navigate('projects')">View projects →</button>
-            <button class="btn-secondary" onclick="refreshDashboard()">Refresh status</button>
-          </div>
-        </section>
-
-        <section class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
-          <div class="panel p-5">
-            <p class="muted text-sm">Projects in this session</p>
-            <p class="text-3xl font-black mt-3">${projects.length}</p>
-          </div>
-
-          <div class="panel p-5">
-            <p class="muted text-sm">API status</p>
-            <p class="text-2xl font-black mt-3">${escapeHTML(apiStatus)}</p>
-          </div>
-
-          <div class="panel p-5">
-            <p class="muted text-sm">Account</p>
-            <p class="text-lg font-bold mt-3 break-words">
-              ${escapeHTML(currentUser?.email || "Signed in")}
-            </p>
-          </div>
-        </section>
-
-        <section class="panel p-6 mt-6">
-          <div class="flex items-center justify-between gap-3 flex-wrap">
-            <h2 class="font-bold text-lg">Recent projects</h2>
-            <button class="btn-secondary" onclick="navigate('projects')">Manage projects</button>
-          </div>
-          ${projectList(3)}
-        </section>
-      `;
-    }
-
-    function projectList(limit = 100) {
-      if (!projects.length) {
-        return `
-          <div class="text-center py-10">
-            <div class="text-3xl mb-3">◈</div>
-            <h3 class="font-bold">No projects yet</h3>
-            <p class="muted text-sm mt-2">Add a project to get started.</p>
-          </div>
-        `;
+    $('#adminLogin').onsubmit=async e=>{
+      e.preventDefault();
+      try{
+        const r=await api('/admin/login',{
+          method:'POST',
+          body:{password:$('#adminPassword').value}
+        },null);
+        atoken=r.token;
+        sessionStorage.setItem('mh_admin',atoken);
+        adminView()
+      }catch(err){
+        toast(err.message,true)
       }
+    };
+    return
+  }
 
-      return `
-        <div class="space-y-3 mt-5">
-          ${projects.slice(0, limit).map(function (project) {
-            return `
-              <div class="border border-zinc-800 rounded-xl p-4 flex flex-wrap justify-between items-center gap-3">
-                <div class="min-w-0">
-                  <h3 class="font-bold break-words">${escapeHTML(project.name)}</h3>
-                  <p class="muted text-sm mt-1 break-all">${escapeHTML(project.url || "No URL added")}</p>
+  let d;
+  try{
+    d=await api('/admin/overview',{},atoken)
+  }catch(e){
+    if(e.status===401){
+      atoken='';
+      sessionStorage.removeItem('mh_admin');
+      toast('Admin session expired. Please sign in again.',true);
+      return adminView()
+    }
+
+    adminShell(`<div class="panel p-8 max-w-xl mx-auto text-center">
+      <h1 class="text-2xl font-bold">Admin overview unavailable</h1>
+      <p class="text-red-300 mt-3">${esc(e.message)}</p>
+      <button class="btn mt-5" onclick="adminView()">Retry</button>
+    </div>`);
+    return
+  }
+
+  let st={price:cfg.price,trialDays:cfg.trialDays};
+  try{
+    st={...st,...await api('/admin/settings',{},atoken)}
+  }catch{}
+
+  await checkHealth();
+
+  const s=d.stats||{};
+  const stat=(a,b)=>`<div class="panel p-4"><p class="muted text-xs">${a}</p><p class="text-2xl font-extrabold mt-2">${esc(b??0)}</p></div>`;
+  const th='text-left text-xs muted py-3 px-3';
+  const td='text-sm py-3 px-3 border-t border-[#1e3858]';
+
+  adminShell(`<div class="space-y-7">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <p class="text-sm muted">CONTROL CENTER</p>
+        <h1 class="text-3xl font-extrabold mt-2">Admin dashboard</h1>
+      </div>
+      <button class="btn2" onclick="adminView()">
+        <i class="fa-solid fa-rotate"></i> Refresh data
+      </button>
+    </div>
+
+    ${health?.onRender&&!health?.persistent?'<div class="panel p-4 text-amber-200 border-amber-500/40">Warning: configure persistent storage on your hosting platform if your backend requires it to retain accounts and projects after restarts.</div>':''}
+
+    ${health?.requireVerify&&health?.mail==='none'?'<div class="panel p-4 text-amber-200 border-amber-500/40">Email verification is enabled but email delivery is not configured. Configure the mail settings in the server environment.</div>':''}
+
+    <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
+      ${stat('Users',s.users)}
+      ${stat('Trial',s.trial)}
+      ${stat('Paid',s.paid)}
+      ${stat('Expired',s.expired)}
+      ${stat('Blocked',s.blocked)}
+      ${stat('Projects',s.projects)}
+      ${stat('Live sites',s.liveSites)}
+      ${stat('Running bots',s.runningBots)}
+      ${stat('Revenue (KES)',s.revenue)}
+      ${stat('Email service',health?.mail||'unknown')}
+    </div>
+
+    <section class="panel p-6">
+      <h2 class="font-bold text-lg">Pricing and trial settings</h2>
+      <p class="muted text-sm mt-1 mb-5">Updates the values supported by your backend.</p>
+      <form id="adminSettings" class="grid sm:grid-cols-3 gap-4 items-end">
+        <div>
+          <label class="muted text-sm">Monthly price (KES)</label>
+          <input class="field mt-2" type="number" min="10" max="100000" id="price" required value="${esc(st.price)}">
+        </div>
+        <div>
+          <label class="muted text-sm">Trial days</label>
+          <input class="field mt-2" type="number" min="0" max="60" id="trialDays" required value="${esc(st.trialDays)}">
+        </div>
+        <button class="btn">Save settings</button>
+      </form>
+    </section>
+
+    <section>
+      <h2 class="font-bold text-lg mb-3">Users</h2>
+      <div class="panel scroll-table p-3">
+        <table class="w-full min-w-[700px]">
+          <thead>
+            <tr>${['Email','Status','Days left','Projects','Actions'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+            ${(d.users||[]).map(u=>`<tr>
+              <td class="${td}">${esc(u.email)}</td>
+              <td class="${td}">${statusBadge(u.status)}</td>
+              <td class="${td}">${esc(u.daysLeft)}</td>
+              <td class="${td}">${esc(u.projects)}</td>
+              <td class="${td}">
+                <div class="flex gap-2">
+                  ${u.status==='unverified'?`<button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/verify',{})">Verify</button>`:''}
+                  <button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/block',{blocked:${!u.blocked}})">${u.blocked?'Unblock':'Block'}</button>
+                  <button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/extend',{days:30})">+30 days</button>
                 </div>
-                <button class="btn-secondary" onclick="deleteProject('${escapeHTML(project.id)}')">
-                  Remove
-                </button>
-              </div>
-            `;
-          }).join("")}
-        </div>
-      `;
-    }
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-    function projectsPage() {
-      return `
-        <section class="panel p-6">
-          <h2 class="font-bold text-lg">Add a project</h2>
-          <p class="muted text-sm mt-2">Save project details in this browser session.</p>
+    <section>
+      <h2 class="font-bold text-lg mb-3">Projects</h2>
+      <div class="panel scroll-table p-3">
+        <table class="w-full min-w-[700px]">
+          <thead>
+            <tr>${['Name','Owner','Type','Status','Actions'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+            ${(d.projects||[]).map(p=>`<tr>
+              <td class="${td}">${esc(p.name)}</td>
+              <td class="${td}">${esc(p.owner)}</td>
+              <td class="${td}">${esc(p.type)}</td>
+              <td class="${td}">${statusBadge(p.status)}</td>
+              <td class="${td}">
+                <div class="flex gap-2">
+                  <button class="btn2" onclick="adm('/projects/${encodeURIComponent(p.id)}/suspend',{suspended:${p.suspendedBy!=='admin'}})">${p.suspendedBy==='admin'?'Resume':'Suspend'}</button>
+                  <button class="btn2 text-red-300" onclick="if(confirm('Delete this project?'))adm('/projects/${encodeURIComponent(p.id)}',null,'DELETE')">Delete</button>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-          <form class="grid md:grid-cols-2 gap-3 mt-5"
-            onsubmit="addProject(event)">
-            <input class="field" name="projectName" required maxlength="100"
-              placeholder="Project name">
-            <input class="field" name="projectUrl" type="url"
-              placeholder="https://example.com">
-            <button class="btn md:col-span-2" type="submit">Add project</button>
-          </form>
-        </section>
+    <section>
+      <h2 class="font-bold text-lg mb-3">Payments</h2>
+      <div class="panel scroll-table p-3">
+        <table class="w-full min-w-[600px]">
+          <thead>
+            <tr>${['Date','Email','Amount','Channel'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+            ${(d.payments||[]).map(p=>`<tr>
+              <td class="${td}">${p.at?esc(new Date(p.at).toLocaleString()):'—'}</td>
+              <td class="${td}">${esc(p.email)}</td>
+              <td class="${td}">KES ${esc(p.amount)}</td>
+              <td class="${td}">${esc(p.channel)}</td>
+            </tr>`).join('')||`<tr><td class="${td} muted" colspan="4">No payments yet</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>`);
 
-        <section class="panel p-6 mt-6">
-          <h2 class="font-bold text-lg">All projects</h2>
-          ${projectList()}
-        </section>
-      `;
-    }
-
-    function addProject(event) {
-      event.preventDefault();
-
-      const formData = new FormData(event.currentTarget);
-      const name = String(formData.get("projectName") || "").trim();
-      const url = String(formData.get("projectUrl") || "").trim();
-
-      if (!name) {
-        showToast("Enter a project name.");
-        return;
-      }
-
-      projects.unshift({
-        id: String(Date.now()),
-        name: name,
-        url: url
-      });
-
-      render();
-      showToast("Project added for this session.");
-    }
-
-    function deleteProject(id) {
-      projects = projects.filter(function (project) {
-        return project.id !== id;
-      });
-
-      render();
-      showToast("Project removed.");
-    }
-
-    function settingsPage() {
-      return `
-        <section class="panel p-6">
-          <h2 class="font-bold text-lg">Account information</h2>
-
-          <div class="mt-5">
-            <p class="muted text-sm">Name</p>
-            <p class="mt-1">${escapeHTML(currentUser?.name || "Not provided")}</p>
-          </div>
-
-          <div class="mt-5">
-            <p class="muted text-sm">Email</p>
-            <p class="mt-1 break-words">${escapeHTML(currentUser?.email || "Not provided")}</p>
-          </div>
-
-          <div class="mt-6 border-t border-zinc-800 pt-5">
-            <h3 class="font-bold">Backend connection</h3>
-            <p class="muted text-sm mt-2">Configured API base: ${escapeHTML(API_BASE || "Same origin")}</p>
-            <p class="muted text-sm mt-2">Health endpoint: ${escapeHTML((API_BASE || "") + "/health")}</p>
-            <button class="btn mt-4" onclick="refreshDashboard()">Test API</button>
-          </div>
-        </section>
-      `;
-    }
-
-    async function refreshDashboard() {
-      await checkHealth();
-
-      if (currentPage === "dashboard" && currentUser) {
-        render();
-      } else {
-        showToast("API status: " + apiStatus);
-      }
-    }
-
-    function logout() {
-      sessionStorage.removeItem("mt_host_token");
-      sessionStorage.removeItem("mt_host_user");
-      currentUser = null;
-      currentPage = "home";
-      window.location.hash = "home";
-      render();
-      showToast("You have been logged out.");
-    }
-
-    function route() {
-      const requested = window.location.hash.replace(/^#\/?/, "").split("?")[0];
-      const allowed = ["home", "login", "register", "dashboard", "projects", "settings"];
-
-      currentPage = allowed.includes(requested) ? requested : "home";
-
-      if (["dashboard", "projects", "settings"].includes(currentPage)) {
-        if (!currentUser || !getToken()) {
-          currentPage = "login";
+  $('#adminSettings').onsubmit=async e=>{
+    e.preventDefault();
+    try{
+      const r=await api('/admin/settings',{
+        method:'PUT',
+        body:{
+          price:$('#price').value,
+          trialDays:$('#trialDays').value
         }
-      }
-
-      render();
+      },atoken);
+      cfg={...cfg,...r};
+      toast('Settings saved');
+      adminView()
+    }catch(err){
+      toast(err.message,true)
     }
+  }
+}
 
-    function render() {
-      try {
-        if (currentPage === "home") {
-          app.innerHTML = homePage();
-          return;
-        }
+async function adm(path,body,method='POST'){
+  try{
+    await api('/admin'+path,{method,body},atoken);
+    toast('Admin action completed');
+    adminView()
+  }catch(e){
+    toast(e.message,true)
+  }
+}
 
-        if (currentPage === "login") {
-          app.innerHTML = authPage(false);
-          return;
-        }
+function route(){
+  clearInterval(pollT);
+  $('#modal').innerHTML='';
+  const h=(location.hash||'#/').split('?')[0];
+  window.scrollTo(0,0);
 
-        if (currentPage === "register") {
-          app.innerHTML = authPage(true);
-          return;
-        }
+  if(token&&(h==='#/login'||h==='#/signup')){
+    location.hash='#/dashboard';
+    return
+  }
 
-        if (currentPage === "dashboard") {
-          if (!currentUser) {
-            currentPage = "login";
-            app.innerHTML = authPage(false);
-            return;
-          }
+  const routes={
+    '#/':landing,
+    '#/login':()=>authView('login'),
+    '#/signup':()=>authView('signup'),
+    '#/verify':verifyView,
+    '#/dashboard':dashboardView,
+    '#/deploy/website':()=>deployView('website'),
+    '#/deploy/bot':()=>deployView('bot'),
+    '#/github':()=>deployView('github'),
+    '#/billing':billingView,
+    '#/profile':profileView,
+    '#/settings':settingsView,
+    '#/admin':adminView
+  };
 
-          app.innerHTML = appShell(dashboardPage());
-          checkHealth().then(function () {
-            if (currentPage === "dashboard") render();
-          });
-          return;
-        }
+  try{
+    (routes[h]||landing)()
+  }catch(e){
+    console.error(e);
+    $('#root').innerHTML=`<main class="max-w-xl mx-auto p-8">
+      <div class="panel p-6">
+        <h1 class="text-xl font-bold">Something went wrong</h1>
+        <p class="muted mt-2">${esc(e.message)}</p>
+        <button class="btn mt-4" onclick="route()">Reload page</button>
+      </div>
+    </main>`
+  }
+}
 
-        if (currentPage === "projects") {
-          app.innerHTML = appShell(projectsPage());
-          return;
-        }
-
-        if (currentPage === "settings") {
-          app.innerHTML = appShell(settingsPage());
-          return;
-        }
-
-        currentPage = "home";
-        app.innerHTML = homePage();
-      } catch (error) {
-        console.error("MtaaniHost render error:", error);
-
-        app.innerHTML = `
-          <main class="min-h-screen flex items-center justify-center p-6">
-            <section class="panel p-7 max-w-lg w-full">
-              <h1 class="text-2xl font-black text-red-400">Page error</h1>
-              <p class="muted mt-3">The page could not be rendered.</p>
-              <button class="btn mt-5" onclick="navigate('home')">Back to home</button>
-            </section>
-          </main>
-        `;
-      }
-    }
-
-    window.addEventListener("hashchange", route);
-
-    window.addEventListener("error", function (event) {
-      console.error("JavaScript error:", event.message);
-    });
-
-    restoreSession();
-    route();
-  </script>
+window.addEventListener('hashchange',route);
+Promise.all([loadCfg(),checkHealth()]).finally(route);
+setInterval(checkHealth,60000);
+</script>
 </body>
-  </html>
+</html>  
