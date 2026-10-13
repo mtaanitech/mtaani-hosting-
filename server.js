@@ -464,12 +464,10 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.use(express.static(path.join(__dirname, "public")));
+
 app.get("/", (req, res) => {
-  res.json({
-    name: "MtaaniHost V2 API",
-    status: "online",
-    health: "/health",
-  });
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // ---------------------------------------------------------------------
