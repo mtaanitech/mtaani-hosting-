@@ -1,576 +1,937 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="MtaaniHost — deploy websites and bots in Kenya. Start free and pay with M-Pesa or card.">
-<meta name="theme-color" content="#061225"><title>MtaaniHost — Host. Deploy. Grow.</title>
-<script>tailwind={config:{darkMode:'class'}};if(localStorage.getItem('mh_theme')==='light')document.documentElement.classList.remove('dark');else document.documentElement.classList.add('dark');</script>
-<script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-<style>
-:root{color-scheme:dark}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}.grad-text{background:linear-gradient(90deg,#60a5fa,#8b5cf6,#2dd4bf);-webkit-background-clip:text;background-clip:text;color:transparent}.grad-bg{background:linear-gradient(120deg,#2563eb,#6d28d9)}.hero-bg{background:radial-gradient(50rem 28rem at 12% 0%,#0e749044,transparent),radial-gradient(42rem 28rem at 95% 0%,#6d28d944,transparent)}.panel{background:rgba(8,23,43,.88);border:1px solid #1e3858;border-radius:16px}.lift{transition:transform .2s,border-color .2s}.lift:hover{transform:translateY(-3px);border-color:#3b82f6}.fadein{animation:fade .22s ease}@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}.field{width:100%;border:1px solid #334155;border-radius:10px;background:#08172b;color:#f8fafc;padding:10px 12px;font-size:14px;outline:none}.field:focus{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f633}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(120deg,#2563eb,#6d28d9);color:white;border-radius:10px;padding:10px 15px;font-size:14px;font-weight:650;transition:opacity .15s}.btn:hover{opacity:.9}.btn:disabled{opacity:.5;cursor:not-allowed}.btn2{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #334155;border-radius:10px;padding:9px 13px;font-size:14px}.btn2:hover{background:#12243c}.muted{color:#94a3b8}.side-link{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:#cbd5e1;font-size:14px}.side-link:hover,.side-link.active{background:#123c78;color:#fff}.side-link.active{box-shadow:inset 3px 0 #60a5fa}details>summary{cursor:pointer;list-style:none}details>summary::-webkit-details-marker{display:none} .scroll-table{overflow-x:auto}
-</style></head>
-<body class="bg-[#061225] text-slate-100 min-h-screen"><div id="root"></div><div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm"></div><div id="modal"></div>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#09090b" />
+<title>MtaaniHost — Deploy from GitHub in seconds</title>
+<meta name="description" content="Host your website, web app or bot from GitHub. Free for 14 days, then KES 70 per month. Pay with M-Pesa.">
 <script>
-'use strict';
-const SUPPORT_WHATSAPP='';
-const API_BASE=typeof window.MH_API==='string'?window.MH_API:(/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname)?'':'https://mtaani-hosting.onrender.com');
-let token=localStorage.getItem('mh_token')||'',atoken=sessionStorage.getItem('mh_admin')||'',me=null,health=null,pollT=null,ghKind='website',cfg={price:130,trialDays:7,human:'math'},humanTok='',cfToken='',pendingEmail=localStorage.getItem('mh_pending')||'',ghRepos=[];
-const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const card='panel p-5',btn='btn',btn2='btn2';
-const logo='<span class="inline-grid place-items-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 text-xl"><i class="fa-solid fa-cloud"></i></span>';
-function toast(msg,bad=false){const box=$('#toast-container');const el=document.createElement('div');el.className='rounded-xl px-4 py-3 text-sm text-white shadow-xl '+(bad?'bg-red-600':'bg-emerald-600');el.textContent=msg;box.append(el);setTimeout(()=>el.remove(),4000)}
-async function api(path,opts={},auth=token){const fd=opts.body instanceof FormData;const headers={...(fd?{}:{'Content-Type':'application/json'}),...(auth?{Authorization:'Bearer '+auth}:{})};let res;try{res=await fetch(API_BASE+'/api'+path,{...opts,headers,body:opts.body&&!fd?JSON.stringify(opts.body):opts.body})}catch{throw Error('Cannot reach the server. The free server may be waking up; try again shortly.')}const data=await res.json().catch(()=>({}));if(!res.ok){const e=Error(data.error||'Request failed');e.status=res.status;e.data=data;throw e}return data}
-function setTheme(light){document.documentElement.classList.toggle('dark',!light);localStorage.setItem('mh_theme',light?'light':'dark')}
-function logout(){token='';me=null;localStorage.removeItem('mh_token');location.hash='#/'}
-async function loadCfg(){try{cfg={...cfg,...await api('/config',{},null)}}catch{}}
-async function loadMe(){if(!token)return null;try{me=await api('/me');return me}catch(e){if(e.status===401){token='';localStorage.removeItem('mh_token')}me=null;return null}}
-async function checkHealth(){try{health=await api('/health',{},null)}catch{health={ok:false}}const el=$('#apiStatus');if(el)el.innerHTML=health.ok?'<span class="text-emerald-400">●</span> Systems operational':'<span class="text-red-400">●</span> API unavailable'}
-function statusBadge(s){const c=({live:'emerald',running:'emerald',starting:'amber',stopped:'slate',suspended:'red',paid:'emerald',trial:'blue',expired:'red'})[s]||'slate';return `<span class="text-xs px-2.5 py-1 rounded-full border border-${c}-400/30 bg-${c}-400/10 text-${c}-300">${esc(s||'unknown')}</span>`}
-function header(mode='public'){let actions='';if(mode==='public')actions=`<a class="hidden sm:inline text-sm muted hover:text-white" href="#features">Features</a><a class="hidden sm:inline text-sm muted hover:text-white" href="#pricing">Pricing</a><a class="hidden sm:inline text-sm muted hover:text-white" href="#faq">FAQ</a>${token?'<a class="btn" href="#/dashboard">Dashboard</a>':'<a class="btn2" href="#/login">Login</a><a class="btn" href="#/signup">Get started</a>'}`;else if(mode==='admin')actions=`<button class="btn2" onclick="setTheme(document.documentElement.classList.contains('dark'))">Theme</button>${atoken?'<button class="btn2" onclick="adminLogout()">Log out</button>':''}<a class="btn2" href="#/">Home</a>`;else actions=`<button class="btn2" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button><button class="btn2" onclick="setTheme(document.documentElement.classList.contains('dark'))" title="Toggle theme"><i class="fa-solid fa-circle-half-stroke"></i></button><div class="relative"><button class="btn2" id="userMenuBtn" onclick="$('#userMenu').classList.toggle('hidden')"><span class="w-7 h-7 rounded-full grad-bg inline-grid place-items-center">${esc((me?.displayName||me?.email||'U')[0].toUpperCase())}</span><span class="hidden sm:inline">${esc(me?.displayName||me?.email||'Account')}</span><i class="fa-solid fa-chevron-down"></i></button><div id="userMenu" class="hidden absolute right-0 top-full mt-2 w-56 panel p-2 z-50"><a class="side-link" href="#/profile">Profile</a><a class="side-link" href="#/settings">Settings</a><a class="side-link" href="#/billing">Billing</a><button class="side-link w-full" onclick="logout()">Log out</button></div></div>`;return `<header class="sticky top-0 z-40 border-b border-[#1e3858] bg-[#061225]/90 backdrop-blur"><div class="max-w-[1500px] mx-auto h-[68px] px-4 sm:px-6 flex items-center justify-between gap-4"><a href="#/" class="flex items-center gap-3 font-extrabold text-lg">${logo}<span>Mtaani<span class="grad-text">Host</span><span class="block text-[10px] tracking-[.2em] font-medium muted -mt-1">HOST · DEPLOY · GROW</span></span></a><div class="flex items-center gap-3">${actions}</div></div></header>`}
-function footer(){return `<footer class="border-t border-[#1e3858] bg-[#071529] mt-auto"><div class="max-w-6xl mx-auto px-5 py-12 grid grid-cols-2 md:grid-cols-5 gap-8 text-sm"><div class="col-span-2"><div class="font-bold text-lg mb-3">${logo} MtaaniHost</div><p class="muted max-w-xs">Simple hosting for websites and bots. Built for creators, developers and small businesses in Kenya.</p><p class="text-xs muted mt-4">Kenya first 🇰🇪 · Host. Deploy. Grow.</p></div><div><h3 class="font-semibold mb-3">Platform</h3><div class="space-y-2 muted"><p><a href="#features">Features</a></p><p><a href="#how">How it works</a></p><p><a href="#pricing">Pricing</a></p><p><a href="#/signup">Get started</a></p></div></div><div><h3 class="font-semibold mb-3">Resources</h3><div class="space-y-2 muted"><p><a href="#faq">FAQs</a></p><p><a href="#/dashboard">My projects</a></p><p><a href="#/billing">Payments</a></p><p><a href="#/admin">Admin</a></p></div></div><div><h3 class="font-semibold mb-3">Contact</h3><div class="space-y-2 muted"><p>Support via account dashboard</p>${SUPPORT_WHATSAPP?`<p><a target="_blank" rel="noopener" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}">WhatsApp support</a></p>`:''}<p id="apiStatus">Checking systems…</p></div></div></div><div class="border-t border-[#1e3858] py-4 text-center text-xs muted">© ${new Date().getFullYear()} MtaaniHost. All rights reserved.</div></footer>`}
-const navItems=[['dashboard','fa-house','Dashboard','#/dashboard'],['deploy/website','fa-globe','Deploy Website','#/deploy/website'],['deploy/bot','fa-robot','Deploy Bot','#/deploy/bot'],['github','fa-brands fa-github','GitHub Import','#/github'],['billing','fa-credit-card','Billing & Payments','#/billing'],['profile','fa-user','Profile','#/profile'],['settings','fa-gear','Settings','#/settings']];
-function appShell(active,content){const side=navItems.map(n=>`<a class="side-link ${active===n[0]?'active':''}" href="${n[3]}"><i class="fa-solid ${n[1]} w-5 text-center"></i>${n[2]}</a>`).join('');$('#root').innerHTML=header('app')+`<div class="max-w-[1500px] w-full mx-auto flex flex-1 min-h-[calc(100vh-140px)]"><aside id="sidebar" class="w-64 shrink-0 p-4 border-r border-[#1e3858] bg-[#071529] hidden md:block"><div class="text-[10px] uppercase tracking-[.2em] muted px-3 py-3">Workspace</div><nav class="space-y-1">${side}</nav><div class="panel p-4 mt-8"><div class="text-2xl mb-2">🚀</div><b class="text-sm">Ready to grow?</b><p class="text-xs muted my-2">Manage your projects from one place.</p><a class="btn w-full" href="#/billing">View plan</a></div><div class="mt-6 text-xs muted" id="apiStatus">Checking systems…</div></aside><main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 fadein">${content}</main></div>`+footer()}
-function publicShell(content){$('#root').innerHTML=header('public')+`<main class="flex-1 fadein">${content}</main>`+footer()}
-function adminShell(content){$('#root').innerHTML=header('admin')+`<main class="max-w-7xl mx-auto w-full p-4 sm:p-7 fadein">${content}</main>`+footer()}
-function toggleSidebar(){const s=$('#sidebar');if(!s)return;s.classList.toggle('hidden');s.classList.toggle('fixed');s.classList.toggle('z-50');s.classList.toggle('top-16');s.classList.toggle('bottom-0')}
-  function landing(){const faqs=[['What can I host?','Static websites made with HTML, CSS and JavaScript, plus Node.js bots supported by your server setup.'],['How do I deploy a website?','Create an account, open Deploy Website, upload a ZIP containing index.html or connect a supported GitHub repository, then deploy.'],['Can I host a WhatsApp bot?','You can deploy compatible Node.js bots. Follow the platform rules and the WhatsApp library provider terms.'],['Do I need a domain?','No. Start with the platform URL if your backend has configured a project domain. You can connect a custom domain when that feature is supported.'],['Is there a free trial?','The current trial duration is shown below. Trial availability and limits depend on your account and server configuration.'],['How much does hosting cost?','The current monthly price is shown below and can be configured by the platform administrator.'],['How do I pay?','If billing is enabled on the backend, use the Billing page to start a payment through the configured Paystack checkout.'],['What if payment is pending?','Check Billing again after a short time. Do not pay repeatedly while a transaction is still being confirmed.'],['Can I add environment variables?','Yes, for supported projects use the Env controls to store configuration values such as API tokens. Never share secrets publicly.'],['Can I import from GitHub?','Use GitHub Import to connect your GitHub account if the server-side OAuth configuration is enabled.'],['Why is my site offline?','Check project status and logs first. Free hosting services can sleep or restart, and expired billing may pause a project.'],['How do I contact support?','Use the support channel provided by your hosting administrator or account dashboard.']];
-const features=[['fa-globe','Website hosting','Publish static websites and landing pages from a ZIP or supported GitHub repository.'],['fa-robot','Bot hosting','Manage supported Node.js bots and inspect logs from your dashboard.'],['fa-code-branch','GitHub deploy','Connect repositories and simplify your deployment workflow.'],['fa-key','Environment variables','Keep configuration and bot tokens out of your source code.'],['fa-chart-line','Project overview','See project states, recent activity and quick links in one place.'],['fa-credit-card','Local-friendly billing','Use the configured checkout for payments in KES where available.']];
-publicShell(`<section class="hero-bg"><div class="max-w-6xl mx-auto px-5 pt-20 pb-24 grid lg:grid-cols-2 gap-12 items-center"><div><span class="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-2 text-xs text-blue-200 mb-6"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Hosting made for builders in Kenya</span><h1 class="text-4xl sm:text-6xl font-black leading-tight tracking-tight">Your projects.<br><span class="grad-text">Ready for the world.</span></h1><p class="muted text-lg leading-relaxed mt-6 max-w-xl">Deploy websites, manage bots and keep your projects organized with one simple hosting dashboard. Less setup. More building.</p><div class="flex flex-wrap gap-3 mt-8"><a class="btn px-6 py-3" href="#/signup"><i class="fa-solid fa-rocket"></i> Start for free</a><a class="btn2 px-6 py-3" href="#how">See how it works <i class="fa-solid fa-arrow-down"></i></a></div><div class="flex flex-wrap gap-5 mt-7 text-sm muted"><span><i class="fa-solid fa-check text-emerald-400 mr-2"></i>Simple deployment</span><span><i class="fa-solid fa-check text-emerald-400 mr-2"></i>Project controls</span><span><i class="fa-solid fa-check text-emerald-400 mr-2"></i>One dashboard</span></div></div><div class="panel p-4 sm:p-6 shadow-2xl"><div class="flex items-center justify-between border-b border-[#1e3858] pb-4 mb-5"><div><p class="font-bold">Workspace overview</p><p class="text-xs muted">A cleaner way to manage hosting</p></div><span class="text-xs text-emerald-300 bg-emerald-400/10 px-3 py-1 rounded-full">● Ready to deploy</span></div><div class="grid grid-cols-2 gap-3"><div class="rounded-xl p-4 bg-blue-500/10 border border-blue-400/20"><i class="fa-solid fa-globe text-blue-300 text-xl"></i><p class="muted text-xs mt-3">Websites</p><p class="text-2xl font-bold mt-1">Deploy</p></div><div class="rounded-xl p-4 bg-violet-500/10 border border-violet-400/20"><i class="fa-solid fa-robot text-violet-300 text-xl"></i><p class="muted text-xs mt-3">Bots</p><p class="text-2xl font-bold mt-1">Manage</p></div><div class="rounded-xl p-4 bg-emerald-500/10 border border-emerald-400/20"><i class="fa-solid fa-key text-emerald-300 text-xl"></i><p class="muted text-xs mt-3">Configuration</p><p class="text-lg font-bold mt-1">Environment</p></div><div class="rounded-xl p-4 bg-amber-500/10 border border-amber-400/20"><i class="fa-solid fa-credit-card text-amber-300 text-xl"></i><p class="muted text-xs mt-3">Billing</p><p class="text-lg font-bold mt-1">Track plan</p></div></div><div class="mt-4 rounded-xl bg-[#061225] border border-[#1e3858] p-4 font-mono text-xs"><p class="text-emerald-300">$ mtaani deploy my-project</p><p class="muted mt-2">✓ Project files checked</p><p class="muted mt-1">✓ Deployment workflow started</p><p class="text-blue-300 mt-1">→ Your next project starts here</p></div></div></div></section>
-<section class="max-w-6xl mx-auto px-5 -mt-5 relative"><div class="grid grid-cols-2 md:grid-cols-4 gap-3">${[['One place','For your projects'],['Web + bots','Flexible workflows'],['GitHub','Repository import'],['KES billing','When configured']].map(x=>`<div class="panel p-5 text-center"><p class="text-xl font-extrabold grad-text">${x[0]}</p><p class="text-xs muted mt-1">${x[1]}</p></div>`).join('')}</div></section>
-<section id="features" class="max-w-6xl mx-auto px-5 py-24"><div class="max-w-2xl mb-10"><p class="text-sm font-bold text-blue-300 tracking-widest">WHAT WE DO</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Everything you need to get online</h2><p class="muted mt-4">Straightforward tools for students, small businesses and developers who want to launch and manage projects.</p></div><div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">${features.map(f=>`<article class="panel lift p-6"><div class="w-12 h-12 rounded-xl bg-blue-500/15 text-blue-300 grid place-items-center text-xl mb-5"><i class="fa-solid ${f[0]}"></i></div><h3 class="font-bold text-lg">${f[1]}</h3><p class="muted text-sm leading-relaxed mt-2">${f[2]}</p></article>`).join('')}</div></section>
-<section id="how" class="border-y border-[#1e3858] bg-[#071529] py-20"><div class="max-w-6xl mx-auto px-5"><div class="text-center mb-12"><p class="text-sm font-bold text-violet-300 tracking-widest">HOW IT WORKS</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">From files to live project</h2></div><div class="grid md:grid-cols-3 gap-5">${[['01','Create an account','Register, verify your email if required, and open your dashboard.'],['02','Deploy your project','Choose website or bot, add a project name, then upload a ZIP or use a supported GitHub flow.'],['03','Manage with confidence','Review status and logs, update settings and check billing from one place.']].map(x=>`<div class="panel p-7"><p class="text-4xl font-black grad-text">${x[0]}</p><h3 class="font-bold text-lg mt-5">${x[1]}</h3><p class="muted text-sm mt-2 leading-relaxed">${x[2]}</p></div>`).join('')}</div></div></section>
-<section class="max-w-6xl mx-auto px-5 py-20"><div class="text-center mb-10"><p class="text-sm font-bold text-cyan-300 tracking-widest">MADE FOR</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Bring your next idea online</h2></div><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${[['🎓','Students','School projects, portfolios and learning experiments.'],['🏪','Small businesses','A clean home online for services, products and events.'],['🤖','Bot builders','Deploy and monitor supported chat bots.'],['🧑🏽‍💻','Developers','Test ideas, import repositories and organize projects.']].map(x=>`<div class="panel p-6 lift"><div class="text-3xl">${x[0]}</div><h3 class="font-bold mt-4">${x[1]}</h3><p class="muted text-sm mt-2">${x[2]}</p></div>`).join('')}</div></section>
-<section id="pricing" class="hero-bg py-20"><div class="max-w-5xl mx-auto px-5"><div class="text-center mb-10"><p class="text-sm font-bold text-amber-300 tracking-widest">PRICING</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Start simple. Scale when ready.</h2><p class="muted mt-3">Prices below reflect the current server configuration when available.</p></div><div class="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto"><div class="panel p-8"><h3 class="font-bold text-lg">Free trial</h3><p class="text-4xl font-black mt-4">KES 0</p><p class="muted text-sm mt-1">${esc(cfg.trialDays)} days to get started</p><ul class="space-y-3 text-sm mt-6 muted"><li>✓ Create an account</li><li>✓ Try supported project workflows</li><li>✓ Manage projects from your dashboard</li><li>✓ No card needed to register</li></ul><a class="btn2 w-full mt-8" href="#/signup">Start free</a></div><div class="panel p-8 border-blue-400/60 relative"><span class="absolute right-5 top-5 text-xs bg-blue-500/20 text-blue-200 rounded-full px-3 py-1">Monthly</span><h3 class="font-bold text-lg">Standard plan</h3><p class="text-4xl font-black mt-4 grad-text">KES ${esc(cfg.price)}</p><p class="muted text-sm mt-1">per month · subject to configured limits</p><ul class="space-y-3 text-sm mt-6 muted"><li>✓ Access billing checkout</li><li>✓ Manage your projects</li><li>✓ Project status and logs where supported</li><li>✓ Help when you need it</li></ul><a class="btn w-full mt-8" href="#/signup">Get started</a></div></div></div></section>
-<section id="faq" class="max-w-4xl mx-auto px-5 py-24"><div class="text-center mb-10"><p class="text-sm font-bold text-rose-300 tracking-widest">FAQ</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-3">Good questions. Clear answers.</h2></div><div class="space-y-3">${faqs.map((f,i)=>`<details class="panel p-5"><summary class="flex justify-between items-center gap-4 font-semibold"><span>${i+1}. ${f[0]}</span><i class="fa-solid fa-plus text-blue-300"></i></summary><p class="muted text-sm leading-relaxed mt-3">${f[1]}</p></details>`).join('')}</div></section>
-<section class="max-w-6xl mx-auto px-5 pb-20"><div class="rounded-3xl p-8 sm:p-12 bg-gradient-to-r from-blue-600 to-violet-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-6"><div><h2 class="text-3xl font-extrabold">Your next project starts today.</h2><p class="text-blue-100 mt-2">Create an account and explore MtaaniHost.</p></div><a class="rounded-xl bg-white text-blue-950 font-bold px-6 py-3" href="#/signup">Create free account <i class="fa-solid fa-arrow-right ml-2"></i></a></div></section>`)}
-async function loadHuman(){const box=$('#human');if(!box)return;try{const h=await api('/human',{},null);humanTok=h.token;box.innerHTML=`<label class="text-sm muted">Human check: what is <b>${esc(h.question)}</b>?</label><div class="flex gap-2 mt-1"><input class="field" id="ha" inputmode="numeric" placeholder="Your answer" required><button type="button" id="hr" class="btn2">↻</button></div>`;$('#hr').onclick=loadHuman}catch(e){box.innerHTML='<p class="text-xs text-amber-300">Human check unavailable. Try refreshing.</p>';}}
-function authView(mode){const signup=mode==='signup';publicShell(`<section class="hero-bg py-16 px-4"><div class="max-w-md mx-auto panel p-7 sm:p-9"><div class="text-center mb-7">${logo}<h1 class="text-2xl font-extrabold mt-4">${signup?'Create your account':'Welcome back'}</h1><p class="muted text-sm mt-2">${signup?`Start your ${esc(cfg.trialDays)}-day trial.`:'Sign in to manage your projects.'}</p></div><form id="authForm" class="space-y-4"><div><label class="text-sm muted">Email</label><input class="field mt-1" id="em" type="email" autocomplete="email" required placeholder="you@example.com"></div><div><label class="text-sm muted">Password</label><input class="field mt-1" id="pw" type="password" minlength="${signup?8:1}" autocomplete="${signup?'new-password':'current-password'}" required placeholder="${signup?'At least 8 characters':'Your password'}"></div><div id="human" class="space-y-2"><p class="muted text-xs">Loading verification…</p></div><button class="btn w-full py-3" id="authSubmit">${signup?'Create account':'Login'}</button></form><p class="muted text-sm text-center mt-5">${signup?'Already registered? <a class="text-blue-300 underline" href="#/login">Login</a>':'New to MtaaniHost? <a class="text-blue-300 underline" href="#/signup">Create an account</a>'}</p></div></section>`);loadHuman();$('#authForm').onsubmit=async e=>{e.preventDefault();const b=$('#authSubmit');b.disabled=true;try{const r=await api(signup?'/auth/signup':'/auth/login',{method:'POST',body:{email:$('#em').value.trim(),password:$('#pw').value,humanToken:humanTok,humanAnswer:$('#ha')?.value||''}},null);if(signup&&!r.token){pendingEmail=$('#em').value.trim();localStorage.setItem('mh_pending',pendingEmail);location.hash='#/verify';return}token=r.token;localStorage.setItem('mh_token',token);me=r.user;location.hash='#/dashboard'}catch(err){if(err.data?.needVerify){pendingEmail=$('#em').value.trim();localStorage.setItem('mh_pending',pendingEmail);location.hash='#/verify';return}toast(err.message,true);b.disabled=false;loadHuman()}}}
-function verifyView(){if(!pendingEmail){location.hash='#/signup';return}publicShell(`<section class="py-16 px-4"><div class="max-w-md mx-auto panel p-8 text-center"><div class="text-4xl">✉️</div><h1 class="text-2xl font-bold mt-4">Verify your email</h1><p class="muted text-sm mt-3">Enter the code sent to ${esc(pendingEmail)}</p><form id="vf" class="space-y-3 mt-6"><input class="field text-center text-xl tracking-widest" id="code" maxlength="6" required placeholder="000000"><button class="btn w-full">Verify email</button></form><button id="resend" class="text-sm muted underline mt-4">Resend code</button></div></section>`);$('#vf').onsubmit=async e=>{e.preventDefault();try{await api('/auth/verify',{method:'POST',body:{email:pendingEmail,code:$('#code').value.trim()}},null);location.hash='#/login?verified=1'}catch(err){toast(err.message,true)}};$('#resend').onclick=async()=>{try{await api('/auth/resend',{method:'POST',body:{email:pendingEmail}},null);toast('Verification code requested')}catch(e){toast(e.message,true)}}}
-function trialBanner(){if(!me)return'';if(me.status==='trial')return`<div class="panel p-4 mb-6 flex flex-wrap justify-between gap-3"><span>🎁 Trial account · <b>${esc(me.daysLeft)} days left</b></span><a href="#/billing" class="btn2">View billing</a></div>`;if(me.status==='expired')return`<div class="panel p-4 mb-6 border-red-500/50 text-red-200">Your trial has ended. Visit Billing to reactivate eligible projects. <a href="#/billing" class="underline">Billing</a></div>`;if(me.status==='paid')return`<div class="panel p-4 mb-6 text-emerald-200">✓ Plan active · ${esc(me.daysLeft)} days remaining</div>`;return''}
-function statCard(label,value,sub,icon,color='blue'){return`<div class="panel p-5"><div class="flex items-center justify-between"><span class="muted text-sm">${label}</span><span class="w-10 h-10 rounded-xl bg-${color}-500/15 text-${color}-300 grid place-items-center"><i class="fa-solid ${icon}"></i></span></div><div class="text-3xl font-extrabold mt-4">${value}</div><p class="muted text-xs mt-1">${sub}</p></div>`}
-async function dashboardView(){if(!(await requireAuth()))return;appShell('dashboard',`<div class="max-w-6xl mx-auto"><div class="flex flex-wrap items-start justify-between gap-4 mb-7"><div><p class="text-sm muted">YOUR WORKSPACE</p><h1 class="text-3xl sm:text-4xl font-extrabold mt-2">Welcome back, <span class="grad-text">${esc(me.displayName||me.email)}</span> 👋</h1><p class="muted mt-2">Here’s your hosting overview.</p></div><div class="flex gap-2"><a class="btn2" href="#/github"><i class="fa-brands fa-github"></i> Import GitHub</a><a class="btn" href="#/deploy/website"><i class="fa-solid fa-plus"></i> New project</a></div></div>${trialBanner()}<div id="projectSummary" class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">${statCard('Total projects','—','Loading projects','fa-layer-group')}${statCard('Online projects','—','Live websites and running bots','fa-circle-check','emerald')}${statCard('Websites','—','Your hosted sites','fa-globe','blue')}${statCard('Bots','—','Your bot projects','fa-robot','violet')}</div><div class="grid xl:grid-cols-[1fr_300px] gap-5"><section class="panel p-5"><div class="flex items-center justify-between gap-3 mb-5"><div><h2 class="font-bold text-lg">Your projects</h2><p class="muted text-sm mt-1">Manage deployments and status.</p></div><button class="btn2" onclick="renderProjects()"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div id="plist" class="space-y-3"><p class="muted text-sm">Loading your projects…</p></div></section><aside class="panel p-5"><h2 class="font-bold text-lg">Quick actions</h2><p class="muted text-sm mt-1 mb-4">Start something new.</p><div class="space-y-2"><a class="btn w-full" href="#/deploy/website">Deploy website</a><a class="btn2 w-full" href="#/deploy/bot">Deploy bot</a><a class="btn2 w-full" href="#/billing">Manage billing</a></div></aside></div></div>`);renderProjects()}
-  async function requireAuth(){if(await loadMe())return true;if(token){publicShell(`<section class="py-16 px-4"><div class="max-w-md mx-auto panel p-8 text-center"><h1 class="text-2xl font-bold">Session expired</h1><p class="muted mt-3">Please log in again to continue.</p><a class="btn mt-5" href="#/login">Login</a></div></section>`);return false}location.hash='#/login';return false}
-function statLine(p){const s=p.stats||{};if(p.type==='bot')return`<p class="muted text-xs">Uptime: ${esc(s.uptime||'—')} · Restarts: ${esc(s.restarts??'—')}</p>`;return`<p class="muted text-xs">Visits: ${esc(s.visits??'—')} · Updated: ${esc(p.updatedAt?new Date(p.updatedAt).toLocaleDateString():'—')}</p>`}
-async function renderProjects(){const el=$('#plist');if(!el)return;let list;try{list=await api('/projects')}catch(e){if(e.status===401){logout();return}el.innerHTML=`<div class="text-sm text-red-300">${esc(e.message)} <button class="underline" onclick="renderProjects()">Retry</button></div>`;return}list=Array.isArray(list)?list:(list.projects||[]);const sum=$('#projectSummary');if(sum){const online=list.filter(p=>['live','running','online'].includes(p.status)).length;sum.innerHTML=statCard('Total projects',list.length,'All your projects','fa-layer-group')+statCard('Online projects',online,'Live or running','fa-circle-check','emerald')+statCard('Websites',list.filter(p=>p.type==='website').length,'Hosted websites','fa-globe','blue')+statCard('Bots',list.filter(p=>p.type==='bot').length,'Bot projects','fa-robot','violet')}if(!list.length){el.innerHTML=`<div class="text-center py-10"><div class="text-4xl">🚀</div><h3 class="font-bold mt-4">No projects yet</h3><p class="muted text-sm mt-2">Deploy your first website or bot to get started.</p><div class="flex justify-center gap-2 mt-5"><a class="btn" href="#/deploy/website">Deploy website</a><a class="btn2" href="#/deploy/bot">Deploy bot</a></div></div>`;return}el.innerHTML=list.map(p=>`<article class="border border-[#1e3858] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4"><div class="w-11 h-11 shrink-0 rounded-xl bg-blue-500/15 text-blue-300 grid place-items-center text-lg"><i class="fa-solid ${p.type==='bot'?'fa-robot':'fa-globe'}"></i></div><div class="flex-1 min-w-0"><div class="flex flex-wrap gap-2 items-center"><b>${esc(p.name)}</b>${statusBadge(p.status)}<span class="text-xs muted">${esc(p.type||'website')}</span></div>${p.url?`<a class="text-blue-300 text-sm break-all" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>`:''}${statLine(p)}<p class="text-xs muted mt-1">Project ID: ${esc(p.id)}</p></div><div class="flex flex-wrap gap-2"><button class="btn2" onclick="showLogs('${esc(p.id)}')"><i class="fa-solid fa-terminal"></i> Logs</button>${p.type==='bot'?`<button class="btn2" onclick="controlBot('${esc(p.id)}','restart')"><i class="fa-solid fa-rotate"></i> Restart</button>`:''}<button class="btn2" onclick="editEnv('${esc(p.id)}')"><i class="fa-solid fa-key"></i> Env</button><button class="btn2 text-red-300" onclick="deleteProject('${esc(p.id)}')"><i class="fa-solid fa-trash"></i></button></div></article>`).join('')}
-async function controlBot(id,action){try{await api(`/projects/${encodeURIComponent(id)}/${action}`,{method:'POST'});toast('Action requested');renderProjects()}catch(e){toast(e.message,true)}}
-async function deleteProject(id){if(!confirm('Permanently delete this project? This action cannot be undone.'))return;try{await api(`/projects/${encodeURIComponent(id)}`,{method:'DELETE'});toast('Project deleted');renderProjects()}catch(e){toast(e.message,true)}}
-async function showLogs(id){const m=$('#modal');m.innerHTML=`<div class="fixed inset-0 z-[80] bg-black/70 p-3 sm:p-8 grid place-items-center"><section class="panel w-full max-w-3xl max-h-[85vh] flex flex-col p-5"><div class="flex items-center justify-between gap-3"><h2 class="font-bold text-lg">Project logs</h2><button class="btn2" onclick="$('#modal').innerHTML=''">✕</button></div><pre id="logOutput" class="mt-4 p-4 rounded-xl bg-[#020817] text-xs text-emerald-200 overflow-auto whitespace-pre-wrap min-h-48 flex-1">Loading logs…</pre><div class="flex justify-end gap-2 mt-4"><button class="btn2" onclick="refreshLogs('${esc(id)}')">Refresh</button><button class="btn" onclick="$('#modal').innerHTML=''">Close</button></div></section></div>`;await refreshLogs(id)}
-async function refreshLogs(id){const el=$('#logOutput');if(!el)return;try{const r=await api(`/projects/${encodeURIComponent(id)}/logs`);el.textContent=typeof r.logs==='string'?r.logs:JSON.stringify(r.logs??r,null,2)}catch(e){el.textContent='Unable to load logs: '+e.message}}
-async function editEnv(id){let keys=[];try{const r=await api(`/projects/${encodeURIComponent(id)}/env`);keys=r.variables||r.env||[]}catch(e){toast(e.message,true);return}const m=$('#modal');m.innerHTML=`<div class="fixed inset-0 z-[80] bg-black/70 p-3 sm:p-8 grid place-items-center"><section class="panel w-full max-w-xl p-5 max-h-[90vh] overflow-auto"><div class="flex items-center justify-between"><h2 class="font-bold text-lg">Environment variables</h2><button class="btn2" onclick="$('#modal').innerHTML=''">✕</button></div><p class="muted text-sm mt-2">Store API tokens and configuration securely. Never paste secrets into public code.</p><div id="envList" class="space-y-2 mt-4">${keys.map(v=>`<div class="grid grid-cols-2 gap-2"><input class="field" value="${esc(v.key||v.name)}" readonly><input class="field" value="••••••••" readonly></div>`).join('')}</div><form id="envForm" class="mt-5 space-y-3"><label class="text-sm muted">Variable name<input class="field mt-1" id="envKey" required pattern="[A-Za-z_][A-Za-z0-9_]*" placeholder="API_TOKEN"></label><label class="text-sm muted">Variable value<input class="field mt-1" id="envValue" required type="password" placeholder="Secret value"></label><div class="flex gap-2"><button class="btn">Save variable</button><button type="button" class="btn2" onclick="$('#modal').innerHTML=''">Close</button></div></form></section></div>`;$('#envForm').onsubmit=async e=>{e.preventDefault();try{await api(`/projects/${encodeURIComponent(id)}/env`,{method:'POST',body:{key:$('#envKey').value.trim(),value:$('#envValue').value}});toast('Environment variable saved');editEnv(id)}catch(err){toast(err.message,true)}}}
-async function deployView(mode){if(!(await requireAuth()))return;const gh=mode==='github',kind=gh?'website':mode;appShell(gh?'github':`deploy/${kind}`,`<div class="max-w-3xl mx-auto"><a class="text-sm muted" href="#/dashboard">← Back to dashboard</a><h1 class="text-3xl font-extrabold mt-4">${gh?'Import from GitHub':kind==='bot'?'Deploy a bot':'Deploy a website'}</h1><p class="muted mt-2">${gh?'Choose a connected repository to import.':'Configure your project and send it to the hosting backend.'}</p>${trialBanner()}${gh?`<section class="panel p-5 mt-6"><div class="flex justify-between items-center gap-3"><div><h2 class="font-bold">Your repositories</h2><p class="muted text-sm mt-1">Connect GitHub if OAuth is configured on the server.</p></div><button class="btn2" onclick="checkGitHubRepos(true)">Refresh</button></div><div id="ghList" class="space-y-3 mt-5"><button class="btn" onclick="checkGitHubRepos(true)">Load repositories</button></div></section>`:`<form id="deployForm" class="panel p-6 mt-6 space-y-5"><div><label class="text-sm muted">Project name</label><input class="field mt-1" id="projectName" required maxlength="60" pattern="[A-Za-z0-9][A-Za-z0-9_-]*" placeholder="${kind==='bot'?'my-whatsapp-bot':'my-website'}"></div>${kind==='bot'?`<div><label class="text-sm muted">Bot runtime</label><select class="field mt-1" id="runtime"><option value="node">Node.js</option></select><p class="muted text-xs mt-2">Upload a ZIP containing package.json and your bot entry file. Ensure the start script is configured.</p></div>`:`<div><label class="text-sm muted">Website source</label><select class="field mt-1" id="source"><option value="zip">Upload ZIP file</option><option value="github">GitHub repository URL</option></select></div><div id="zipBox"><label class="text-sm muted">Project ZIP</label><input class="field mt-1" type="file" id="projectZip" accept=".zip,application/zip"><p class="muted text-xs mt-2">ZIP should contain index.html at its root, or the correct project build files.</p></div><div id="repoBox" class="hidden"><label class="text-sm muted">Git repository URL</label><input class="field mt-1" type="url" id="repoUrl" placeholder="https://github.com/username/repository"><p class="muted text-xs mt-2">The server must support importing this repository.</p></div>`}<div><label class="text-sm muted">Description (optional)</label><textarea class="field mt-1" id="projectDesc" rows="3" maxlength="300" placeholder="What does this project do?"></textarea></div><div class="rounded-xl bg-blue-500/10 border border-blue-400/20 p-4 text-sm muted">Deployment requires a working API backend and compatible server configuration. This form will submit your project to the configured API.</div><button class="btn w-full py-3" id="deploySubmit"><i class="fa-solid fa-rocket"></i> Deploy project</button><p id="deployStatus" class="muted text-sm"></p></form>`}</div>`);if(gh){checkGitHubRepos()}else{const src=$('#source');if(src)src.onchange=()=>{const isZip=src.value==='zip';$('#zipBox').classList.toggle('hidden',!isZip);$('#repoBox').classList.toggle('hidden',isZip);$('#projectZip').required=isZip;$('#repoUrl').required=!isZip};const form=$('#deployForm');form.onsubmit=async e=>{e.preventDefault();const b=$('#deploySubmit'),status=$('#deployStatus');b.disabled=true;status.textContent='Submitting deployment…';try{let result;if(kind==='bot'){const file=$('#projectZip');if(!file||!file.files.length)throw Error('Choose your bot ZIP file.');const fd=new FormData();fd.append('file',file.files[0]);fd.append('name',$('#projectName').value.trim());fd.append('description',$('#projectDesc').value.trim());fd.append('runtime',$('#runtime').value);result=await api('/deploy/bot',{method:'POST',body:fd})}else if($('#source').value==='zip'){const file=$('#projectZip');if(!file.files.length)throw Error('Choose your website ZIP file.');const fd=new FormData();fd.append('file',file.files[0]);fd.append('name',$('#projectName').value.trim());fd.append('description',$('#projectDesc').value.trim());result=await api('/deploy/website',{method:'POST',body:fd})}else{result=await api('/deploy/website',{method:'POST',body:{name:$('#projectName').value.trim(),description:$('#projectDesc').value.trim(),repoUrl:$('#repoUrl').value.trim()}})}toast('Deployment request submitted');status.textContent=result.message||'Deployment request submitted. Check project status in your dashboard.';setTimeout(()=>location.hash='#/dashboard',900)}catch(err){toast(err.message,true);status.textContent=err.message;b.disabled=false}}}}
-async function checkGitHubRepos(force){
-  try{
-    const repos=await api('/github/repos');
-    ghRepos=repos;
-    renderRepoList(repos)
-  }catch(e){
-    const list=$('#ghList');
-    if(list)list.innerHTML=`<div class="rounded-xl bg-amber-500/10 border border-amber-400/20 p-4 text-sm muted">${esc(e.message)}<p class="mt-2">Use Connect / refresh to authorize GitHub, or confirm GitHub OAuth is configured on the server.</p></div>`;
-    if(force)toast(e.message,true)
-  }
-}
-
-function renderRepoList(repos){
-  const list=$('#ghList');
-  if(!list)return;
-  if(!repos.length){
-    list.innerHTML='<p class="muted text-sm py-5">No repositories were returned by GitHub.</p>';
-    return
-  }
-  list.innerHTML=repos.map(r=>`<div class="repo-item flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#1e3858] p-4" data-name="${esc(r.full_name.toLowerCase())}"><div class="min-w-0"><b>${esc(r.full_name)} ${r.private?'🔒':''}</b><p class="muted text-xs mt-1">Updated ${esc(r.updated_at?new Date(r.updated_at).toLocaleDateString():'—')}</p></div><button class="btn" onclick="importGhRepo('${esc(r.clone_url)}','${esc(r.name)}')">Import repository</button></div>`).join('')
-}
-
-function filterRepos(q){
-  document.querySelectorAll('.repo-item').forEach(el=>{
-    el.style.display=el.dataset.name.includes(q.toLowerCase())?'':'none'
-  })
-}
-
-async function importGhRepo(url,name){
-  const finalName=prompt('Project name:',name)||name;
-  if(!finalName)return;
-  let envVars='';
-  if(ghKind==='bot'){
-    envVars=prompt('Environment variables (KEY=value, one per line):','')||''
-  }
-  const fd=new FormData();
-  fd.append('name',finalName);
-  fd.append('githubUrl',url);
-  if(ghKind==='bot'){
-    fd.append('botType','baileys');
-    fd.append('envVars',envVars)
-  }
-  try{
-    toast('Importing repository…');
-    const p=await api(
-      ghKind==='bot'?'/projects/bot':'/projects/website',
-      {method:'POST',body:fd}
-    );
-    toast('Repository import submitted');
-    if(p.url)window.open(p.url,'_blank','noopener');
-    location.hash='#/dashboard'
-  }catch(e){
-    toast(e.message,true);
-    if(e.status===402)location.hash='#/billing'
-  }
-}
-
-async function billingView(){
-  if(!(await requireAuth()))return;
-  const exp=me.paidUntil||me.trialEndsAt;
-
-  appShell('billing',`<div class="max-w-3xl mx-auto">
-    <p class="text-sm muted">ACCOUNT</p>
-    <h1 class="text-3xl font-extrabold mt-2 mb-7">Billing & payments</h1>
-
-    <div class="grid md:grid-cols-2 gap-4">
-      <div class="panel p-6">
-        <p class="muted text-sm">Current status</p>
-        <div class="mt-3">${statusBadge(me.status)}</div>
-        <p class="muted text-sm mt-5">Days remaining</p>
-        <p class="text-3xl font-extrabold mt-1">${esc(me.daysLeft??'—')}</p>
-        <p class="muted text-sm mt-4">Expiry date: ${exp?esc(new Date(exp).toLocaleDateString()):'—'}</p>
-      </div>
-
-      <div class="panel p-6">
-        <p class="muted text-sm">Monthly plan</p>
-        <p class="text-4xl font-extrabold grad-text mt-3">KES ${esc(me.price??cfg.price)}</p>
-        <p class="muted text-sm mt-1">per month</p>
-        <button class="btn w-full mt-6 py-3" id="payBtn">
-          <i class="fa-solid fa-lock"></i> Continue to secure payment
-        </button>
-        <p class="muted text-xs mt-3">Checkout is provided by your configured Paystack integration.</p>
-      </div>
-    </div>
-
-    <div class="panel p-6 mt-5">
-      <h2 class="font-bold">Payment help</h2>
-      <p class="muted text-sm mt-2">If you have completed payment but your account has not updated, wait briefly and refresh this page. Avoid making a second payment until the first transaction status is clear.</p>
-    </div>
-  </div>`);
-
-  $('#payBtn').onclick=async e=>{
-    const b=e.currentTarget;
-    b.disabled=true;
-    try{
-      const r=await api('/billing/pay',{method:'POST'});
-      if(!r.url)throw Error('Payment URL was not returned by the server');
-      location.href=r.url
-    }catch(err){
-      toast(err.message,true);
-      b.disabled=false
+  tailwind = { config: { darkMode: 'class' } };
+  try {
+    if (localStorage.getItem('mh_theme') !== 'light') {
+      document.documentElement.classList.add('dark');
     }
+  } catch (_) {
+    document.documentElement.classList.add('dark');
   }
-}
-
-async function profileView(){
-  if(!(await requireAuth()))return;
-  let p;
-  try{
-    p=await api('/profile')
-  }catch(e){
-    toast(e.message,true);
-    return
-  }
-
-  appShell('profile',`<div class="max-w-3xl mx-auto">
-    <h1 class="text-3xl font-extrabold mb-7">Your profile</h1>
-
-    <div class="panel p-6 flex items-center gap-4 mb-5">
-      <div class="w-16 h-16 rounded-2xl grad-bg grid place-items-center text-2xl font-bold">${esc((p.displayName||p.email||'U')[0].toUpperCase())}</div>
-      <div>
-        <h2 class="font-bold text-xl">${esc(p.displayName||'MtaaniHost user')}</h2>
-        <p class="muted text-sm">${esc(p.email)}</p>
-        <div class="mt-2">${statusBadge(p.status)}</div>
-      </div>
-    </div>
-
-    <div class="panel p-6 space-y-4">
-      <div class="flex justify-between gap-4">
-        <span class="muted">Member since</span>
-        <span>${p.memberSince?esc(new Date(p.memberSince).toLocaleDateString()):'—'}</span>
-      </div>
-      <div class="flex justify-between gap-4">
-        <span class="muted">Projects</span>
-        <span>${esc(p.projects??'—')} (${esc(p.websites??0)} websites, ${esc(p.bots??0)} bots)</span>
-      </div>
-      <div class="flex justify-between gap-4">
-        <span class="muted">Plan days left</span>
-        <span>${esc(p.daysLeft??'—')}</span>
-      </div>
-    </div>
-
-    <a class="btn mt-5" href="#/settings">Edit profile settings</a>
-  </div>`)
-}
-
-async function settingsView(){
-  if(!(await requireAuth()))return;
-  let p;
-  try{
-    p=await api('/profile')
-  }catch(e){
-    toast(e.message,true);
-    return
-  }
-
-  const light=localStorage.getItem('mh_theme')==='light';
-
-  appShell('settings',`<div class="max-w-3xl mx-auto">
-    <h1 class="text-3xl font-extrabold mb-2">Settings</h1>
-    <p class="muted mb-7">Manage your profile, password and appearance.</p>
-
-    <form id="profileForm" class="panel p-6 space-y-4 mb-5">
-      <h2 class="font-bold text-lg">Profile information</h2>
-      <div>
-        <label class="text-sm muted">Display name</label>
-        <input class="field mt-1" id="displayName" maxlength="40" required value="${esc(p.displayName||'')}">
-      </div>
-      <div>
-        <label class="text-sm muted">Email address</label>
-        <input class="field mt-1 opacity-60" disabled value="${esc(p.email)}">
-      </div>
-      <button class="btn">Save profile</button>
-    </form>
-
-    <form id="passwordForm" class="panel p-6 space-y-4 mb-5">
-      <h2 class="font-bold text-lg">Change password</h2>
-      <input class="field" id="currentPassword" type="password" autocomplete="current-password" required placeholder="Current password">
-      <input class="field" id="newPassword" type="password" minlength="8" autocomplete="new-password" required placeholder="New password (at least 8 characters)">
-      <input class="field" id="confirmPassword" type="password" required placeholder="Confirm new password">
-      <button class="btn">Update password</button>
-    </form>
-
-    <div class="panel p-6 mb-5">
-      <h2 class="font-bold text-lg">Appearance</h2>
-      <p class="muted text-sm mt-1 mb-4">Choose the theme that feels right for you.</p>
-      <div class="flex gap-3">
-        <button class="btn2" onclick="setTheme(true);settingsView()">☀️ Light</button>
-        <button class="btn2" onclick="setTheme(false);settingsView()">🌙 Dark</button>
-      </div>
-    </div>
-
-    <div class="panel p-6 border-red-500/30">
-      <h2 class="font-bold text-lg text-red-300">Delete account</h2>
-      <p class="muted text-sm mt-2">This is permanent and may remove your projects. Continue only if you are certain.</p>
-      <form id="deleteAccountForm" class="mt-4 space-y-3">
-        <input class="field" id="deletePassword" type="password" required placeholder="Confirm your password">
-        <button class="btn2 text-red-300 border-red-500/40">Delete my account</button>
-      </form>
-    </div>
-  </div>`);
-
-  $('#profileForm').onsubmit=async e=>{
-    e.preventDefault();
-    try{
-      await api('/profile',{
-        method:'PUT',
-        body:{displayName:$('#displayName').value.trim()}
-      });
-      toast('Profile saved');
-      await loadMe()
-    }catch(err){
-      toast(err.message,true)
-    }
-  };
-
-  $('#passwordForm').onsubmit=async e=>{
-    e.preventDefault();
-    if($('#newPassword').value!==$('#confirmPassword').value)
-      return toast('Passwords do not match',true);
-
-    try{
-      await api('/settings/password',{
-        method:'POST',
-        body:{
-          currentPassword:$('#currentPassword').value,
-          newPassword:$('#newPassword').value
-        }
-      });
-      toast('Password updated');
-      e.target.reset()
-    }catch(err){
-      toast(err.message,true)
-    }
-  };
-
-  $('#deleteAccountForm').onsubmit=async e=>{
-    e.preventDefault();
-    if(!confirm('Permanently delete your account and projects?'))return;
-
-    try{
-      await api('/account',{
-        method:'DELETE',
-        body:{password:$('#deletePassword').value}
-      });
-      toast('Account deleted');
-      logout()
-    }catch(err){
-      toast(err.message,true)
-    }
-  }
-}
-
-function adminLogout(){
-  atoken='';
-  sessionStorage.removeItem('mh_admin');
-  adminView()
-}
-
-async function adminView(){
-  if(!atoken){
-    adminShell(`<div class="max-w-md mx-auto py-12">
-      <div class="panel p-8">
-        <div class="text-center mb-6">
-          <div class="w-14 h-14 rounded-2xl grad-bg grid place-items-center text-2xl mx-auto">
-            <i class="fa-solid fa-shield-halved"></i>
-          </div>
-          <h1 class="text-2xl font-extrabold mt-4">Admin sign in</h1>
-          <p class="muted text-sm mt-2">Use the administrator password configured on the server.</p>
-        </div>
-
-        <form id="adminLogin" class="space-y-4">
-          <input class="field" type="password" id="adminPassword" required autocomplete="current-password" placeholder="Admin password">
-          <button class="btn w-full">Sign in securely</button>
-        </form>
-      </div>
-    </div>`);
-
-    $('#adminLogin').onsubmit=async e=>{
-      e.preventDefault();
-      try{
-        const r=await api('/admin/login',{
-          method:'POST',
-          body:{password:$('#adminPassword').value}
-        },null);
-        atoken=r.token;
-        sessionStorage.setItem('mh_admin',atoken);
-        adminView()
-      }catch(err){
-        toast(err.message,true)
-      }
-    };
-    return
-  }
-
-  let d;
-  try{
-    d=await api('/admin/overview',{},atoken)
-  }catch(e){
-    if(e.status===401){
-      atoken='';
-      sessionStorage.removeItem('mh_admin');
-      toast('Admin session expired. Please sign in again.',true);
-      return adminView()
-    }
-
-    adminShell(`<div class="panel p-8 max-w-xl mx-auto text-center">
-      <h1 class="text-2xl font-bold">Admin overview unavailable</h1>
-      <p class="text-red-300 mt-3">${esc(e.message)}</p>
-      <button class="btn mt-5" onclick="adminView()">Retry</button>
-    </div>`);
-    return
-  }
-
-  let st={price:cfg.price,trialDays:cfg.trialDays};
-  try{
-    st={...st,...await api('/admin/settings',{},atoken)}
-  }catch{}
-
-  await checkHealth();
-
-  const s=d.stats||{};
-  const stat=(a,b)=>`<div class="panel p-4"><p class="muted text-xs">${a}</p><p class="text-2xl font-extrabold mt-2">${esc(b??0)}</p></div>`;
-  const th='text-left text-xs muted py-3 px-3';
-  const td='text-sm py-3 px-3 border-t border-[#1e3858]';
-
-  adminShell(`<div class="space-y-7">
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <p class="text-sm muted">CONTROL CENTER</p>
-        <h1 class="text-3xl font-extrabold mt-2">Admin dashboard</h1>
-      </div>
-      <button class="btn2" onclick="adminView()">
-        <i class="fa-solid fa-rotate"></i> Refresh data
-      </button>
-    </div>
-
-    ${health?.onRender&&!health?.persistent?'<div class="panel p-4 text-amber-200 border-amber-500/40">Warning: configure persistent storage on your hosting platform if your backend requires it to retain accounts and projects after restarts.</div>':''}
-
-    ${health?.requireVerify&&health?.mail==='none'?'<div class="panel p-4 text-amber-200 border-amber-500/40">Email verification is enabled but email delivery is not configured. Configure the mail settings in the server environment.</div>':''}
-
-    <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
-      ${stat('Users',s.users)}
-      ${stat('Trial',s.trial)}
-      ${stat('Paid',s.paid)}
-      ${stat('Expired',s.expired)}
-      ${stat('Blocked',s.blocked)}
-      ${stat('Projects',s.projects)}
-      ${stat('Live sites',s.liveSites)}
-      ${stat('Running bots',s.runningBots)}
-      ${stat('Revenue (KES)',s.revenue)}
-      ${stat('Email service',health?.mail||'unknown')}
-    </div>
-
-    <section class="panel p-6">
-      <h2 class="font-bold text-lg">Pricing and trial settings</h2>
-      <p class="muted text-sm mt-1 mb-5">Updates the values supported by your backend.</p>
-      <form id="adminSettings" class="grid sm:grid-cols-3 gap-4 items-end">
-        <div>
-          <label class="muted text-sm">Monthly price (KES)</label>
-          <input class="field mt-2" type="number" min="10" max="100000" id="price" required value="${esc(st.price)}">
-        </div>
-        <div>
-          <label class="muted text-sm">Trial days</label>
-          <input class="field mt-2" type="number" min="0" max="60" id="trialDays" required value="${esc(st.trialDays)}">
-        </div>
-        <button class="btn">Save settings</button>
-      </form>
-    </section>
-
-    <section>
-      <h2 class="font-bold text-lg mb-3">Users</h2>
-      <div class="panel scroll-table p-3">
-        <table class="w-full min-w-[700px]">
-          <thead>
-            <tr>${['Email','Status','Days left','Projects','Actions'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr>
-          </thead>
-          <tbody>
-            ${(d.users||[]).map(u=>`<tr>
-              <td class="${td}">${esc(u.email)}</td>
-              <td class="${td}">${statusBadge(u.status)}</td>
-              <td class="${td}">${esc(u.daysLeft)}</td>
-              <td class="${td}">${esc(u.projects)}</td>
-              <td class="${td}">
-                <div class="flex gap-2">
-                  ${u.status==='unverified'?`<button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/verify',{})">Verify</button>`:''}
-                  <button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/block',{blocked:${!u.blocked}})">${u.blocked?'Unblock':'Block'}</button>
-                  <button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/extend',{days:30})">+30 days</button>
-                </div>
-              </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section>
-      <h2 class="font-bold text-lg mb-3">Projects</h2>
-      <div class="panel scroll-table p-3">
-        <table class="w-full min-w-[700px]">
-          <thead>
-            <tr>${['Name','Owner','Type','Status','Actions'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr>
-          </thead>
-          <tbody>
-            ${(d.projects||[]).map(p=>`<tr>
-              <td class="${td}">${esc(p.name)}</td>
-              <td class="${td}">${esc(p.owner)}</td>
-              <td class="${td}">${esc(p.type)}</td>
-              <td class="${td}">${statusBadge(p.status)}</td>
-              <td class="${td}">
-                <div class="flex gap-2">
-                  <button class="btn2" onclick="adm('/projects/${encodeURIComponent(p.id)}/suspend',{suspended:${p.suspendedBy!=='admin'}})">${p.suspendedBy==='admin'?'Resume':'Suspend'}</button>
-                  <button class="btn2 text-red-300" onclick="if(confirm('Delete this project?'))adm('/projects/${encodeURIComponent(p.id)}',null,'DELETE')">Delete</button>
-                </div>
-              </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section>
-      <h2 class="font-bold text-lg mb-3">Payments</h2>
-      <div class="panel scroll-table p-3">
-        <table class="w-full min-w-[600px]">
-          <thead>
-            <tr>${['Date','Email','Amount','Channel'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr>
-          </thead>
-          <tbody>
-            ${(d.payments||[]).map(p=>`<tr>
-              <td class="${td}">${p.at?esc(new Date(p.at).toLocaleString()):'—'}</td>
-              <td class="${td}">${esc(p.email)}</td>
-              <td class="${td}">KES ${esc(p.amount)}</td>
-              <td class="${td}">${esc(p.channel)}</td>
-            </tr>`).join('')||`<tr><td class="${td} muted" colspan="4">No payments yet</td></tr>`}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>`);
-
-  $('#adminSettings').onsubmit=async e=>{
-    e.preventDefault();
-    try{
-      const r=await api('/admin/settings',{
-        method:'PUT',
-        body:{
-          price:$('#price').value,
-          trialDays:$('#trialDays').value
-        }
-      },atoken);
-      cfg={...cfg,...r};
-      toast('Settings saved');
-      adminView()
-    }catch(err){
-      toast(err.message,true)
-    }
-  }
-}
-
-async function adm(path,body,method='POST'){
-  try{
-    await api('/admin'+path,{method,body},atoken);
-    toast('Admin action completed');
-    adminView()
-  }catch(e){
-    toast(e.message,true)
-  }
-}
-
-function route(){
-  clearInterval(pollT);
-  $('#modal').innerHTML='';
-  const h=(location.hash||'#/').split('?')[0];
-  window.scrollTo(0,0);
-
-  if(token&&(h==='#/login'||h==='#/signup')){
-    location.hash='#/dashboard';
-    return
-  }
-
-  const routes={
-    '#/':landing,
-    '#/login':()=>authView('login'),
-    '#/signup':()=>authView('signup'),
-    '#/verify':verifyView,
-    '#/dashboard':dashboardView,
-    '#/deploy/website':()=>deployView('website'),
-    '#/deploy/bot':()=>deployView('bot'),
-    '#/github':()=>deployView('github'),
-    '#/billing':billingView,
-    '#/profile':profileView,
-    '#/settings':settingsView,
-    '#/admin':adminView
-  };
-
-  try{
-    (routes[h]||landing)()
-  }catch(e){
-    console.error(e);
-    $('#root').innerHTML=`<main class="max-w-xl mx-auto p-8">
-      <div class="panel p-6">
-        <h1 class="text-xl font-bold">Something went wrong</h1>
-        <p class="muted mt-2">${esc(e.message)}</p>
-        <button class="btn mt-4" onclick="route()">Reload page</button>
-      </div>
-    </main>`
-  }
-}
-
-window.addEventListener('hashchange',route);
-Promise.all([loadCfg(),checkHealth()]).finally(route);
-setInterval(checkHealth,60000);
 </script>
-</body>
-</html>  
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<style>
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    width: 100%;
+    min-width: 0;
+  }
+  button, input, textarea, select { font: inherit; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  img, svg, video { max-width: 100%; }
+  .grad-text {
+    background: linear-gradient(90deg,#34d399,#22d3ee 50%,#a78bfa);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .grid-bg {
+    background-image: linear-gradient(to right,rgba(113,113,122,.14) 1px,transparent 1px),linear-gradient(to bottom,rgba(113,113,122,.14) 1px,transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 0,#000 40%,transparent 75%);
+    mask-image: radial-gradient(ellipse at 50% 0,#000 40%,transparent 75%);
+  }
+  .glow { box-shadow: 0 0 80px -20px rgba(52,211,153,.35); }
+  .lift { transition: border-color .18s, transform .18s, box-shadow .18s; }
+  .lift:hover { border-color: rgba(52,211,153,.6); transform: translateY(-2px); }
+  .pulse { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .fadein { animation: fadein .2s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  details > summary::-webkit-details-marker { display: none; }
+  .logs span.cmd { color: #34d399; }
+  .logs span.err { color: #f87171; }
+  .logs span.ok { color: #4ade80; }
+  .logs span.dim { color: #71717a; }
+
+  /* Mobile-first navigation */
+  .mobile-nav {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(0,0,0,.58);
+    backdrop-filter: blur(5px);
+  }
+  .mobile-nav.open { display: block; }
+  .mobile-nav-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: min(86vw, 340px);
+    height: 100%;
+    overflow-y: auto;
+    background: #fff;
+    color: #18181b;
+    border-left: 1px solid #e4e4e7;
+    padding: max(18px, env(safe-area-inset-top)) 18px max(22px, env(safe-area-inset-bottom));
+    animation: slidein .18s ease;
+  }
+  .dark .mobile-nav-panel {
+    background: #09090b;
+    color: #f4f4f5;
+    border-color: #27272a;
+  }
+  @keyframes slidein { from { transform: translateX(16px); opacity: .7; } to { transform: translateX(0); opacity: 1; } }
+  .mobile-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 46px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    text-decoration: none;
+  }
+  .mobile-link:hover { background: rgba(161,161,170,.13); }
+  .mobile-link i { width: 20px; text-align: center; color: #10b981; }
+  .dash-stat { min-width: 0; overflow-wrap: anywhere; }
+  .mobile-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .safe-bottom { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+
+  @media (max-width: 640px) {
+    html { scroll-padding-top: 72px; }
+    .lift:hover { transform: none; }
+    #root { width: 100%; min-width: 0; }
+    main { min-width: 0; }
+    .mobile-nav-panel { width: min(88vw, 360px); }
+    #toast-container {
+      left: 12px !important;
+      right: 12px !important;
+      bottom: max(12px, env(safe-area-inset-bottom)) !important;
+      max-width: none !important;
+    }
+    #toast-container > div { overflow-wrap: anywhere; }
+    .logs { height: 55vh !important; min-height: 260px; }
+    input, select, textarea { max-width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+</head>
+<body class="bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 min-h-screen flex flex-col">
+<div id="root" class="flex flex-col flex-1 min-h-screen"></div>
+<div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 max-w-xs"></div>
+<div id="modal"></div>
+<script>
+/* ===================== state & helpers ===================== */
+// Same origin when served by the MtaaniHost server (recommended).
+// Set window.MH_API only if the page is hosted elsewhere.
+const API_BASE = typeof window.MH_API === 'string' ? window.MH_API : '';
+let token = localStorage.getItem('mh_token'), atoken = sessionStorage.getItem('mh_admin');
+let me = null, health = null, pollT = null, logCtl = null, humanTok = '', cfToken = '';
+let cfg = { price: 70, trialDays: 14, storageGB: 10, human: 'math', github: false, baseDomain: null };
+let pendingEmail = localStorage.getItem('mh_pending') || '';
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[c]));
+const inp = 'w-full min-w-0 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-zinc-400';
+const btn = 'inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black px-4 py-2.5 text-sm font-semibold hover:opacity-85 disabled:opacity-50 whitespace-nowrap transition';
+const btn2 = 'inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 dark:border-zinc-800 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 whitespace-nowrap transition';
+const btnDanger = 'inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/50 text-red-500 px-3 py-2 text-sm hover:bg-red-500/10 whitespace-nowrap';
+const card = 'rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950';
+const lbl = 'block text-xs font-semibold text-zinc-500 mb-1.5';
+const logo = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2 22 20H2L12 2Z" fill="currentColor"/></svg>`;
+const domain = () => cfg.baseDomain || 'mtaanihost.ke';
+
+function toast(msg, bad) {
+  const box = $('#toast-container');
+  if (!box) return;
+  const d = document.createElement('div');
+  d.className = `rounded-xl px-4 py-3 text-sm shadow-lg text-white fadein ${bad ? 'bg-red-600' : 'bg-emerald-600'}`;
+  d.textContent = msg;
+  box.appendChild(d);
+  setTimeout(() => d.remove(), 4500);
+}
+async function api(p, o = {}, t = token) {
+  const h = { 'Content-Type': 'application/json' };
+  if (t) h.Authorization = 'Bearer ' + t;
+  let r;
+  try {
+    r = await fetch(API_BASE + '/api' + p, {
+      ...o,
+      headers: { ...(o.headers || {}), ...h },
+      body: o.body ? JSON.stringify(o.body) : undefined
+    });
+  } catch {
+    throw new Error('Cannot reach the server. Check your internet, or wait a minute if the server is waking up.');
+  }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(j.error || 'Something went wrong');
+    e.status = r.status;
+    e.data = j;
+    throw e;
+  }
+  return j;
+}
+const setTheme = d => {
+  document.documentElement.classList.toggle('dark', d);
+  localStorage.setItem('mh_theme', d ? 'dark' : 'light');
+};
+const toggleTheme = () => setTheme(!document.documentElement.classList.contains('dark'));
+function logout() {
+  token = null;
+  me = null;
+  localStorage.removeItem('mh_token');
+  closeMobileNav();
+  location.hash = '#/';
+}
+async function loadCfg() {
+  try { cfg = { ...cfg, ...(await api('/config', {}, null)) }; } catch {}
+}
+async function checkHealth() {
+  try { health = await api('/health', {}, null); }
+  catch { health = { ok: false }; }
+  const el = $('#apiStatus');
+  if (el) el.innerHTML = statusHtml();
+}
+const statusHtml = () => health === null
+  ? 'Checking…'
+  : health.ok
+    ? '<span class="text-emerald-500">●</span> All systems normal'
+    : '<span class="text-red-500">●</span> API unreachable';
+async function loadMe() {
+  if (!token) return null;
+  try { me = await api('/me'); }
+  catch (e) {
+    if (e.status === 401) {
+      token = null;
+      localStorage.removeItem('mh_token');
+    }
+    me = null;
+  }
+  return me;
+}
+async function requireAuth() {
+  if (await loadMe()) return true;
+  if (token) {
+    publicShell(`<div class="max-w-md mx-auto px-4 py-24 text-center"><div class="text-4xl mb-3">⏳</div><h1 class="text-xl font-semibold mb-2">The server is waking up</h1><p class="text-sm text-zinc-500 mb-6">Free servers sleep when idle and can take up to a minute to start.</p><button class="${btn}" onclick="route()">Try again</button></div>`);
+    return false;
+  }
+  location.hash = '#/login';
+  return false;
+}
+function goTo(id) {
+  const s = () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  if (location.hash && location.hash !== '#/') {
+    location.hash = '#/';
+    setTimeout(s, 150);
+  } else s();
+}
+const fmtB = b => b >= 1073741824
+  ? (b / 1073741824).toFixed(2) + ' GB'
+  : b >= 1048576
+    ? (b / 1048576).toFixed(1) + ' MB'
+    : Math.max(0, Math.round((b || 0) / 1024)) + ' KB';
+function ago(ts) {
+  if (!ts) return 'never';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+function pill(status) {
+  const m = {
+    live: ['emerald', 'Ready'],
+    building: ['amber', 'Building', 1],
+    queued: ['amber', 'Queued', 1],
+    failed: ['red', 'Failed'],
+    crashed: ['red', 'Crashed'],
+    stopped: ['zinc', 'Stopped'],
+    suspended: ['red', 'Suspended']
+  }[status] || ['zinc', status];
+  return `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-${m[0]}-500 whitespace-nowrap"><span class="h-2 w-2 shrink-0 rounded-full bg-${m[0]}-500 ${m[2] ? 'pulse' : ''}"></span>${esc(m[1])}</span>`;
+}
+function parseHash() {
+  const [path, qs] = (location.hash || '#/').split('?');
+  return { path, parts: path.replace(/^#\//, '').split('/').filter(Boolean), q: new URLSearchParams(qs || '') };
+}
+function stopAll() {
+  clearInterval(pollT);
+  pollT = null;
+  if (logCtl) {
+    logCtl.abort();
+    logCtl = null;
+  }
+}
+
+/* ===================== layout ===================== */
+function storageBar() {
+  if (!me || !me.storage) return '';
+  const u = me.storage.usedBytes || 0, q = me.storage.quotaBytes || 0;
+  const pct = Math.min(100, q ? (u / q) * 100 : 100);
+  return `<div class="text-xs text-zinc-500 w-full sm:min-w-[180px] sm:max-w-xs">
+    <div class="flex justify-between gap-3 mb-1.5"><span>Storage used</span><span class="font-medium">${fmtB(u)} / ${fmtB(q)}</span></div>
+    <div class="h-2 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden"><div class="h-full rounded-full ${pct > 90 ? 'bg-red-500' : 'bg-emerald-500'}" style="width:${pct}%"></div></div>
+  </div>`;
+}
+function mobileNavHtml(mode) {
+  if (mode === 'app') {
+    const nm = me?.displayName || me?.email || 'Account';
+    return `<div id="mobileNav" class="mobile-nav" aria-hidden="true" onclick="if(event.target===this)closeMobileNav()">
+      <nav class="mobile-nav-panel" aria-label="Main navigation">
+        <div class="flex items-center justify-between gap-3 mb-5">
+          <a href="#/dashboard" onclick="closeMobileNav()" class="flex items-center gap-2 font-bold">${logo}<span>MtaaniHost</span></a>
+          <button class="${btn2}" onclick="closeMobileNav()" aria-label="Close menu"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 mb-4">
+          <div class="h-11 w-11 rounded-full bg-gradient-to-br from-emerald-400 to-violet-500 text-white font-bold grid place-items-center shrink-0">${esc(nm[0].toUpperCase())}</div>
+          <div class="min-w-0"><div class="font-semibold text-sm truncate">${esc(nm)}</div><div class="text-xs text-zinc-500 truncate">${esc(me?.email || '')}</div></div>
+        </div>
+        <div class="space-y-1">
+          <a class="mobile-link" href="#/dashboard" onclick="closeMobileNav()"><i class="fas fa-gauge-high"></i> Dashboard</a>
+          <a class="mobile-link" href="#/new" onclick="closeMobileNav()"><i class="fas fa-plus"></i> Create a project</a>
+          <a class="mobile-link" href="#/dashboard" onclick="closeMobileNav()"><i class="fas fa-folder-open"></i> My projects</a>
+          <a class="mobile-link" href="#/billing" onclick="closeMobileNav()"><i class="fas fa-credit-card"></i> Billing &amp; payments</a>
+          <a class="mobile-link" href="#/settings" onclick="closeMobileNav()"><i class="fas fa-user-gear"></i> Profile &amp; settings</a>
+          <div class="my-3 border-t border-zinc-200 dark:border-zinc-800"></div>
+          <div class="px-3 pt-1 pb-2 text-[11px] uppercase tracking-widest text-zinc-500 font-bold">Appearance</div>
+          <button class="mobile-link" onclick="toggleTheme();closeMobileNav()"><i class="fas fa-circle-half-stroke"></i> Switch light / dark mode</button>
+          <button class="mobile-link text-red-500" onclick="logout()"><i class="fas fa-right-from-bracket !text-red-500"></i> Log out</button>
+        </div>
+        <div class="mt-6 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500">
+          <div class="font-semibold mb-1">MtaaniHost status</div><span id="mobileApiStatus">${statusHtml()}</span>
+        </div>
+      </nav>
+    </div>`;
+  }
+  return '';
+}
+function headerHtml(mode) {
+  const themeBtn = `<button onclick="toggleTheme()" title="Switch theme" aria-label="Switch theme" class="h-10 w-10 shrink-0 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900 grid place-items-center"><i class="fas fa-adjust"></i></button>`;
+  const lk = 'hidden md:block px-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white cursor-pointer';
+  let right = '', nav = '';
+  if (mode === 'app') {
+    nav = `<a class="${lk} !block" href="#/dashboard">Projects</a><a class="${lk} !block" href="#/billing">Billing</a>`;
+    const nm = me?.displayName || me?.email || '?';
+    right = `<a class="${btn} !px-3 !py-2" href="#/new"><i class="fas fa-plus"></i><span class="hidden sm:inline">New Project</span></a>
+      <span class="hidden sm:inline">${themeBtn}</span>
+      <div class="relative hidden sm:block"><button id="menuBtn" onclick="toggleMenu(event)" aria-label="Open account menu" class="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-violet-500 text-white text-sm font-bold grid place-items-center">${esc(nm[0].toUpperCase())}</button>
+      <div id="menu" class="hidden absolute right-0 top-full mt-2 w-60 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-xl p-1.5 z-50">
+        <div class="px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 mb-1"><div class="text-sm font-semibold truncate">${esc(nm)}</div><div class="text-xs text-zinc-500 truncate">${esc(me?.email || '')}</div></div>
+        <a class="block px-3 py-2.5 text-sm rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900" href="#/dashboard">My projects</a>
+        <a class="block px-3 py-2.5 text-sm rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900" href="#/billing">Billing &amp; payments</a>
+        <a class="block px-3 py-2.5 text-sm rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900" href="#/settings">Profile &amp; Settings</a>
+        <button class="block w-full text-left px-3 py-2.5 text-sm rounded-lg text-red-500 hover:bg-red-500/10" onclick="logout()">Log out</button></div></div>
+      <button class="md:hidden h-10 w-10 shrink-0 rounded-xl border border-zinc-200 dark:border-zinc-800 grid place-items-center" onclick="openMobileNav()" aria-label="Open navigation menu" aria-controls="mobileNav"><i class="fas fa-bars"></i></button>`;
+  } else if (mode === 'admin') {
+    right = `${themeBtn}${atoken ? `<button class="${btn2}" onclick="adminLogout()">Admin log out</button>` : ''}<a class="${btn2}" href="#/">Home</a>`;
+  } else {
+    nav = `<a class="${lk} !block" onclick="goTo('features')">Features</a><a class="${lk} !block" onclick="goTo('pricing')">Pricing</a><a class="${lk} !block" onclick="goTo('faq')">FAQ</a>`;
+    right = `${themeBtn}${token ? `<a class="${btn}" href="#/dashboard">Dashboard</a>` : `<a class="${btn2}" href="#/login">Log in</a><a class="${btn}" href="#/signup">Sign up</a>`}`;
+  }
+  return `<header class="sticky top-0 z-40 backdrop-blur border-b border-zinc-200 dark:border-zinc-900 bg-white/90 dark:bg-black/85">
+    <div class="max-w-6xl mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 sm:gap-4 min-w-0"><a href="#/" class="flex items-center gap-2 font-bold shrink-0">${logo}<span>MtaaniHost</span></a>${nav}</div>
+      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">${right}</div>
+    </div>
+  </header>${mobileNavHtml(mode)}`;
+}
+function footerHtml() {
+  return `<footer class="border-t border-zinc-200 dark:border-zinc-900 mt-12 sm:mt-16">
+    <div class="max-w-6xl mx-auto px-4 py-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between text-xs text-zinc-500">
+      <div>© ${new Date().getFullYear()} MtaaniHost · Nairobi, Kenya</div>
+      <div><span id="apiStatus">${statusHtml()}</span></div>
+      <div class="flex flex-wrap gap-x-4 gap-y-2"><a class="hover:text-emerald-500" href="#/billing">Billing</a><a class="hover:text-emerald-500 cursor-pointer" onclick="goTo('faq')">FAQ</a><a class="hover:text-emerald-500" href="#/admin">Admin</a></div>
+    </div>
+  </footer>`;
+}
+const publicShell = inner => {
+  $('#root').innerHTML = `${headerHtml('public')}<main class="flex-1 fadein min-w-0">${inner}</main>${footerHtml()}`;
+};
+const appShell = inner => {
+  $('#root').innerHTML = `${headerHtml('app')}<main class="flex-1 max-w-6xl w-full min-w-0 mx-auto px-3 sm:px-4 py-5 sm:py-8 fadein">${inner}</main>${footerHtml()}`;
+};
+const adminShell = inner => {
+  $('#root').innerHTML = `${headerHtml('admin')}<main class="flex-1 max-w-6xl w-full min-w-0 mx-auto px-3 sm:px-4 py-5 sm:py-8 fadein">${inner}</main>${footerHtml()}`;
+};
+function openMobileNav() {
+  const n = $('#mobileNav');
+  if (!n) return;
+  n.classList.add('open');
+  n.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+function closeMobileNav() {
+  const n = $('#mobileNav');
+  if (!n) return;
+  n.classList.remove('open');
+  n.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+function toggleMenu(e) {
+  e?.stopPropagation();
+  $('#menu')?.classList.toggle('hidden');
+}
+document.addEventListener('click', e => {
+  const m = $('#menu');
+  if (m && !e.target.closest('#menu') && !e.target.closest('#menuBtn')) m.classList.add('hidden');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeMobileNav();
+});
+
+/* ===================== landing page ===================== */
+function landing() {
+  const P = cfg.price, T = cfg.trialDays, S = cfg.storageGB;
+  const feats = [
+    ['fab fa-github', 'Import from GitHub', 'Connect GitHub once, pick a repository and deploy. Private repositories work too.'],
+    ['fas fa-wand-magic-sparkles', 'Smart build settings', 'We read your package.json and suggest the install, build and start commands. Edit them any time.'],
+    ['fas fa-terminal', 'Live build logs', 'Watch your build and your running app live, line by line, right in the browser.'],
+    ['fas fa-key', 'Environment variables', 'Add your configuration keys. Saved values stay hidden in the editor.'],
+    ['fas fa-link', 'Your own project link', `Your site can be available at yourname.${domain()} when configured on the server.`],
+    ['fas fa-mobile-screen', 'Pay with M-Pesa', `KES ${P} a month through Paystack. Payment can reactivate your account automatically.`]
+  ];
+  const faqs = [
+    ['What can I deploy?', 'Static websites (plain HTML, Vite, React, Vue, Astro and more), Node.js web apps (Express, Next.js) and Node.js bots (WhatsApp, Telegram, Discord) from a GitHub repository. Actual support depends on your server configuration.'],
+    ['How does the free trial work?', `Every new account gets ${T} days free. You can deploy straight away and no card is needed.`],
+    ['What happens when the trial ends?', `Your sites may go offline when the trial expires. The listed price is KES ${P} per month. Pay to reactivate your service; project data is handled by the platform's existing retention rules.`],
+    ['How much storage do I get?', `${S} GB per account by default. The admin can adjust storage for an account.`],
+    ['Do I need a GitHub account?', 'To import repositories directly, connect GitHub. You can also sign up with email and password and paste the URL of a public repository.'],
+    ['Can I deploy a private repository?', 'Yes, if your GitHub connection has the required permissions for that repository.'],
+    ['Can I add environment variables?', 'Yes. Open a project, choose Environment, add the required keys and save. Changes apply on the next deployment.'],
+    ['Where can I see build errors?', 'Open your project and choose Logs to inspect available build and runtime output.'],
+    ['Can I redeploy my project?', 'Yes. Open the project and use the Redeploy action.'],
+    ['How do I change my password?', 'Open Profile & Settings and use the password section. If your account supports password login, you can change or set a password there.'],
+    ['How do I pay?', 'Use the Billing page and follow the secure Paystack checkout options shown for your account. Available payment methods depend on the checkout configuration.'],
+    ['Can I use my phone?', 'Yes. The interface is designed to fit mobile screens, with a compact navigation menu and responsive project cards.'],
+    ['What if the server is sleeping?', 'A free server may need time to wake up. Wait a moment and try again if the page reports that the server is starting.'],
+    ['How do I get help?', 'Check the error message and project logs first, then contact the MtaaniHost support channel provided by the platform operator.']
+  ];
+  publicShell(`
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0 grid-bg"></div>
+    <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+    <div class="relative max-w-5xl mx-auto px-4 pt-16 sm:pt-24 pb-14 sm:pb-20 text-center">
+      <span class="inline-flex flex-wrap justify-center items-center gap-2 rounded-full border border-zinc-300 dark:border-zinc-800 px-3 py-1.5 text-xs text-zinc-500 mb-6"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Made in Kenya · ${esc(T)} days free · KES ${esc(P)}/month</span>
+      <h1 class="text-4xl sm:text-6xl font-bold tracking-tight leading-[1.05]">Your code.<br><span class="grad-text">Live on the web.</span></h1>
+      <p class="mt-5 sm:mt-6 text-base sm:text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed">Deploy websites, web apps and supported bots from GitHub. Configure your project, follow deployment logs and manage your hosting from one simple dashboard.</p>
+      <div class="mt-7 sm:mt-9 flex flex-col sm:flex-row flex-wrap gap-3 justify-center">
+        <a href="#/signup" class="${btn} !px-6 !py-3 text-base"><i class="fab fa-github"></i> Start with GitHub</a>
+        <a href="#/signup" class="${btn2} !px-6 !py-3 text-base">Start for free</a>
+      </div>
+      <div class="mt-10 sm:mt-14 max-w-2xl mx-auto text-left rounded-2xl border border-zinc-800 bg-zinc-950 glow overflow-hidden">
+        <div class="flex items-center gap-1.5 px-4 py-3 border-b border-zinc-800"><span class="h-3 w-3 rounded-full bg-red-400/80"></span><span class="h-3 w-3 rounded-full bg-amber-400/80"></span><span class="h-3 w-3 rounded-full bg-emerald-400/80"></span><span class="ml-auto text-[11px] text-zinc-500">Deployment preview</span></div>
+        <pre class="p-4 sm:p-5 text-xs sm:text-sm leading-relaxed overflow-x-auto text-zinc-300"><span class="text-emerald-400">$</span> connect repository
+<span class="text-emerald-400">$</span> configure build
+<span class="text-emerald-400">$</span> deploy project
+<span class="text-green-400">✔</span> Deployment status updated
+<span class="text-cyan-400">your-project.${esc(domain())}</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="max-w-6xl mx-auto px-4 py-14 sm:py-20">
+    <div class="text-center mb-9 sm:mb-12"><span class="text-xs font-bold uppercase tracking-[.2em] text-emerald-500">Platform features</span><h2 class="text-2xl sm:text-3xl font-bold mt-3">Everything you need to launch</h2><p class="mt-3 text-sm sm:text-base text-zinc-500 max-w-xl mx-auto">Simple enough for your first website, with useful controls for managing real projects.</p></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">${feats.map(f => `<div class="${card} lift p-5 sm:p-6"><div class="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-500 grid place-items-center mb-4"><i class="${f[0]} text-lg"></i></div><h3 class="font-semibold mb-2">${f[1]}</h3><p class="text-sm text-zinc-500 leading-relaxed">${f[2]}</p></div>`).join('')}</div>
+  </section>
+
+  <section class="border-y border-zinc-200 dark:border-zinc-900 bg-zinc-50/70 dark:bg-zinc-950/50">
+    <div class="max-w-6xl mx-auto px-4 py-14 sm:py-20">
+      <div class="grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
+        <div><span class="text-xs font-bold uppercase tracking-[.2em] text-emerald-500">What we do</span><h2 class="text-2xl sm:text-3xl font-bold mt-3">Hosting made easier.</h2><p class="mt-4 text-sm sm:text-base leading-relaxed text-zinc-500">MtaaniHost brings common hosting tasks into one place. Instead of manually managing every deployment step, you can connect a repository, set your build configuration, deploy and inspect logs from your account.</p><a href="#/signup" class="${btn} mt-6">Explore MtaaniHost <i class="fas fa-arrow-right"></i></a></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="${card} p-5"><i class="fas fa-code-branch text-emerald-500 text-xl"></i><h3 class="font-semibold mt-3">Code to deployment</h3><p class="text-sm text-zinc-500 mt-2">Import a supported GitHub repository and configure how it builds.</p></div>
+          <div class="${card} p-5"><i class="fas fa-chart-line text-cyan-500 text-xl"></i><h3 class="font-semibold mt-3">Project monitoring</h3><p class="text-sm text-zinc-500 mt-2">Review project status and inspect deployment output.</p></div>
+          <div class="${card} p-5"><i class="fas fa-sliders text-violet-500 text-xl"></i><h3 class="font-semibold mt-3">Simple controls</h3><p class="text-sm text-zinc-500 mt-2">Manage environment variables and project settings.</p></div>
+          <div class="${card} p-5"><i class="fas fa-wallet text-amber-500 text-xl"></i><h3 class="font-semibold mt-3">Local-friendly billing</h3><p class="text-sm text-zinc-500 mt-2">View your plan and continue to the configured payment checkout.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="max-w-6xl mx-auto px-4 py-14 sm:py-20">
+    <div class="text-center mb-9 sm:mb-12"><span class="text-xs font-bold uppercase tracking-[.2em] text-emerald-500">What you can do here</span><h2 class="text-2xl sm:text-3xl font-bold mt-3">Your projects, in one place</h2><p class="mt-3 text-sm text-zinc-500 max-w-xl mx-auto">Use the tools available in your account to manage your project workflow.</p></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      ${[
+        ['fa-folder-plus','Create projects','Start an import flow and configure a project before deployment.'],
+        ['fa-magnifying-glass','Find repositories','Search repositories available through your connected GitHub account.'],
+        ['fa-terminal','Inspect logs','Review build and runtime output when troubleshooting.'],
+        ['fa-key','Manage configuration','Add, update or remove environment variables for a project.'],
+        ['fa-rotate','Redeploy changes','Start another deployment from the project controls.'],
+        ['fa-user-gear','Manage your account','Update your profile, password, theme and GitHub connection.']
+      ].map(x => `<div class="${card} p-5 flex gap-4"><div class="h-10 w-10 rounded-xl shrink-0 bg-zinc-100 dark:bg-zinc-900 text-emerald-500 grid place-items-center"><i class="fas ${x[0]}"></i></div><div><h3 class="font-semibold">${x[1]}</h3><p class="text-sm text-zinc-500 mt-1.5 leading-relaxed">${x[2]}</p></div></div>`).join('')}
+    </div>
+  </section>
+
+  <section class="border-y border-zinc-200 dark:border-zinc-900">
+    <div class="max-w-5xl mx-auto px-4 py-14 sm:py-20"><h2 class="text-2xl sm:text-3xl font-bold text-center mb-9 sm:mb-12">Three steps to go live</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      ${[['1','Connect your account','Sign up or log in. Connect GitHub if you want to import repositories directly.'],['2','Configure your project','Choose a repository, review the detected framework and check build settings.'],['3','Deploy and monitor','Start the deployment, follow the logs and open your project link when available.']].map(s => `<div class="text-center p-4"><div class="mx-auto h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-500 grid place-items-center font-bold text-lg mb-4">${s[0]}</div><h3 class="font-semibold mb-2">${s[1]}</h3><p class="text-sm text-zinc-500 leading-relaxed">${s[2]}</p></div>`).join('')}
+    </div></div>
+  </section>
+
+  <section id="pricing" class="max-w-4xl mx-auto px-4 py-14 sm:py-20">
+    <div class="text-center mb-9 sm:mb-12"><span class="text-xs font-bold uppercase tracking-[.2em] text-emerald-500">Pricing</span><h2 class="text-2xl sm:text-3xl font-bold mt-3">One simple price</h2><p class="mt-3 text-zinc-500">Start free. Pay when you are ready.</p></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+      <div class="${card} p-6 sm:p-8"><h3 class="font-semibold">Free trial</h3><p class="text-4xl sm:text-5xl font-bold mt-4">KES 0</p><p class="text-sm text-zinc-500 mt-2">for ${esc(T)} days</p><ul class="mt-6 space-y-3 text-sm text-zinc-500"><li>✓ Deploy supported projects</li><li>✓ ${esc(S)} GB default storage</li><li>✓ No card needed to start</li></ul><a href="#/signup" class="${btn2} w-full mt-8 !py-3">Start free</a></div>
+      <div class="${card} p-6 sm:p-8 !border-emerald-500/70 glow"><span class="inline-flex rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-bold px-3 py-1">Simple monthly plan</span><h3 class="font-semibold mt-4">Pro</h3><p class="text-4xl sm:text-5xl font-bold mt-4 grad-text">KES ${esc(P)}</p><p class="text-sm text-zinc-500 mt-2">per month</p><ul class="mt-6 space-y-3 text-sm text-zinc-500"><li>✓ Hosting for supported projects</li><li>✓ ${esc(S)} GB default storage</li><li>✓ Configured payment checkout</li><li>✓ Account and project controls</li></ul><a href="#/signup" class="${btn} w-full mt-8 !py-3">Get started</a></div>
+    </div>
+  </section>
+
+  <section id="faq" class="max-w-3xl mx-auto px-4 pb-14 sm:pb-20">
+    <div class="text-center mb-8 sm:mb-10"><span class="text-xs font-bold uppercase tracking-[.2em] text-emerald-500">Need to know?</span><h2 class="text-2xl sm:text-3xl font-bold mt-3">Frequently asked questions</h2><p class="mt-3 text-sm text-zinc-500">Quick answers about deploying and managing your projects.</p></div>
+    <div class="space-y-3">${faqs.map(f => `<details class="group ${card} p-4 sm:p-5"><summary class="cursor-pointer list-none flex justify-between items-center gap-4 font-semibold text-sm sm:text-base">${f[0]}<span class="text-emerald-500 text-xl transition group-open:rotate-45 shrink-0">+</span></summary><p class="mt-3 text-sm text-zinc-500 leading-relaxed">${f[1]}</p></details>`).join('')}</div>
+  </section>
+
+  <section class="max-w-5xl mx-auto px-4 pb-10">
+    <div class="${card} p-6 sm:p-10 text-center glow">
+      <div class="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-500 grid place-items-center mx-auto mb-4"><i class="fas fa-rocket text-xl"></i></div>
+      <h2 class="text-2xl sm:text-3xl font-bold">Ready to deploy?</h2>
+      <p class="mt-3 text-sm sm:text-base text-zinc-500 max-w-lg mx-auto">Create your account and start setting up your first project.</p>
+      <a href="#/signup" class="${btn} mt-6 !px-8 !py-3">Create free account</a>
+    </div>
+  </section>`);
+}
+
+/* ===================== human check + auth ===================== */
+function loadTurnstile() {
+  return new Promise((ok, no) => {
+    const t0 = Date.now();
+    if (!document.querySelector('script[data-turnstile]')) {
+      const s = document.createElement('script');
+      s.dataset.turnstile = '1';
+      s.async = true;
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.onerror = () => no(new Error('Could not load the human check'));
+      document.head.appendChild(s);
+    }
+    const iv = setInterval(() => {
+      if (window.turnstile) {
+        clearInterval(iv);
+        ok();
+      } else if (Date.now() - t0 > 8000) {
+        clearInterval(iv);
+        no(new Error('Could not load the human check'));
+      }
+    }, 60);
+  });
+}
+async function setupHuman() {
+  const box = $('#human');
+  if (!box) return;
+  humanTok = '';
+  cfToken = '';
+  if (cfg.human === 'turnstile' && cfg.turnstileSiteKey) {
+    box.innerHTML = '<div id="cft"></div>';
+    try {
+      await loadTurnstile();
+      window.turnstile.render('#cft', {
+        sitekey: cfg.turnstileSiteKey,
+        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+        callback: t => { cfToken = t; },
+        'expired-callback': () => { cfToken = ''; }
+      });
+    } catch (e) {
+      box.innerHTML = `<p class="text-xs text-red-500">${esc(e.message)}. Refresh the page.</p>`;
+    }
+    return;
+  }
+  try {
+    const h = await api('/human', {}, null);
+    humanTok = h.token;
+    box.innerHTML = `<label class="${lbl}">Verify you're human: what is <b>${esc(h.question)}</b>?</label><div class="flex gap-2"><input class="${inp}" id="ha" inputmode="numeric" autocomplete="off" placeholder="Your answer" required><button type="button" class="${btn2}" id="hr" title="New question">↻</button></div>`;
+    $('#hr').onclick = setupHuman;
+  } catch (e) {
+    box.innerHTML = `<p class="text-xs text-red-500">${esc(e.message)}</p>`;
+  }
+}
+function authView(mode) {
+  const su = mode === 'signup', q = parseHash().q;
+  publicShell(`<div class="max-w-sm mx-auto px-4 py-12 sm:py-16"><div class="text-center mb-8"><div class="flex justify-center mb-3">${logo}</div><h1 class="text-2xl font-bold">${su ? 'Create your account' : 'Log in to MtaaniHost'}</h1>${su ? `<p class="text-sm text-zinc-500 mt-2">${esc(cfg.trialDays)} days free. No card needed.</p>` : ''}</div>
+    ${q.get('verified') ? '<p class="mb-4 text-sm text-emerald-500 text-center">Email verified. You can log in now.</p>' : ''}
+    ${cfg.github ? `<a href="${API_BASE}/api/auth/github" class="${btn} w-full !py-3 mb-4"><i class="fab fa-github"></i> Continue with GitHub</a><div class="flex items-center gap-3 text-xs text-zinc-500 mb-4"><div class="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"></div>or<div class="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"></div></div>` : ''}
+    <form id="f" class="space-y-4"><div><label class="${lbl}">Email</label><input class="${inp}" type="email" id="em" required autocomplete="email" placeholder="you@gmail.com"></div>
+    <div><label class="${lbl}">Password</label><input class="${inp}" type="password" id="pw" required autocomplete="${su ? 'new-password' : 'current-password'}" placeholder="${su ? 'At least 8 characters' : ''}"></div>
+    <div id="human"><p class="text-xs text-zinc-500">Loading human check…</p></div><button class="${btn} w-full !py-3" id="sb">${su ? 'Create account' : 'Log in'}</button></form>
+    <p class="text-center text-sm text-zinc-500 mt-5">${su ? 'Already have an account? <a class="underline" href="#/login">Log in</a>' : 'New here? <a class="underline" href="#/signup">Sign up</a>'}</p></div>`);
+  if (q.get('error')) toast(q.get('error'), true);
+  setupHuman();
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const email = $('#em').value.trim(), password = $('#pw').value;
+    const tsMode = cfg.human === 'turnstile' && cfg.turnstileSiteKey;
+    if (tsMode && !cfToken) return toast('Please complete the human check first', true);
+    if (!tsMode && !humanTok) return toast('The human check did not load. Press ↻ and try again.', true);
+    const b = $('#sb');
+    b.disabled = true;
+    try {
+      const r = await api(su ? '/auth/signup' : '/auth/login', {
+        method: 'POST',
+        body: { email, password, humanToken: humanTok, humanAnswer: $('#ha') ? $('#ha').value : '', cfToken }
+      }, null);
+      if (su && !r.token) {
+        pendingEmail = email;
+        localStorage.setItem('mh_pending', email);
+        location.hash = '#/verify';
+        return;
+      }
+      token = r.token;
+      localStorage.setItem('mh_token', token);
+      me = r.user;
+      location.hash = '#/dashboard';
+    } catch (err) {
+      if (err.data && err.data.needVerify) {
+        pendingEmail = email;
+        localStorage.setItem('mh_pending', email);
+        location.hash = '#/verify';
+        return;
+      }
+      toast(err.message, true);
+      b.disabled = false;
+      setupHuman();
+    }
+  };
+}
+function verifyView() {
+  if (!pendingEmail) {
+    location.hash = '#/signup';
+    return;
+  }
+  publicShell(`<div class="max-w-sm mx-auto px-4 py-12 sm:py-16 text-center"><div class="text-4xl mb-3">✉️</div><h1 class="text-2xl font-bold mb-2">Check your email</h1><p class="text-sm text-zinc-500 mb-6">We sent a 6-digit code to<br><b>${esc(pendingEmail)}</b></p>
+    <form id="f" class="space-y-3"><input class="${inp} text-center text-2xl tracking-[.5em]" id="cd" maxlength="6" inputmode="numeric" placeholder="······" required><button class="${btn} w-full !py-3">Verify email</button></form><button id="rs" class="text-sm text-zinc-500 underline mt-4">Resend code</button></div>`);
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/auth/verify', { method: 'POST', body: { email: pendingEmail, code: $('#cd').value.trim() } }, null);
+      location.hash = '#/login?verified=1';
+    } catch (err) { toast(err.message, true); }
+  };
+  $('#rs').onclick = async () => {
+    try {
+      await api('/auth/resend', { method: 'POST', body: { email: pendingEmail } }, null);
+      toast('A new code has been sent');
+    } catch (err) { toast(err.message, true); }
+  };
+}
+function oauthView() {
+  const t = parseHash().q.get('token');
+  if (t) {
+    token = t;
+    localStorage.setItem('mh_token', t);
+    history.replaceState(null, '', location.pathname + location.search);
+    location.hash = '#/dashboard';
+  } else location.hash = '#/login';
+}
+
+/* ===================== dashboard ===================== */
+function banner() {
+  if (!me) return '';
+  if (me.status === 'trial') return `<div class="${card} px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm"><span>🎁 Free trial: <b>${esc(me.daysLeft)} days</b> left</span><a href="#/billing" class="${btn2} w-full sm:w-auto">View billing <i class="fas fa-arrow-right"></i></a></div>`;
+  if (me.status === 'expired') return `<div class="${card} px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm !border-red-500/60"><span class="text-red-500">Your free trial has ended and your projects may be offline.</span><a href="#/billing" class="${btn} w-full sm:w-auto">Pay KES ${esc(me.price)}</a></div>`;
+  if (me.status === 'paid') return `<div class="${card} px-4 py-4 text-sm flex items-center gap-2"><span class="text-emerald-500 text-lg">✓</span><span>Plan active. <b>${esc(me.daysLeft)} days</b> left.</span></div>`;
+  return '';
+}
+function dashStat(icon, label, value, note, tone = 'emerald') {
+  const colors = {
+    emerald: 'text-emerald-500 bg-emerald-500/10',
+    cyan: 'text-cyan-500 bg-cyan-500/10',
+    violet: 'text-violet-500 bg-violet-500/10',
+    amber: 'text-amber-500 bg-amber-500/10'
+  };
+  return `<div class="${card} dash-stat p-4 sm:p-5">
+    <div class="flex items-center justify-between gap-3"><span class="text-xs sm:text-sm text-zinc-500">${label}</span><span class="h-9 w-9 rounded-xl ${colors[tone]} grid place-items-center shrink-0"><i class="fas ${icon}"></i></span></div>
+    <div class="text-2xl sm:text-3xl font-bold mt-3 tracking-tight">${value}</div>
+    <div class="text-xs text-zinc-500 mt-1">${note}</div>
+  </div>`;
+}
+async function dashboardView() {
+  if (!(await requireAuth())) return;
+  const name = me.displayName || me.email || 'there';
+  const storageUsed = me.storage?.usedBytes || 0;
+  const storageQuota = me.storage?.quotaBytes || 0;
+  const storagePct = Math.min(100, storageQuota ? storageUsed / storageQuota * 100 : 0);
+  const statusLabel = me.status === 'paid' ? 'Active plan' : me.status === 'trial' ? 'Free trial' : me.status === 'expired' ? 'Trial ended' : me.status;
+  appShell(`
+    <section class="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-gradient-to-br from-emerald-500/10 via-white to-violet-500/10 dark:from-emerald-500/10 dark:via-zinc-950 dark:to-violet-500/10 p-5 sm:p-8 mb-5 sm:mb-6">
+      <div class="absolute -right-10 -top-14 h-40 w-40 sm:h-56 sm:w-56 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+      <div class="relative flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div class="min-w-0"><span class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-500"><i class="fas fa-circle-nodes"></i> Your workspace</span>
+          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mt-3 break-words">Welcome back, ${esc(name)} 👋</h1>
+          <p class="text-sm sm:text-base text-zinc-500 mt-2 max-w-xl">Manage your apps, check deployments and keep your projects moving from one place.</p>
+        </div>
+        <a href="#/new" class="${btn} w-full sm:w-auto !py-3 !px-5 shrink-0"><i class="fas fa-plus"></i> Create project</a>
+      </div>
+    </section>
+    <div class="mb-5 sm:mb-6">${banner()}</div>
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 sm:mb-6">
+      ${dashStat('fa-layer-group','Projects','<span id="dashProjectCount">—</span>','Your hosted projects','emerald')}
+      ${dashStat('fa-server','Plan',esc(statusLabel),'Account subscription','violet')}
+      ${dashStat('fa-hard-drive','Storage',esc(fmtB(storageUsed)),`${esc(fmtB(storageQuota))} available quota`,'cyan')}
+      ${dashStat('fa-calendar-days','Days left',esc(me.daysLeft ?? '—'),'Trial or paid time remaining','amber')}
+    </section>
+    <section class="${card} p-4 sm:p-5 mb-5 sm:mb-6">
+      <div class="flex items-center justify-between gap-3 mb-3"><div><h2 class="font-semibold">Storage overview</h2><p class="text-xs text-zinc-500 mt-1">Monitor the space used by your projects.</p></div><span class="text-sm font-semibold">${Math.round(storagePct)}%</span></div>
+      <div class="h-2.5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden"><div class="h-full rounded-full ${storagePct > 90 ? 'bg-red-500' : 'bg-gradient-to-r from-emerald-500 to-cyan-400'}" style="width:${storagePct}%"></div></div>
+      <div class="flex justify-between gap-3 text-xs text-zinc-500 mt-2"><span>${esc(fmtB(storageUsed))} used</span><span>${esc(fmtB(storageQuota))} total</span></div>
+    </section>
+    <section class="mb-7 sm:mb-9">
+      <div class="flex items-end justify-between gap-3 mb-4"><div><h2 class="text-lg sm:text-xl font-bold">Quick actions</h2><p class="text-xs sm:text-sm text-zinc-500 mt-1">Jump straight to what you need.</p></div></div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <a href="#/new" class="${card} lift p-4"><span class="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-500 grid place-items-center"><i class="fas fa-plus"></i></span><div class="font-semibold text-sm mt-3">New project</div><p class="text-xs text-zinc-500 mt-1">Import and deploy</p></a>
+        <a href="#/dashboard" class="${card} lift p-4"><span class="h-10 w-10 rounded-xl bg-cyan-500/10 text-cyan-500 grid place-items-center"><i class="fas fa-folder-open"></i></span><div class="font-semibold text-sm mt-3">My projects</div><p class="text-xs text-zinc-500 mt-1">View deployments</p></a>
+        <a href="#/billing" class="${card} lift p-4"><span class="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-500 grid place-items-center"><i class="fas fa-credit-card"></i></span><div class="font-semibold text-sm mt-3">Billing</div><p class="text-xs text-zinc-500 mt-1">Plan and payments</p></a>
+        <a href="#/settings" class="${card} lift p-4"><span class="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-500 grid place-items-center"><i class="fas fa-user-gear"></i></span><div class="font-semibold text-sm mt-3">Settings</div><p class="text-xs text-zinc-500 mt-1">Profile and account</p></a>
+      </div>
+    </section>
+    <section class="mb-7 sm:mb-9">
+      <div class="flex items-end justify-between gap-3 mb-4"><div><h2 class="text-lg sm:text-xl font-bold">Your projects</h2><p class="text-xs sm:text-sm text-zinc-500 mt-1">Project status and deployment activity.</p></div><a href="#/new" class="text-sm text-emerald-500 font-semibold whitespace-nowrap">+ New project</a></div>
+      <div id="plist"><div class="${card} p-8 text-center text-sm text-zinc-500"><i class="fas fa-spinner fa-spin mr-2"></i>Loading projects…</div></div>
+    </section>
+    <section class="${card} p-5 sm:p-6">
+      <div class="flex items-start gap-3"><span class="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-500 grid place-items-center shrink-0"><i class="fas fa-circle-question"></i></span><div><h2 class="font-bold">Need a hand?</h2><p class="text-sm text-zinc-500 mt-1">Start with the deployment logs if a build fails, or review your project configuration and environment variables.</p><div class="flex flex-wrap gap-2 mt-4"><a href="#/new" class="${btn2}">Deploy a project</a><a href="#/settings" class="${btn2}">Account settings</a><button class="${btn2}" onclick="goTo('faq')">Read FAQs</button></div></div></div>
+    </section>
+  `);
+  await renderProjects();
+  pollT = setInterval(() => {
+    if (parseHash().path === '#/dashboard') renderProjects();
+  }, 5000);
+}
+async function renderProjects() {
+  const el = $('#plist');
+  if (!el) return;
+  let list;
+  try { list = await api('/projects'); }
+  catch (e) {
+    if (e.status === 401) return logout();
+    el.innerHTML = `<div class="${card} p-5 text-sm text-red-500">${esc(e.message)}</div>`;
+    return;
+  }
+  const count = $('#dashProjectCount');
+  if (count) count.textContent = String(list.length);
+  if (!list.length) {
+    el.innerHTML = `<div class="${card} p-7 sm:p-12 text-center">
+      <div class="mx-auto h-14 w-14 rounded-2xl bg-emerald-500/10 text-emerald-500 grid place-items-center text-2xl mb-4"><i class="fas fa-rocket"></i></div>
+      <h3 class="text-lg font-bold mb-2">Your first project starts here</h3>
+      <p class="text-sm text-zinc-500 mb-6 max-w-md mx-auto">Import a repository from GitHub or provide a public repository URL, then configure and deploy it.</p>
+      <a class="${btn} w-full sm:w-auto" href="#/new"><i class="fab fa-github"></i> Import a project</a>
+    </div>`;
+    return;
+  }
+  el.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">${list.map(p => `<a href="#/project/${encodeURIComponent(p.id)}" class="${card} lift p-4 sm:p-5 block min-w-0">
+    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="font-bold truncate">${esc(p.name)}</div><div class="text-xs text-zinc-500 truncate mt-1"><i class="fab fa-github"></i> ${esc(p.repo)}${p.branch ? ' · ' + esc(p.branch) : ''}</div></div>${pill(p.status)}</div>
+    <div class="mt-4 text-sm text-emerald-500 truncate">${p.kind === 'service' && !p.exposeWeb ? '<span class="text-zinc-500">Background worker (no website)</span>' : esc(String(p.url || '').replace(/^https?:\/\//, ''))}</div>
+    <div class="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 flex flex-wrap justify-between gap-2"><span>${esc(p.framework || (p.kind === 'service' ? 'Service' : 'Static'))}</span><span>${p.lastDeployAt ? 'Deployed ' + ago(p.lastDeployAt) : 'Not deployed yet'}</span></div>
+  </a>`).join('')}</div>`;
+}
+
+/* ===================== import from GitHub ===================== */
+async function newView() {
+  if (!(await requireAuth())) return;
+  const q = parseHash().q, connected = me.github.connected;
+  appShell(`<div class="max-w-3xl mx-auto">
+    <a href="#/dashboard" class="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-emerald-500 mb-4"><i class="fas fa-arrow-left"></i> Back to dashboard</a>
+    <h1 class="text-2xl sm:text-3xl font-bold mb-2">Import a project</h1><p class="text-sm text-zinc-500 mb-6">Choose a repository and prepare it for deployment.</p>
+    <div id="gh" class="${card} p-4 sm:p-6 mb-4"><p class="text-sm text-zinc-500">Loading…</p></div>
+    <div class="${card} p-4 sm:p-6"><h2 class="font-semibold mb-1">Or import a public repository by URL</h2><p class="text-xs text-zinc-500 mb-4">This option does not require connecting GitHub.</p>
+    <form id="urlf" class="flex flex-col sm:flex-row gap-2"><input class="${inp}" id="url" placeholder="https://github.com/owner/repository" required><button class="${btn} w-full sm:w-auto">Continue <i class="fas fa-arrow-right"></i></button></form></div></div>`);
+  if (q.get('connected')) toast('GitHub connected 🎉');
+  if (q.get('error')) toast(q.get('error'), true);
+  $('#urlf').onsubmit = e => {
+    e.preventDefault();
+    const m = $('#url').value.trim().match(/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
+    if (!m) return toast('Paste a link like https://github.com/owner/repository', true);
+    location.hash = '#/new/configure?repo=' + encodeURIComponent(m[1] + '/' + m[2]);
+  };
+  const box = $('#gh');
+  if (!connected) {
+    box.innerHTML = `<div class="text-center py-5 sm:py-6"><div class="text-4xl mb-3"><i class="fab fa-github"></i></div><h2 class="font-bold mb-2">Connect your GitHub</h2><p class="text-sm text-zinc-500 max-w-md mx-auto mb-5">Authorize MtaaniHost to list repositories you can access. You can still use the public repository URL option below.</p>${cfg.github ? `<button class="${btn}" id="conn"><i class="fab fa-github"></i> Connect GitHub</button>` : '<p class="text-sm text-amber-500">GitHub connection is not configured on this server yet. You can still import a public repository using the URL option.</p>'}</div>`;
+    if ($('#conn')) $('#conn').onclick = async () => {
+      try { location.href = (await api('/github/connect', { method: 'POST' })).url; }
+      catch (e) { toast(e.message, true); }
+    };
+    return;
+  }
+  try {
+    const repos = await api('/github/repos');
+    const draw = f => {
+      const l = repos.filter(r => r.full_name.toLowerCase().includes(f.toLowerCase()));
+      const target = $('#repos');
+      if (!target) return;
+      target.innerHTML = l.length ? l.map(r => `<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-t border-zinc-200 dark:border-zinc-800 first:border-0"><div class="min-w-0"><div class="text-sm font-semibold break-words"><i class="fab fa-github text-zinc-500"></i> ${esc(r.full_name)} ${r.private ? '<span class="ml-1 text-[10px] uppercase tracking-wide border border-zinc-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-zinc-500">Private</span>' : ''}</div><div class="text-xs text-zinc-500 mt-1">${esc(r.language || '')}${r.language ? ' · ' : ''}updated ${ago(Date.parse(r.updated_at))}</div></div><a class="${btn2} w-full sm:w-auto" href="#/new/configure?repo=${encodeURIComponent(r.full_name)}&branch=${encodeURIComponent(r.default_branch || '')}">Import <i class="fas fa-arrow-right"></i></a></div>`).join('') : '<p class="text-sm text-zinc-500 py-4">No repositories match.</p>';
+    };
+    box.innerHTML = `<div class="flex items-center justify-between gap-3 mb-3"><h2 class="font-semibold break-words"><i class="fab fa-github"></i> ${esc(me.github.login || 'GitHub')}</h2><button class="text-xs text-zinc-500 underline shrink-0" id="disc">Disconnect</button></div><input class="${inp} mb-3" id="rsearch" placeholder="Search repositories…"><div id="repos"></div>`;
+    draw('');
+    $('#rsearch').oninput = e => draw(e.target.value);
+    $('#disc').onclick = async () => {
+      if (!confirm('Disconnect GitHub? Existing projects keep running, but redeploying private repositories will need a new connection.')) return;
+      try { await api('/github/disconnect', { method: 'POST' }); newView(); }
+      catch (e) { toast(e.message, true); }
+    };
+  } catch (e) {
+    box.innerHTML = `<p class="text-sm text-red-500 mb-3">${esc(e.message)}</p>${e.data && e.data.needConnect ? `<button class="${btn}" id="conn"><i class="fab fa-github"></i> Connect GitHub</button>` : ''}`;
+    if ($('#conn')) $('#conn').onclick = async () => {
+      try { location.href = (await api('/github/connect', { method: 'POST' })).url; }
+      catch (err) { toast(err.message, true); }
+    };
+  }
+}
+
+/* ===================== environment variable editor ===================== */
+function envRow(key = '', saved = false, value = '') {
+  return `<div class="env-row grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 min-w-0" data-saved="${saved ? 1 : 0}">
+    <input class="${inp} font-mono env-k" placeholder="KEY" value="${esc(key)}" ${saved ? 'readonly' : ''} aria-label="Environment variable key">
+    <input class="${inp} font-mono env-v" type="${saved ? 'password' : 'text'}" placeholder="${saved ? '•••••••• saved (empty = keep)' : 'value'}" value="${esc(value)}" autocomplete="off" aria-label="Environment variable value">
+    <button type="button" class="${btn2}" onclick="this.closest('.env-row').remove()" title="Remove variable" aria-label="Remove variable">✕ Remove</button>
+  </div>`;
+}
+const envEditor = vars => `<div id="envrows" class="space-y-2">${vars.map(v => envRow(v.key, true)).join('')}</div>
+  <div class="flex flex-wrap gap-2 mt-3"><button type="button" class="${btn2}" onclick="addEnvRow()">+ Add variable</button><button type="button" class="${btn2}" onclick="toggleBulk()">Paste .env</button></div>
+  <div id="bulk" class="hidden mt-3"><textarea id="bulkta" rows="5" class="${inp} font-mono" placeholder="KEY=value&#10;ANOTHER_KEY=value"></textarea><button type="button" class="${btn2} mt-2" onclick="applyBulk()">Add these variables</button></div>`;
+function addEnvRow(k = '', v = '') {
+  const rows = $('#envrows');
+  if (rows) rows.insertAdjacentHTML('beforeend', envRow(k, false, v));
+}
+function toggleBulk() { $('#bulk')?.classList.toggle('hidden'); }
+function applyBulk() {
+  const area = $('#bulkta');
+  if (!area) return;
+  for (const l of area.value.split(/\r?\n/)) {
+    const m = l.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (m) addEnvRow(m[1], m[2].replace(/^["']|["']$/g, ''));
+  }
+  area.value = '';
+  $('#bulk')?.classList.add('hidden');
+}
+const readEnv = () => [...document.querySelectorAll('.env-row')].map(r => {
+  const key = r.querySelector('.env-k').value.trim(), v = r.querySelector('.env-v').value;
+  return { key, value: r.dataset.saved === '1' && v === '' ? null : v };
+}).filter(x => x.key);
+
+/* ===================== configure + deploy ===================== */
+const typeOf = c => c.kind === 'static' ? 'static' : c.exposeWeb ? 'web' : 'worker';
+function cmdFields(c, type) {
+  return `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div><label class="${lbl}">Install command</label><input class="${inp} font-mono" id="c_install" value="${esc(c.installCmd)}" placeholder="npm install"></div>
+    <div><label class="${lbl}">Build command</label><input class="${inp} font-mono" id="c_build" value="${esc(c.buildCmd)}" placeholder="npm run build"></div>
+    <div id="w_start" class="${type === 'static' ? 'hidden' : ''}"><label class="${lbl}">Start command</label><input class="${inp} font-mono" id="c_start" value="${esc(c.startCmd)}" placeholder="npm start"></div>
+    <div id="w_out" class="${type === 'static' ? '' : 'hidden'}"><label class="${lbl}">Output directory</label><input class="${inp} font-mono" id="c_out" value="${esc(c.outputDir)}" placeholder="dist"></div>
+  </div>`;
+}
+const typeSelect = type => `<select class="${inp}" id="c_type"><option value="static" ${type === 'static' ? 'selected' : ''}>Static website (HTML, React, Vue…)</option><option value="web" ${type === 'web' ? 'selected' : ''}>Web service (Node.js, Express, Next.js)</option><option value="worker" ${type === 'worker' ? 'selected' : ''}>Background worker / bot (no website)</option></select>`;
+const bindType = () => {
+  const select = $('#c_type');
+  if (!select) return;
+  select.onchange = e => {
+    const st = e.target.value === 'static';
+    $('#w_start')?.classList.toggle('hidden', st);
+    $('#w_out')?.classList.toggle('hidden', !st);
+  };
+};
+function readCmds() {
+  const t = $('#c_type').value;
+  return {
+    kind: t === 'static' ? 'static' : 'service',
+    exposeWeb: t === 'web',
+    installCmd: $('#c_install').value.trim(),
+    buildCmd: $('#c_build').value.trim(),
+    startCmd: t === 'static' ? '' : $('#c_start').value.trim(),
+    outputDir: t === 'static' ? $('#c_out').value.trim() : ''
+  };
+}
+async function configureView() {
+  if (!(await requireAuth())) return;
+  const q = parseHash().q, repo = q.get('repo') || '';
+  if (!repo) {
+    location.hash = '#/new';
+    return;
+  }
+  appShell(`<div class="max-w-2xl mx-auto">
+    <a href="#/new" class="inline-flex items-center gap-2 text-sm text-zinc-500 hover:underline"><i class="fas fa-arrow-left"></i> Back to import</a>
+    <h1 class="text-2xl sm:text-3xl font-bold mt-3 mb-6">Configure project</h1>
+    <div id="cfgbox" class="${card} p-4 sm:p-6"><p class="text-sm text-zinc-500"><i class="fas fa-spinner fa-spin"></i> Reading ${esc(repo)}…</p></div>
+  </div>`);
+  let d;
+  try {
+    d = await api(`/github/detect?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(q.get('branch') || '')}`);
+  } catch (e) {
+    $('#cfgbox').innerHTML = `<p class="text-sm text-red-500 mb-4">${esc(e.message)}</p>${e.data && e.data.needConnect ? `<a class="${btn}" href="#/new">Connect GitHub</a>` : `<a class="${btn2}" href="#/new">Choose another repository</a>`}`;
+    return;
+  }
+  const type = typeOf(d);
+  $('#cfgbox').innerHTML = `<form id="f" class="space-y-5">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div class="text-sm break-words"><i class="fab fa-github"></i> <b>${esc(d.repo)}</b> ${d.private ? '<span class="ml-1 text-[10px] uppercase border border-zinc-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-zinc-500">Private</span>' : ''}</div><span class="self-start text-xs rounded-full bg-emerald-500/10 text-emerald-500 px-3 py-1">Detected: ${esc(d.framework)}</span></div>
+    ${(d.notes || []).map(n => `<p class="text-xs text-amber-500">⚠ ${esc(n)}</p>`).join('')}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label class="${lbl}">Project name</label><input class="${inp}" id="c_name" value="${esc(d.repo.split('/')[1])}" maxlength="40" required></div><div><label class="${lbl}">Branch</label><input class="${inp}" id="c_branch" value="${esc(d.branch)}"></div></div>
+    <p class="text-xs text-zinc-500 -mt-3 break-words">Your address: <span class="text-emerald-500" id="addr"></span></p>
+    <div><label class="${lbl}">Project type</label>${typeSelect(type)}</div>
+    <div><div class="text-sm font-semibold mb-2">Build &amp; run settings <span class="text-xs font-normal text-zinc-500">(suggested for you; edit if needed)</span></div>${cmdFields(d, type)}</div>
+    <div><div class="text-sm font-semibold mb-2">Environment variables</div>${envEditor([])}</div>
+    <button class="${btn} w-full !py-3" id="sb"><i class="fas fa-rocket"></i> Deploy project</button>
+  </form>`;
+  const slug = () => ($('#c_name').value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'project';
+  const addr = () => { $('#addr').textContent = `${slug()}.${domain()}`; };
+  addr();
+  $('#c_name').oninput = addr;
+  bindType();
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const b = $('#sb');
+    b.disabled = true;
+    b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting…';
+    try {
+      const p = await api('/projects', {
+        method: 'POST',
+        body: {
+          repo: d.repo,
+          name: $('#c_name').value.trim(),
+          branch: $('#c_branch').value.trim(),
+          framework: d.framework,
+          ...readCmds(),
+          env: readEnv()
+        }
+      });
+      location.hash = `#/project/${p.id}?tab=logs`;
+    } catch (err) {
+      toast(err.message, true);
+      if (err.status === 402) location.hash = '#/billing';
+      b.disabled = false;
+      b.innerHTML = '<i class="fas fa-rocket"></i> Deploy project';
+    }
+  };
+}
+* ===================== PART 2 CONTINUES WITH PROJECT PAGE, BILLING, SETTINGS, ADMIN AND ROUTER ===================== */
+  async function requireAuth(){if(await loadMe())return true;if(token){publicShell(`<section class="py-24 text-center px-4"><div class="text-4xl">⏳</div><h1 class="text-2xl font-bold mt-4">Server unavailable</h1><p class="muted mt-2 mb-5">The server may be waking up or your session expired.</p><button class="btn" onclick="route()">Try again</button></section>`);return false}location.hash='#/login';return false}
+function statLine(p){const s=p.stats||{};if(p.type==='bot')return`<p class="muted text-xs">Uptime ${esc(s.uptimeSec?Math.floor(s.uptimeSec/3600)+'h':'—')} · Restarts ${esc(s.autoRestarts||0)}</p>`;return`<p class="muted text-xs">${esc(s.files||0)} files · Deployed ${esc(p.createdAt?new Date(p.createdAt).toLocaleDateString():'—')}</p>`}
+async function renderProjects(){const el=$('#plist');if(!el)return;let list;try{list=await api('/projects')}catch(e){if(e.status===401){logout();return}el.innerHTML=`<div class="text-sm text-red-300">${esc(e.message)} <button class="underline" onclick="renderProjects()">Retry</button></div>`;return}const sum=$('#projectSummary');if(sum){const online=list.filter(p=>['live','running'].includes(p.status)).length;sum.innerHTML=statCard('Total projects',list.length,'All projects','fa-layer-group')+statCard('Online projects',online,'Live or running','fa-circle-check','emerald')+statCard('Websites',list.filter(p=>p.type==='website').length,'Hosted sites','fa-globe','blue')+statCard('Bots',list.filter(p=>p.type==='bot').length,'Bot projects','fa-robot','violet')}if(!list.length){el.innerHTML=`<div class="text-center py-12"><div class="text-4xl">🚀</div><h3 class="font-bold mt-3">Your first project starts here</h3><p class="muted text-sm mt-2">Deploy a website, start a bot or import a repository.</p><div class="flex justify-center flex-wrap gap-2 mt-5"><a class="btn" href="#/deploy/website">Deploy website</a><a class="btn2" href="#/deploy/bot">Deploy bot</a><a class="btn2" href="#/github">Import GitHub</a></div></div>`;return}el.innerHTML=list.map(p=>`<article class="rounded-xl border border-[#1e3858] bg-[#08172b] p-4 flex flex-col sm:flex-row sm:items-center gap-4"><div class="w-11 h-11 rounded-xl ${p.type==='bot'?'bg-violet-500/15 text-violet-300':'bg-blue-500/15 text-blue-300'} grid place-items-center text-lg shrink-0"><i class="fa-solid ${p.type==='bot'?'fa-robot':'fa-globe'}"></i></div><div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><b class="truncate">${esc(p.name)}</b>${statusBadge(p.status)}</div><p class="muted text-xs mt-1">${p.type==='bot'?'Bot · '+esc(p.botType||'Node.js'):'Website'} · ${esc(p.id)}</p>${p.url?`<a class="text-blue-300 text-sm break-all hover:underline" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>`:''}${statLine(p)}${p.suspendedBy==='admin'?'<p class="text-xs text-red-300">Suspended by administrator</p>':''}</div><div class="flex flex-wrap gap-2">${p.type==='bot'?`<button class="btn2" onclick="showLogs('${esc(p.id)}')">Logs</button><button class="btn2" onclick="editEnv('${esc(p.id)}')">Environment</button>${['running','starting'].includes(p.status)?`<button class="btn2" onclick="controlBot('${esc(p.id)}','restart')">Restart</button><button class="btn2" onclick="controlBot('${esc(p.id)}','stop')">Stop</button>`:`<button class="btn2" onclick="controlBot('${esc(p.id)}','start')">Start</button>`}`:''}<button class="btn2 text-red-300" onclick="deleteProject('${esc(p.id)}')"><i class="fa-solid fa-trash"></i></button></div></article>`).join('')}
+async function controlBot(id,action){try{await api(`/projects/${encodeURIComponent(id)}/${action}`,{method:'POST'});toast('Project action completed');renderProjects()}catch(e){toast(e.message,true)}}
+async function deleteProject(id){if(!confirm('Permanently delete this project?'))return;try{await api('/projects/'+encodeURIComponent(id),{method:'DELETE'});toast('Project deleted');renderProjects()}catch(e){toast(e.message,true)}}
+async function showLogs(id){const m=$('#modal');m.innerHTML=`<div class="fixed inset-0 z-[80] bg-black/70 p-4 grid place-items-center"><div class="panel w-full max-w-3xl p-5"><div class="flex justify-between items-center mb-4"><h3 class="font-bold">Project logs</h3><button class="btn2" onclick="$('#modal').innerHTML=''">Close</button></div><pre id="logContent" class="bg-black rounded-xl p-4 h-96 overflow-auto whitespace-pre-wrap text-xs text-emerald-300">Loading logs…</pre><p class="muted text-xs mt-2">Refresh the logs if your process has just started.</p><button class="btn2 mt-3" onclick="refreshLogs('${esc(id)}')">Refresh logs</button></div></div>`;await refreshLogs(id)}
+async function refreshLogs(id){try{const r=await api(`/projects/${encodeURIComponent(id)}/logs`);const e=$('#logContent');if(e)e.textContent=r.logs||'(No logs returned yet)'}catch(e){const el=$('#logContent');if(el)el.textContent=e.message}}
+async function editEnv(id){let keys=[];try{const r=await api(`/projects/${encodeURIComponent(id)}/env`);keys=r.keys||[]}catch(e){toast(e.message,true);return}const m=$('#modal');m.innerHTML=`<div class="fixed inset-0 z-[80] bg-black/70 p-4 grid place-items-center"><form id="envForm" class="panel w-full max-w-xl p-6 space-y-4"><div class="flex justify-between items-center"><h3 class="font-bold text-lg">Environment variables</h3><button type="button" class="btn2" onclick="$('#modal').innerHTML=''">Close</button></div><p class="muted text-sm">Current keys: ${keys.length?keys.map(esc).join(', '):'none'}. Enter one KEY=value per line. Values are not returned for security. Saving replaces the variables supported by this endpoint.</p><textarea class="field font-mono" rows="7" id="envText" placeholder="BOT_TOKEN=your-secret-token&#10;NODE_ENV=production"></textarea><p class="muted text-xs">Never paste secrets into public chats or screenshots.</p><button class="btn w-full">Save variables</button></form></div>`;$('#envForm').onsubmit=async e=>{e.preventDefault();try{await api(`/projects/${encodeURIComponent(id)}/env`,{method:'PUT',body:{envVars:$('#envText').value}});m.innerHTML='';toast('Environment variables saved');renderProjects()}catch(err){toast(err.message,true)}}}
+  async function deployView(mode){if(!(await requireAuth()))return;const gh=mode==='github',kind=gh?ghKind:mode;const title=gh?'Import from GitHub':kind==='bot'?'Deploy a bot':'Deploy a website';appShell(gh?'github':`deploy/${kind}`,gh?`<div class="max-w-4xl mx-auto"><h1 class="text-3xl font-extrabold">Import from GitHub</h1><p class="muted mt-2 mb-6">Connect GitHub, then import the repository you want to deploy.</p><div class="flex gap-3 mb-5"><button class="btn2 ${ghKind==='website'?'border-blue-400':''}" onclick="ghKind='website';deployView('github')">🌐 Website</button><button class="btn2 ${ghKind==='bot'?'border-blue-400':''}" onclick="ghKind='bot';deployView('github')">🤖 Bot</button></div><div class="panel p-6"><div class="flex flex-wrap justify-between items-center gap-3"><div><h2 class="font-bold text-lg">Your repositories</h2><p class="muted text-sm mt-1">GitHub OAuth must be configured on your server.</p></div><button class="btn" id="ghConnect"><i class="fa-brands fa-github"></i> Connect / refresh</button></div><input class="field mt-5" id="ghSearch" placeholder="Filter repositories"><div id="ghList" class="space-y-3 mt-4"><p class="muted text-sm">Connect GitHub to load repositories.</p></div></div></div>`:`<div class="max-w-2xl mx-auto"><div class="mb-7"><p class="text-sm muted">PROJECT DEPLOYMENT</p><h1 class="text-3xl font-extrabold mt-2">${title}</h1><p class="muted mt-2">Provide your project files or a supported public repository.</p></div><form id="deployForm" class="panel p-6 sm:p-7 space-y-5"><div><label class="text-sm muted">Project name</label><input class="field mt-2" id="projectName" maxlength="40" required placeholder="my-awesome-project"></div>${kind==='bot'?`<div><label class="text-sm muted">Bot platform</label><select class="field mt-2" id="botType"><option value="baileys">WhatsApp (Baileys)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>`:''}<div><label class="text-sm muted">GitHub URL (optional)</label><input class="field mt-2" id="githubUrl" type="url" placeholder="https://github.com/username/repository"></div><div class="text-center muted text-xs">— OR —</div><div><label class="text-sm muted">Upload ZIP ${kind==='bot'?'(must include package.json)':'(must include index.html)'}</label><input class="field mt-2" type="file" id="zipFile" accept=".zip,application/zip"></div>${kind==='bot'?`<div><label class="text-sm muted">Environment variables (one KEY=value per line)</label><textarea class="field mt-2 font-mono" rows="4" id="deployEnv" placeholder="BOT_TOKEN=...\nNODE_ENV=production"></textarea></div>`:''}<div class="rounded-xl bg-blue-500/10 border border-blue-400/20 p-4 text-sm muted"><i class="fa-solid fa-circle-info text-blue-300 mr-2"></i>Deployment requires the matching backend route and runtime to be configured.</div><button class="btn w-full py-3" id="deploySubmit"><i class="fa-solid fa-rocket"></i> Deploy project</button><p id="deployError" class="text-sm text-red-300"></p></form></div>`);if(gh){$('#ghConnect').onclick=()=>{location.href=API_BASE+'/api/github/login?token='+encodeURIComponent(token)};$('#ghSearch').oninput=e=>filterRepos(e.target.value);const q=new URLSearchParams(location.search);if(q.has('github_connected'))history.replaceState({},'',location.pathname+'#/github');checkGitHubRepos(false);return}$('#deployForm').onsubmit=async e=>{e.preventDefault();const githubUrl=$('#githubUrl').value.trim(),file=$('#zipFile').files[0];if(!githubUrl&&!file){toast('Upload a ZIP or enter a GitHub URL',true);return}const fd=new FormData();fd.append('name',$('#projectName').value.trim());fd.append('githubUrl',githubUrl);if(file)fd.append('file',file);if(kind==='bot'){fd.append('botType',$('#botType').value);fd.append('envVars',$('#deployEnv').value)}const b=$('#deploySubmit');b.disabled=true;b.textContent='Deploying…';$('#deployError').textContent='';try{const p=await api(kind==='bot'?'/projects/bot':'/projects/website',{method:'POST',body:fd});$('#deployForm').innerHTML=`<div class="text-center py-8"><div class="text-5xl text-emerald-300">✓</div><h2 class="text-2xl font-bold mt-4">Deployment request accepted</h2><p class="muted mt-2">${p.url?'Your website URL: '+esc(p.url):'Your project was submitted. Check the dashboard and logs for status.'}</p>${p.url?`<a class="btn mt-5" target="_blank" rel="noopener" href="${esc(p.url)}">Open website</a>`:''}<a class="btn2 mt-5 ml-2" href="#/dashboard">Go to dashboard</a></div>`}catch(err){toast(err.message,true);$('#deployError').textContent=err.message;if(err.status===402)location.hash='#/billing';b.disabled=false;b.innerHTML='<i class="fa-solid fa-rocket"></i> Deploy project'}}}
+async function checkGitHubRepos(force){try{const repos=await api('/github/repos');ghRepos=repos;renderRepoList(repos)}catch(e){const list=$('#ghList');if(list)list.innerHTML=`<div class="rounded-xl bg-amber-500/10 border border-amber-400/20 p-4 text-sm muted">${esc(e.message)}<p class="mt-2">Use Connect / refresh to authorize GitHub, or confirm GitHub OAuth is configured on the server.</p></div>`;if(force)toast(e.message,true)}}
+function renderRepoList(repos){const list=$('#ghList');if(!list)return;if(!repos.length){list.innerHTML='<p class="muted text-sm py-5">No repositories were returned by GitHub.</p>';return}list.innerHTML=repos.map(r=>`<div class="repo-item flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#1e3858] p-4" data-name="${esc(r.full_name.toLowerCase())}"><div class="min-w-0"><b>${esc(r.full_name)} ${r.private?'🔒':''}</b><p class="muted text-xs mt-1">Updated ${esc(r.updated_at?new Date(r.updated_at).toLocaleDateString():'—')}</p></div><button class="btn" onclick="importGhRepo('${esc(r.clone_url)}','${esc(r.name)}')">Import repository</button></div>`).join('')}
+function filterRepos(q){document.querySelectorAll('.repo-item').forEach(el=>el.style.display=el.dataset.name.includes(q.toLowerCase())?'':'none')}
+async function importGhRepo(url,name){const finalName=prompt('Project name:',name)||name;if(!finalName)return;let envVars='';if(ghKind==='bot')envVars=prompt('Environment variables (KEY=value, one per line):','')||'';const fd=new FormData();fd.append('name',finalName);fd.append('githubUrl',url);if(ghKind==='bot'){fd.append('botType','baileys');fd.append('envVars',envVars)}try{toast('Importing repository…');const p=await api(ghKind==='bot'?'/projects/bot':'/projects/website',{method:'POST',body:fd});toast('Repository import submitted');if(p.url)window.open(p.url,'_blank','noopener');location.hash='#/dashboard'}catch(e){toast(e.message,true);if(e.status===402)location.hash='#/billing'}}
+async function billingView(){if(!(await requireAuth()))return;const exp=me.paidUntil||me.trialEndsAt;appShell('billing',`<div class="max-w-3xl mx-auto"><p class="text-sm muted">ACCOUNT</p><h1 class="text-3xl font-extrabold mt-2 mb-7">Billing & payments</h1><div class="grid md:grid-cols-2 gap-4"><div class="panel p-6"><p class="muted text-sm">Current status</p><div class="mt-3">${statusBadge(me.status)}</div><p class="muted text-sm mt-5">Days remaining</p><p class="text-3xl font-extrabold mt-1">${esc(me.daysLeft??'—')}</p><p class="muted text-sm mt-4">Expiry date: ${exp?esc(new Date(exp).toLocaleDateString()):'—'}</p></div><div class="panel p-6"><p class="muted text-sm">Monthly plan</p><p class="text-4xl font-extrabold grad-text mt-3">KES ${esc(me.price??cfg.price)}</p><p class="muted text-sm mt-1">per month</p><button class="btn w-full mt-6 py-3" id="payBtn"><i class="fa-solid fa-lock"></i> Continue to secure payment</button><p class="muted text-xs mt-3">Checkout is provided by your configured Paystack integration.</p></div></div><div class="panel p-6 mt-5"><h2 class="font-bold">Payment help</h2><p class="muted text-sm mt-2">If you have completed payment but your account has not updated, wait briefly and refresh this page. Avoid making a second payment until the first transaction status is clear.</p></div></div>`);$('#payBtn').onclick=async e=>{const b=e.currentTarget;b.disabled=true;try{const r=await api('/billing/pay',{method:'POST'});if(!r.url)throw Error('Payment URL was not returned by the server');location.href=r.url}catch(err){toast(err.message,true);b.disabled=false}}}
+async function profileView(){if(!(await requireAuth()))return;let p;try{p=await api('/profile')}catch(e){toast(e.message,true);return}appShell('profile',`<div class="max-w-3xl mx-auto"><h1 class="text-3xl font-extrabold mb-7">Your profile</h1><div class="panel p-6 flex items-center gap-4 mb-5"><div class="w-16 h-16 rounded-2xl grad-bg grid place-items-center text-2xl font-bold">${esc((p.displayName||p.email||'U')[0].toUpperCase())}</div><div><h2 class="font-bold text-xl">${esc(p.displayName||'MtaaniHost user')}</h2><p class="muted text-sm">${esc(p.email)}</p><div class="mt-2">${statusBadge(p.status)}</div></div></div><div class="panel p-6 space-y-4"><div class="flex justify-between gap-4"><span class="muted">Member since</span><span>${p.memberSince?esc(new Date(p.memberSince).toLocaleDateString()):'—'}</span></div><div class="flex justify-between gap-4"><span class="muted">Projects</span><span>${esc(p.projects??'—')} (${esc(p.websites??0)} websites, ${esc(p.bots??0)} bots)</span></div><div class="flex justify-between gap-4"><span class="muted">Plan days left</span><span>${esc(p.daysLeft??'—')}</span></div></div><a class="btn mt-5" href="#/settings">Edit profile settings</a></div>`)}
+async function settingsView(){if(!(await requireAuth()))return;let p;try{p=await api('/profile')}catch(e){toast(e.message,true);return}const light=localStorage.getItem('mh_theme')==='light';appShell('settings',`<div class="max-w-3xl mx-auto"><h1 class="text-3xl font-extrabold mb-2">Settings</h1><p class="muted mb-7">Manage your profile, password and appearance.</p><form id="profileForm" class="panel p-6 space-y-4 mb-5"><h2 class="font-bold text-lg">Profile information</h2><div><label class="text-sm muted">Display name</label><input class="field mt-1" id="displayName" maxlength="40" required value="${esc(p.displayName||'')}"></div><div><label class="text-sm muted">Email address</label><input class="field mt-1 opacity-60" disabled value="${esc(p.email)}"></div><button class="btn">Save profile</button></form><form id="passwordForm" class="panel p-6 space-y-4 mb-5"><h2 class="font-bold text-lg">Change password</h2><input class="field" id="currentPassword" type="password" autocomplete="current-password" required placeholder="Current password"><input class="field" id="newPassword" type="password" minlength="8" autocomplete="new-password" required placeholder="New password (at least 8 characters)"><input class="field" id="confirmPassword" type="password" required placeholder="Confirm new password"><button class="btn">Update password</button></form><div class="panel p-6 mb-5"><h2 class="font-bold text-lg">Appearance</h2><p class="muted text-sm mt-1 mb-4">Choose the theme that feels right for you.</p><div class="flex gap-3"><button class="btn2" onclick="setTheme(true);settingsView()">☀️ Light</button><button class="btn2" onclick="setTheme(false);settingsView()">🌙 Dark</button></div></div><div class="panel p-6 border-red-500/30"><h2 class="font-bold text-lg text-red-300">Delete account</h2><p class="muted text-sm mt-2">This is permanent and may remove your projects. Continue only if you are certain.</p><form id="deleteAccountForm" class="mt-4 space-y-3"><input class="field" id="deletePassword" type="password" required placeholder="Confirm your password"><button class="btn2 text-red-300 border-red-500/40">Delete my account</button></form></div></div>`);$('#profileForm').onsubmit=async e=>{e.preventDefault();try{await api('/profile',{method:'PUT',body:{displayName:$('#displayName').value.trim()}});toast('Profile saved');await loadMe()}catch(err){toast(err.message,true)}};$('#passwordForm').onsubmit=async e=>{e.preventDefault();if($('#newPassword').value!==$('#confirmPassword').value)return toast('Passwords do not match',true);try{await api('/settings/password',{method:'POST',body:{currentPassword:$('#currentPassword').value,newPassword:$('#newPassword').value}});toast('Password updated');e.target.reset()}catch(err){toast(err.message,true)}};$('#deleteAccountForm').onsubmit=async e=>{e.preventDefault();if(!confirm('Permanently delete your account and projects?'))return;try{await api('/account',{method:'DELETE',body:{password:$('#deletePassword').value}});toast('Account deleted');logout()}catch(err){toast(err.message,true)}}}
+function adminLogout(){atoken='';sessionStorage.removeItem('mh_admin');adminView()}
+async function adminView(){if(!atoken){adminShell(`<div class="max-w-md mx-auto py-12"><div class="panel p-8"><div class="text-center mb-6"><div class="w-14 h-14 rounded-2xl grad-bg grid place-items-center text-2xl mx-auto"><i class="fa-solid fa-shield-halved"></i></div><h1 class="text-2xl font-extrabold mt-4">Admin sign in</h1><p class="muted text-sm mt-2">Use the administrator password configured on the server.</p></div><form id="adminLogin" class="space-y-4"><input class="field" type="password" id="adminPassword" required autocomplete="current-password" placeholder="Admin password"><button class="btn w-full">Sign in securely</button></form></div></div>`);$('#adminLogin').onsubmit=async e=>{e.preventDefault();try{const r=await api('/admin/login',{method:'POST',body:{password:$('#adminPassword').value}},null);atoken=r.token;sessionStorage.setItem('mh_admin',atoken);adminView()}catch(err){toast(err.message,true)}};return}let d;try{d=await api('/admin/overview',{},atoken)}catch(e){if(e.status===401){atoken='';sessionStorage.removeItem('mh_admin');toast('Admin session expired. Please sign in again.',true);return adminView()}adminShell(`<div class="panel p-8 max-w-xl mx-auto text-center"><h1 class="text-2xl font-bold">Admin overview unavailable</h1><p class="text-red-300 mt-3">${esc(e.message)}</p><button class="btn mt-5" onclick="adminView()">Retry</button></div>`);return}let st={price:cfg.price,trialDays:cfg.trialDays};try{st={...st,...await api('/admin/settings',{},atoken)}}catch{}await checkHealth();const s=d.stats||{};const stat=(a,b)=>`<div class="panel p-4"><p class="muted text-xs">${a}</p><p class="text-2xl font-extrabold mt-2">${esc(b??0)}</p></div>`;const th='text-left text-xs muted py-3 px-3';const td='text-sm py-3 px-3 border-t border-[#1e3858]';adminShell(`<div class="space-y-7"><div class="flex flex-wrap items-center justify-between gap-4"><div><p class="text-sm muted">CONTROL CENTER</p><h1 class="text-3xl font-extrabold mt-2">Admin dashboard</h1></div><button class="btn2" onclick="adminView()"><i class="fa-solid fa-rotate"></i> Refresh data</button></div>${health?.onRender&&!health?.persistent?'<div class="panel p-4 text-amber-200 border-amber-500/40">Warning: configure persistent storage on your hosting platform if your backend requires it to retain accounts and projects after restarts.</div>':''}${health?.requireVerify&&health?.mail==='none'?'<div class="panel p-4 text-amber-200 border-amber-500/40">Email verification is enabled but email delivery is not configured. Configure the mail settings in the server environment.</div>':''}<div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">${stat('Users',s.users)}${stat('Trial',s.trial)}${stat('Paid',s.paid)}${stat('Expired',s.expired)}${stat('Blocked',s.blocked)}${stat('Projects',s.projects)}${stat('Live sites',s.liveSites)}${stat('Running bots',s.runningBots)}${stat('Revenue (KES)',s.revenue)}${stat('Email service',health?.mail||'unknown')}</div><section class="panel p-6"><h2 class="font-bold text-lg">Pricing and trial settings</h2><p class="muted text-sm mt-1 mb-5">Updates the values supported by your backend.</p><form id="adminSettings" class="grid sm:grid-cols-3 gap-4 items-end"><div><label class="muted text-sm">Monthly price (KES)</label><input class="field mt-2" type="number" min="10" max="100000" id="price" required value="${esc(st.price)}"></div><div><label class="muted text-sm">Trial days</label><input class="field mt-2" type="number" min="0" max="60" id="trialDays" required value="${esc(st.trialDays)}"></div><button class="btn">Save settings</button></form></section><section><h2 class="font-bold text-lg mb-3">Users</h2><div class="panel scroll-table p-3"><table class="w-full min-w-[700px]"><thead><tr>${['Email','Status','Days left','Projects','Actions'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr></thead><tbody>${(d.users||[]).map(u=>`<tr><td class="${td}">${esc(u.email)}</td><td class="${td}">${statusBadge(u.status)}</td><td class="${td}">${esc(u.daysLeft)}</td><td class="${td}">${esc(u.projects)}</td><td class="${td}"><div class="flex gap-2">${u.status==='unverified'?`<button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/verify',{})">Verify</button>`:''}<button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/block',{blocked:${!u.blocked}})">${u.blocked?'Unblock':'Block'}</button><button class="btn2" onclick="adm('/users/${encodeURIComponent(u.id)}/extend',{days:30})">+30 days</button></div></td></tr>`).join('')}</tbody></table></div></section><section><h2 class="font-bold text-lg mb-3">Projects</h2><div class="panel scroll-table p-3"><table class="w-full min-w-[700px]"><thead><tr>${['Name','Owner','Type','Status','Actions'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr></thead><tbody>${(d.projects||[]).map(p=>`<tr><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${statusBadge(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="btn2" onclick="adm('/projects/${encodeURIComponent(p.id)}/suspend',{suspended:${p.suspendedBy!=='admin'}})">${p.suspendedBy==='admin'?'Resume':'Suspend'}</button><button class="btn2 text-red-300" onclick="if(confirm('Delete this project?'))adm('/projects/${encodeURIComponent(p.id)}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</tbody></table></div></section><section><h2 class="font-bold text-lg mb-3">Payments</h2><div class="panel scroll-table p-3"><table class="w-full min-w-[600px]"><thead><tr>${['Date','Email','Amount','Channel'].map(x=>`<th class="${th}">${x}</th>`).join('')}</tr></thead><tbody>${(d.payments||[]).map(p=>`<tr><td class="${td}">${p.at?esc(new Date(p.at).toLocaleString()):'—'}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${esc(p.amount)}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('')||`<tr><td class="${td} muted" colspan="4">No payments yet</td></tr>`}</tbody></table></div></section></div>`);$('#adminSettings').onsubmit=async e=>{e.preventDefault();try{const r=await api('/admin/settings',{method:'PUT',body:{price:$('#price').value,trialDays:$('#trialDays').value}},atoken);cfg={...cfg,...r};toast('Settings saved');adminView()}catch(err){toast(err.message,true)}}}
+async function adm(path,body,method='POST'){try{await api('/admin'+path,{method,body},atoken);toast('Admin action completed');adminView()}catch(e){toast(e.message,true)}}
+function route(){clearInterval(pollT);$('#modal').innerHTML='';const h=(location.hash||'#/').split('?')[0];window.scrollTo(0,0);if(token&&(h==='#/login'||h==='#/signup')){location.hash='#/dashboard';return}const routes={'#/':landing,'#/login':()=>authView('login'),'#/signup':()=>authView('signup'),'#/verify':verifyView,'#/dashboard':dashboardView,'#/deploy/website':()=>deployView('website'),'#/deploy/bot':()=>deployView('bot'),'#/github':()=>deployView('github'),'#/billing':billingView,'#/profile':profileView,'#/settings':settingsView,'#/admin':adminView};try{(routes[h]||landing)()}catch(e){console.error(e);$('#root').innerHTML=`<main class="max-w-xl mx-auto p-8"><div class="panel p-6"><h1 class="text-xl font-bold">Something went wrong</h1><p class="muted mt-2">${esc(e.message)}</p><button class="btn mt-4" onclick="route()">Reload page</button></div></main>`}}
+window.addEventListener('hashchange',route);Promise.all([loadCfg(),checkHealth()]).finally(route);setInterval(checkHealth,60000);
+</script></body></html>
