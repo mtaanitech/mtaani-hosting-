@@ -1,21 +1,21 @@
 {
-"name": "mtaanihost-v2",
-"version": "2.0.0",
-"description": "MtaaniHost V2 Hosting Platform",
-"main": "server.js",
-"scripts": {
-"start": "node server.js"
-},
-"engines": {
-"node": ">=20"
-},
-"dependencies": {
-"express": "^5.1.0",
-"better-sqlite3": "^12.2.0",
-"bcryptjs": "^3.0.2",
-"jsonwebtoken": "^9.0.2",
-"multer": "^2.0.2",
-"adm-zip": "^0.5.16",
-"nodemailer": "^7.0.5"
-}
+  "name": "mtaanihost-v2",
+  "version": "2.0.0",
+  "description": "MtaaniHost V2 Hosting Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "better-sqlite3": "^11.10.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "adm-zip": "^0.5.16",
+    "nodemailer": "^6.10.1"
+  }
 }
