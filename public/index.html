@@ -398,11 +398,15 @@ if(page==='dashboard'){
   if(!me){publicShell('<div class="p-12 text-center">Loading dashboard…</div>');loadMe().then(()=>route());return}
   appShell('dashboard',dashboardPage());checkHealth();return
 if(page==='dashboard'){
-  if(!me){publicShell('<div class="p-12 text-center">Loading dashboard…</div>');loadMe().then(()=>route());return}
+if(!me){
+publicShell('<div class="p-12 text-center">Loading dashboard…</div>');
+loadMe().then(()=>route());
+return;
+}
 appShell('dashboard',dashboardPage());
 checkHealth();
 return;
-  }
+}
  if(page==='deploy'&&(sub==='website'||sub==='bot')){
   appShell('deploy-'+sub,deployPage(sub));return
  }
