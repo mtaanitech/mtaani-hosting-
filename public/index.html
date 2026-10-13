@@ -385,9 +385,20 @@ if(!token){
  }
 if(page==='dashboard'){
 if(!me){
-publicShell("<div class="p-12 text-center"> <h2 class="text-xl font-bold mb-3">Dashboard connection</h2> <p class="text-sm text-gray-500 mb-5"> Unable to load your account. Please try again. </p> <button class="${btn}" onclick="retryDashboard()"> Try again </button> <button class="${btn2} ml-2" onclick="logout()"> Login again </button> </div>");
+if(page==='dashboard'){
+if(!me){
+publicShell("<div class="p-12 text-center"> <h2 class="text-xl font-bold mb-3">Dashboard connection</h2> <p class="text-sm text-gray-500 mb-5">Unable to load your account. Please try again.</p> <button class="${btn}" onclick="retryDashboard()">Try again</button> <button class="${btn2} ml-2" onclick="logout()">Login again</button> </div>");
 return;
 }
+appShell('dashboard',dashboardPage());
+checkHif(page==='dashboard'){
+  if(!me){publicShell('<div class="p-12 text-center">Loading dashboard…</div>');loadMe().then(()=>route());return}
+  appShell('dashboard',dashboardPage());checkHealth();return
+if(page==='dashboard'){
+  if(!me){publicShell('<div class="p-12 text-center">Loading dashboard…</div>');loadMe().then(()=>route());return}
+  appShell('dashboard',dashboardPage());checkHealth();return
+if(page==='dashboard'){
+  if(!me){publicShell('<div class="p-12 text-center">Loading dashboard…</div>');loadMe().then(()=>route());return}
 appShell('dashboard',dashboardPage());
 checkHealth();
 return;
