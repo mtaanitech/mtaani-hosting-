@@ -1,625 +1,443 @@
-<!DOCTYPE html>
+
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MtaaniHost — Deploy websites and bots in Kenya</title>
-<meta name="description" content="Host your website or WhatsApp, Telegram and Discord bots in Kenya. Free trial, pay with M-Pesa.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="MtaaniHost — deploy websites and bots in Kenya.">
+<meta name="theme-color" content="#09090b">
+<title>MtaaniHost — Website & Bot Hosting</title>
 <script>
-  tailwind = { config: { darkMode: 'class' } };
-  if (localStorage.getItem('mh_theme') === 'dark') document.documentElement.classList.add('dark');
+  tailwind = {config:{darkMode:'class'}};
+  try { if(localStorage.getItem('mh_theme')==='dark') document.documentElement.classList.add('dark'); } catch {}
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" referrerpolicy="no-referrer">
 <style>
-  body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
- .grad-text{background:linear-gradient(90deg,#10b981,#06b6d4,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
- .grad-bg{background:linear-gradient(135deg,#10b981,#06b6d4 55%,#8b5cf6)}
- .glow{box-shadow:0 12px 40px -12px rgba(16,185,129,.55)}
- .hero-bg{background:radial-gradient(55rem 26rem at 15% -10%,rgba(16,185,129,.25),transparent),radial-gradient(50rem 26rem at 95% 0%,rgba(139,92,246,.25),transparent),radial-gradient(40rem 20rem at 50% 100%,rgba(6,182,212,.16),transparent)}
- .lift{transition:transform.2s,border-color.2s}.lift:hover{transform:translateY(-3px);border-color:rgba(16,185,129,.6)}
-  details>summary::-webkit-details-marker{display:none}
-  @keyframes fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
- .fadein{animation:fadein.25s ease}
+:root{color-scheme:light dark}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.grad-text{background:linear-gradient(90deg,#10b981,#06b6d4,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.grad-bg{background:linear-gradient(135deg,#10b981,#06b6d4 55%,#8b5cf6)}
+.glow{box-shadow:0 12px 40px -12px rgba(16,185,129,.35)}
+.hero-bg{background:radial-gradient(55rem 26rem at 15% -10%,rgba(16,185,129,.22),transparent),radial-gradient(50rem 26rem at 95% 0%,rgba(139,92,246,.22),transparent),radial-gradient(40rem 20rem at 50% 100%,rgba(6,182,212,.12),transparent)}
+.lift{transition:transform .2s,border-color .2s,box-shadow .2s}.lift:hover{transform:translateY(-3px);border-color:rgba(16,185,129,.6);box-shadow:0 12px 30px -20px rgba(16,185,129,.55)}
+.fadein{animation:fadein .25s ease}@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+details>summary::-webkit-details-marker{display:none}
+input,textarea,select,button{font:inherit}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #10b981;outline-offset:2px}
+::selection{background:rgba(16,185,129,.25)}
 </style>
 </head>
 <body class="bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
 <div id="root" class="flex flex-col flex-1 min-h-screen"></div>
-<div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 max-w-xs"></div>
+<div id="toast-container" class="fixed bottom-5 right-5 z-[80] flex flex-col gap-2 max-w-xs w-[calc(100%-2.5rem)]"></div>
 <div id="modal"></div>
-
 <script>
-/* ===================== config & state ===================== */
+'use strict';
+/*
+ MtaaniHost frontend.
+ API routes intentionally retain the routes used by the supplied version.
+ Persistent database, admin credentials, deployment workers, and payment verification
+ must be implemented securely by the backend; they cannot be made persistent by HTML.
+*/
 const SUPPORT_WHATSAPP = '';
-const API_BASE = (typeof window.MH_API === 'string')? window.MH_API
-  : (/(^|\.)onrender\.com$|^localhost$|^127\./.test(location.hostname)? '' : 'https://mtaani-hosting.onrender.com');
+const API_BASE = (typeof window.MH_API === 'string') ? window.MH_API.replace(/\/$/,'')
+  : ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '' : 'https://mtaani-hosting.onrender.com');
 
-let token = localStorage.getItem('mh_token');
-let atoken = sessionStorage.getItem('mh_admin');
-let me = null, health = null, pollT = null, ghKind = 'website';
-let cfg = { price: 130, trialDays: 7, human: 'math' };
-let humanTok = '', cfToken = '';
-let pendingEmail = localStorage.getItem('mh_pending') || '';
-let ghRepos = [];
-
-/* ===================== helpers ===================== */
-const $ = s => document.querySelector(s);
-const esc = s => String(s?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const inp = 'w-full rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500';
-const btn = 'grad-bg inline-flex items-center justify-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50';
-const btn2 = 'inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:border-emerald-500';
-const btnDanger = 'inline-flex items-center justify-center gap-2 rounded-lg border border-red-400 text-red-600 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-500/10';
-const card = 'rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900';
-const ddItem = 'flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:text-emerald-600 cursor-pointer';
-const logo = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><path d="M12 2 22 20H2L12 2Z" fill="url(#lg1)"/><path d="M12 9l4.5 8h-9L12 9Z" fill="#fff" fill-opacity=".9"/></svg>`;
-
-function toast(msg, bad) {
-  const box = $('#toast-container'); if (!box) return;
-  const d = document.createElement('div');
-  d.className = `rounded-lg px-4 py-3 text-sm shadow-lg text-white fadein ${bad? 'bg-red-600' : 'bg-emerald-600'}`;
-  d.textContent = msg; box.appendChild(d); setTimeout(() => d.remove(), 4000);
+let token = safeGet(localStorage,'mh_token');
+let atoken = safeGet(sessionStorage,'mh_admin');
+let me=null, health=null, pollT=null, logTimer=null, ghKind='website', ghRepos=[];
+let cfg={price:130,trialDays:7,human:'math'};
+let humanTok='',cfToken='',turnstileWidget=null;
+let pendingEmail=safeGet(localStorage,'mh_pending')||'';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function safeGet(store,key){try{return store.getItem(key)}catch{return null}}
+function safeSet(store,key,val){try{store.setItem(key,val)}catch{}}
+function safeRemove(store,key){try{store.removeItem(key)}catch{}}
+const inp='w-full rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500';
+const btn='grad-bg inline-flex items-center justify-center gap-2 rounded-lg text-white px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed';
+const btn2='inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:border-emerald-500';
+const btnDanger='inline-flex items-center justify-center gap-2 rounded-lg border border-red-400 text-red-600 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-500/10';
+const card='rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900';
+const ddItem='flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-left text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-zinc-800 hover:text-emerald-600 cursor-pointer';
+const logo='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><defs><linearGradient id="mhLogo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><path d="M12 2 22 20H2L12 2Z" fill="url(#mhLogo)"/><path d="M12 9l4.5 8h-9L12 9Z" fill="#fff" fill-opacity=".9"/></svg>';
+function toast(msg,bad=false){const box=$('#toast-container');if(!box)return;const d=document.createElement('div');d.className=`rounded-lg px-4 py-3 text-sm shadow-lg text-white fadein ${bad?'bg-red-600':'bg-emerald-600'}`;d.textContent=String(msg);box.appendChild(d);setTimeout(()=>d.remove(),4500)}
+async function api(path,options={},authToken=token){
+  const isForm=options.body instanceof FormData;
+  const headers={...(options.headers||{})};
+  if(!isForm && options.body!==undefined) headers['Content-Type']='application/json';
+  if(authToken) headers.Authorization='Bearer '+authToken;
+  let response;
+  try{response=await fetch(API_BASE+'/api'+path,{...options,headers,body:options.body===undefined?undefined:(isForm?options.body:JSON.stringify(options.body))})}
+  catch{throw new Error('Cannot reach the server. Check your internet connection or try again shortly.')}
+  const text=await response.text();let data={};
+  try{data=text?JSON.parse(text):{}}catch{data={error:text||'The server returned an invalid response.'}}
+  if(!response.ok){const e=new Error(data.error||`Request failed (${response.status})`);e.status=response.status;e.data=data;throw e}
+  return data;
 }
-async function api(p, o = {}, t = token) {
-  const fd = o.body instanceof FormData;
-  const h = fd? {} : { 'Content-Type': 'application/json' };
-  if (t) h.Authorization = 'Bearer ' + t;
-  let r;
-  try { r = await fetch(API_BASE + '/api' + p, {...o, headers: h, body: o.body &&!fd? JSON.stringify(o.body) : o.body }); }
-  catch { throw new Error('Cannot reach the server. Check your internet or try again in a minute (free servers wake up slowly).'); }
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error(j.error || 'Something went wrong'); e.status = r.status; e.data = j; throw e; }
-  return j;
+function setTheme(d){document.documentElement.classList.toggle('dark',!!d);safeSet(localStorage,'mh_theme',d?'dark':'light')}
+function toggleTheme(){setTheme(!document.documentElement.classList.contains('dark'))}
+function logout(){token=null;me=null;safeRemove(localStorage,'mh_token');safeRemove(localStorage,'mh_pending');pendingEmail='';location.hash='#/'}
+async function loadCfg(){try{const c=await api('/config',{},null);cfg={...cfg,...c}}catch{}}
+async function loadMe(){if(!token)return null;try{me=await api('/me');return me}catch(e){if(e.status===401){token=null;safeRemove(localStorage,'mh_token')}me=null;return null}}
+async function requireAuth(){if(await loadMe())return true;if(token){publicShell(`<div class="max-w-md mx-auto px-4 py-24 text-center"><div class="text-4xl mb-3">⏳</div><h1 class="text-xl font-bold mb-2">Server temporarily unavailable</h1><p class="text-sm text-gray-500 mb-6">The server may be starting or your session may have expired.</p><button class="${btn}" onclick="route()">Try again</button></div>`);return false}location.hash='#/login';return false}
+function goTo(id){const scroll=()=>document.getElementById(id)?.scrollIntoView({behavior:'smooth'});if(location.hash&&location.hash!=='#/'){location.hash='#/';setTimeout(scroll,180)}else scroll()}
+const statusHtml=()=>health===null?'Checking system…':health.ok?'<span class="text-emerald-500">●</span> API online':'<span class="text-red-500">●</span> API unreachable';
+async function checkHealth(){try{health=await api('/health',{},null)}catch{health={ok:false}}const el=$('#apiStatus');if(el)el.innerHTML=statusHtml()}
+function fmtUp(s){if(!s)return'—';const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d}d ${h}h`:h?`${h}h ${m}m`:`${m}m`}
+function fmtB(b){b=Number(b)||0;return b>1048576?(b/1048576).toFixed(1)+' MB':Math.max(0,Math.round(b/1024))+' KB'}
+function badge(s){const colors={live:'emerald',running:'emerald',starting:'amber',stopped:'zinc',suspended:'red',paid:'emerald',trial:'amber',expired:'red'};const c=colors[s]||'zinc';return `<span class="rounded-full px-2 py-0.5 text-xs bg-${c}-500/15 text-${c}-500 border border-${c}-500/30">${esc(s||'unknown')}</span>`}
+
+function headerHtml(mode){
+ const themeBtn=`<button type="button" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme" class="h-9 w-9 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 grid place-items-center"><i class="fas fa-adjust"></i></button>`;
+ const lk='hidden sm:block px-2 text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer text-sm';
+ let right='',left='';
+ if(mode==='app'){
+  left='<button type="button" onclick="toggleSidebar()" class="md:hidden h-9 w-9 grid place-items-center" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></button>';
+  const nm=me?.displayName||me?.email||'User';
+  right=`${themeBtn}<div class="relative"><button id="settingsBtn" type="button" onclick="toggleSettings(event)" aria-haspopup="true" class="flex items-center gap-2 rounded-full border border-gray-200 dark:border-zinc-700 pl-1 pr-3 py-1"><span class="h-8 w-8 rounded-full grad-bg text-white grid place-items-center text-sm font-bold">${esc(nm[0]?.toUpperCase()||'U')}</span><i class="fas fa-cog text-gray-500"></i></button><div id="settingsDropdown" class="hidden absolute right-0 top-full mt-2 w-64 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-2 z-50"><div class="px-3 py-2 mb-1 border-b border-gray-200 dark:border-zinc-700"><div class="font-semibold text-sm truncate">${esc(nm)}</div><div class="text-xs text-gray-500 truncate">${esc(me?.email||'')}</div></div><a class="${ddItem}" href="#/profile"><i class="fas fa-user w-4"></i> My Profile</a><a class="${ddItem}" href="#/settings"><i class="fas fa-cog w-4"></i> Settings</a><a class="${ddItem}" href="#/billing"><i class="fas fa-credit-card w-4"></i> Billing &amp; Payments</a><button type="button" class="${ddItem}" onclick="toggleTheme()"><i class="fas fa-adjust w-4"></i> Switch theme</button><div class="my-1 border-t border-gray-200 dark:border-zinc-700"></div><button type="button" class="${ddItem} !text-red-600" onclick="logout()"><i class="fas fa-sign-out-alt w-4"></i> Logout</button></div></div>`;
+ }else if(mode==='admin'){right=`${themeBtn}${atoken?`<button type="button" class="${btn2}" onclick="adminLogout()">Admin logout</button>`:''}<a class="${btn2}" href="#/">Home</a>`}
+ else{right=`<a class="${lk}" onclick="goTo('features')">Features</a><a class="${lk}" onclick="goTo('how')">How it works</a><a class="${lk}" onclick="goTo('pricing')">Pricing</a><a class="${lk}" onclick="goTo('faq')">FAQ</a>${themeBtn}${token?`<a class="${btn}" href="#/dashboard">Dashboard</a>`:`<a class="${btn2}" href="#/login">Login</a><a class="${btn}" href="#/signup">Sign up</a>`}`}
+ return `<header class="sticky top-0 z-40 backdrop-blur border-b border-gray-200 dark:border-zinc-800 bg-white/85 dark:bg-zinc-950/85"><div class="px-4 h-16 flex items-center justify-between gap-2 ${mode==='public'?'max-w-6xl mx-auto':''}"><div class="flex items-center gap-2">${left}<a href="#/" class="flex items-center gap-2 font-bold text-lg">${logo}<span>Mtaani<span class="grad-text">Host</span></span></a></div><div class="flex items-center gap-2">${right}</div></div></header>`;
 }
-function setTheme(d) { document.documentElement.classList.toggle('dark', d); localStorage.setItem('mh_theme', d? 'dark' : 'light'); }
-function toggleTheme() { setTheme(!document.documentElement.classList.contains('dark')); }
-function logout() { token = null; me = null; localStorage.removeItem('mh_token'); location.hash = '#/'; }
-async function loadCfg() { try { cfg = await api('/config', {}, null); } catch {} }
-async function loadMe() { if (!token) return null; try { me = await api('/me'); } catch (e) { if (e.status === 401) { token = null; localStorage.removeItem('mh_token'); } me = null; } return me; }
-async function requireAuth() {
-  if (await loadMe()) return true;
-  if (token) {
-    publicShell(`<div class="max-w-md mx-auto px-4 py-24 text-center"><div class="text-4xl mb-3">⏳</div><h1 class="text-xl font-bold mb-2">The server is waking up</h1><p class="text-sm text-gray-500 mb-6">Free servers sleep when idle and can take up to a minute to start. Please try again.</p><button class="${btn}" onclick="route()">Try again</button></div>`);
-    return false;
+function footerHtml(){return `<footer class="border-t border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-10 text-sm text-gray-500"><div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8"><div><h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">MtaaniHost</h4><p>Tools for deploying websites and bots in Kenya.</p></div><div><h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">How it works</h4><ul class="space-y-2"><li>1. Sign up with email</li><li>2. Upload ZIP or import GitHub</li><li>3. Manage your project</li></ul></div><div><h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">Pricing</h4><p>KES ${esc(cfg.price)} per month after ${esc(cfg.trialDays)}-day trial, if enabled by the service.</p></div><div><h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">Support</h4><ul class="space-y-2"><li><a class="hover:text-emerald-600 cursor-pointer" onclick="goTo('faq')">FAQ</a></li><li><a class="hover:text-emerald-600" href="#/billing">Billing</a></li>${SUPPORT_WHATSAPP?`<li><a class="hover:text-emerald-600" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}" target="_blank" rel="noopener">WhatsApp support</a></li>`:''}<li><a class="hover:text-emerald-600" href="#/admin">Admin</a></li></ul></div></div><div class="mt-8 text-center text-xs">© ${new Date().getFullYear()} MtaaniHost · <span id="apiStatus">${statusHtml()}</span></div></footer>`}
+const NAV=[['dashboard','fas fa-layer-group','Projects','#/dashboard'],['deploy-website','fas fa-globe','Deploy Website','#/deploy/website'],['deploy-bot','fas fa-robot','Deploy Bot','#/deploy/bot'],['github','fab fa-github','GitHub Import','#/github'],['billing','fas fa-credit-card','Billing','#/billing'],['profile','fas fa-user','Profile','#/profile'],['settings','fas fa-cog','Settings','#/settings']];
+function appShell(active,inner){const items=NAV.map(n=>`<a href="${n[3]}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${n[0]===active?'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 font-semibold':'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800'}"><i class="${n[1]} w-4 text-center"></i>${n[2]}</a>`).join('');$('#root').innerHTML=`${headerHtml('app')}<div class="flex flex-1 min-h-0"><aside id="sidebar" class="fixed md:static top-16 bottom-0 left-0 z-30 w-56 shrink-0 -translate-x-full md:translate-x-0 transition-transform bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 shadow-lg md:shadow-none"><nav class="p-3 space-y-1">${items}</nav></aside><main class="flex-1 min-w-0 p-4 sm:p-6 fadein">${inner}</main></div>${footerHtml()}`}
+function publicShell(inner){$('#root').innerHTML=`${headerHtml('public')}<main class="flex-1 fadein">${inner}</main>${footerHtml()}`}
+function adminShell(inner){$('#root').innerHTML=`${headerHtml('admin')}<main class="flex-1 p-4 sm:p-6 fadein">${inner}</main>${footerHtml()}`}
+function toggleSidebar(){$('#sidebar')?.classList.toggle('-translate-x-full')}
+function toggleSettings(ev){ev?.stopPropagation();$('#settingsDropdown')?.classList.toggle('hidden')}
+document.addEventListener('click',e=>{const dd=$('#settingsDropdown');if(dd&&!e.target.closest('#settingsDropdown')&&!e.target.closest('#settingsBtn'))dd.classList.add('hidden')});
+
+function landingPage(){
+ return `<div class="hero-bg">
+ <section class="max-w-6xl mx-auto px-5 pt-16 pb-20 md:pt-24 md:pb-28 grid md:grid-cols-2 gap-12 items-center">
+ <div><div class="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-600 mb-6"><span class="h-2 w-2 rounded-full bg-emerald-500"></span> Hosting built for your next project</div>
+ <h1 class="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight">Deploy your ideas.<br><span class="grad-text">Grow from here.</span></h1>
+ <p class="mt-6 text-gray-600 dark:text-gray-400 text-base md:text-lg max-w-xl">Host websites and bots from one dashboard. Upload a ZIP or connect GitHub, then manage your projects from anywhere.</p>
+ <div class="flex flex-wrap gap-3 mt-8"><a href="#/signup" class="${btn} !px-6 !py-3 glow"><i class="fas fa-rocket"></i> Get started free</a><button class="${btn2} !px-6 !py-3" onclick="goTo('features')">Explore features <i class="fas fa-arrow-down"></i></button></div>
+ <div class="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-500"><span><i class="fas fa-check text-emerald-500 mr-1"></i> Easy deployment</span><span><i class="fas fa-check text-emerald-500 mr-1"></i> Project dashboard</span><span><i class="fas fa-check text-emerald-500 mr-1"></i> Mobile friendly</span></div></div>
+ <div class="relative"><div class="absolute inset-8 grad-bg blur-3xl opacity-20 rounded-full"></div><div class="${card} glow relative overflow-hidden"><div class="px-4 py-3 border-b border-gray-200 dark:border-zinc-800 flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-red-400"></span><span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span><span class="h-2.5 w-2.5 rounded-full bg-emerald-400"></span><span class="ml-2 text-xs text-gray-500">mtaani-dashboard</span></div><div class="p-5 sm:p-7"><div class="flex justify-between items-center mb-6"><div><p class="text-sm text-gray-500">Your projects</p><p class="text-3xl font-bold mt-1">Dashboard</p></div><span class="rounded-lg bg-emerald-500/10 text-emerald-600 px-3 py-2 text-xs"><i class="fas fa-check-circle mr-1"></i> Ready</span></div><div class="space-y-3"><div class="rounded-xl border border-gray-200 dark:border-zinc-800 p-4 flex items-center gap-3"><div class="h-10 w-10 rounded-lg bg-blue-500/10 text-blue-500 grid place-items-center"><i class="fas fa-globe"></i></div><div class="flex-1 min-w-0"><p class="font-semibold text-sm">My website</p><p class="text-xs text-gray-500">Website deployment</p></div>${badge('live')}</div><div class="rounded-xl border border-gray-200 dark:border-zinc-800 p-4 flex items-center gap-3"><div class="h-10 w-10 rounded-lg bg-violet-500/10 text-violet-500 grid place-items-center"><i class="fas fa-robot"></i></div><div class="flex-1 min-w-0"><p class="font-semibold text-sm">My bot</p><p class="text-xs text-gray-500">Bot deployment</p></div>${badge('running')}</div></div><div class="grid grid-cols-2 gap-3 mt-4"><div class="rounded-xl bg-gray-50 dark:bg-zinc-800/60 p-3"><p class="text-xs text-gray-500">Deployments</p><p class="text-xl font-bold mt-1">Simple</p></div><div class="rounded-xl bg-gray-50 dark:bg-zinc-800/60 p-3"><p class="text-xs text-gray-500">Management</p><p class="text-xl font-bold mt-1">One place</p></div></div></div></div></div>
+ </section></div>
+ <section id="features" class="max-w-6xl mx-auto px-5 py-16"><div class="text-center max-w-2xl mx-auto"><p class="text-emerald-600 text-sm font-semibold uppercase tracking-widest">Features</p><h2 class="text-3xl sm:text-4xl font-black mt-3">Everything you need to <span class="grad-text">get online</span></h2><p class="text-gray-500 mt-4">A straightforward workflow for hosting projects without a complicated setup.</p></div><div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-10">
+ ${feature('fa-globe','Website hosting','Deploy static websites and supported web applications.')}
+ ${feature('fa-robot','Bot hosting','Manage supported bot processes from your dashboard.')}
+ ${feature('fa-file-archive','ZIP upload','Upload your project archive and deploy it through the service.')}
+ ${feature('fa-code-branch','GitHub import','Connect your GitHub account and choose a repository if configured.')}
+ ${feature('fa-terminal','Runtime logs','Inspect project output and troubleshoot supported deployments.')}
+ ${feature('fa-sliders-h','Environment settings','Configure project variables when supported by the backend.')}
+ </div></section>
+ <section id="how" class="bg-gray-100 dark:bg-zinc-900/60 px-5 py-16"><div class="max-w-6xl mx-auto"><div class="text-center"><h2 class="text-3xl font-black">How it works</h2><p class="text-gray-500 mt-3">Get your project ready in three steps.</p></div><div class="grid md:grid-cols-3 gap-5 mt-10">${step(1,'Create your account','Sign up and complete the verification steps.')} ${step(2,'Upload or connect','Choose a ZIP file or import a supported GitHub repository.')} ${step(3,'Manage your project','Use the dashboard to view status and available controls.')}</div></div></section>
+ <section id="pricing" class="max-w-5xl mx-auto px-5 py-16"><div class="text-center"><h2 class="text-3xl font-black">Simple pricing</h2><p class="text-gray-500 mt-3">Check the current price and trial terms with the service before subscribing.</p></div><div class="max-w-md mx-auto mt-8 ${card} p-7 glow"><p class="font-semibold">MtaaniHost plan</p><div class="flex items-end gap-2 mt-3"><span class="text-4xl font-black">KES ${esc(cfg.price)}</span><span class="text-gray-500 mb-1">/ month</span></div><p class="text-sm text-gray-500 mt-2">Trial: ${esc(cfg.trialDays)} days, if enabled by the service.</p><ul class="space-y-3 text-sm my-6"><li><i class="fas fa-check text-emerald-500 mr-2"></i>Project dashboard</li><li><i class="fas fa-check text-emerald-500 mr-2"></i>Deployment controls when supported</li><li><i class="fas fa-check text-emerald-500 mr-2"></i>Account and billing management</li></ul><a href="#/signup" class="${btn} w-full">Get started</a></div></section>
+ <section id="faq" class="max-w-3xl mx-auto px-5 py-16"><div class="text-center mb-8"><h2 class="text-3xl font-black">Frequently asked questions</h2></div><div class="space-y-3">${faq('How do I deploy a website?','Create an account, open Deploy Website, and follow the upload instructions. The backend must support the selected deployment type.')}${faq('Can I host a bot?','Bot deployment requires a backend worker that can run and supervise your bot process.')}${faq('Can I use GitHub?','GitHub import requires a configured OAuth integration and appropriate repository permissions.')}${faq('Why is the dashboard offline?','The API may be asleep, unavailable, or experiencing an error. Try again later.')}${faq('Is payment enabled?','Payment availability depends on the backend configuration and verified payment integration.')}</div></section>`;
+}
+function feature(ic,title,desc){return `<div class="${card} lift p-5"><div class="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-600 grid place-items-center text-lg mb-4"><i class="fas ${ic}"></i></div><h3 class="font-bold text-lg">${title}</h3><p class="text-sm text-gray-500 mt-2 leading-6">${desc}</p></div>`}
+function step(n,title,desc){return `<div class="${card} p-5"><div class="h-10 w-10 rounded-full grad-bg text-white font-bold grid place-items-center">${n}</div><h3 class="font-bold mt-4">${title}</h3><p class="text-sm text-gray-500 mt-2">${desc}</p></div>`}
+function faq(q,a){return `<details class="${card} p-4 group"><summary class="cursor-pointer list-none flex justify-between gap-4 font-semibold text-sm">${q}<i class="fas fa-chevron-down text-emerald-500 mt-1"></i></summary><p class="text-sm text-gray-500 mt-3 leading-6">${a}</p></details>`}
+
+function authPage(type){
+ const signup=type==='signup';
+ const title=signup?'Create your account':'Welcome back';
+ const desc=signup?'Start managing your websites and bots.':'Sign in to manage your projects.';
+ return `<div class="hero-bg min-h-[75vh] px-4 py-12 flex items-center justify-center"><div class="w-full max-w-md ${card} p-6 sm:p-8 glow"><div class="text-center mb-7"><div class="h-14 w-14 grad-bg rounded-2xl mx-auto grid place-items-center text-white text-2xl mb-4">${logo}</div><h1 class="text-2xl font-black">${title}</h1><p class="text-sm text-gray-500 mt-2">${desc}</p></div>
+ <form onsubmit="submitAuth(event,'${type}')" class="space-y-4">
+ ${signup?`<div><label class="block text-sm font-medium mb-1" for="displayName">Full name</label><input class="${inp}" id="displayName" name="displayName" autocomplete="name" maxlength="80" required placeholder="Your name"></div>`:''}
+ <div><label class="block text-sm font-medium mb-1" for="email">Email address</label><input class="${inp}" id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" value="${esc(pendingEmail)}"></div>
+ <div><label class="block text-sm font-medium mb-1" for="password">Password</label><input class="${inp}" id="password" name="password" type="password" autocomplete="${signup?'new-password':'current-password'}" minlength="8" required placeholder="At least 8 characters"></div>
+ ${signup?`<label class="flex items-start gap-2 text-xs text-gray-500"><input type="checkbox" required class="mt-1 accent-emerald-500"><span>I agree to use the service responsibly and understand that availability depends on the hosting service.</span></label>`:''}
+ <button class="${btn} w-full !py-3" type="submit" id="authSubmit"><i class="fas ${signup?'fa-user-plus':'fa-sign-in-alt'}"></i> ${signup?'Create account':'Sign in'}</button>
+ </form><div class="text-center text-sm text-gray-500 mt-6">${signup?'Already have an account?':'New to MtaaniHost?'} <a class="text-emerald-600 font-semibold" href="${signup?'#/login':'#/signup'}">${signup?'Login':'Sign up'}</a></div>
+ <div class="mt-5 text-center"><a href="#/" class="text-xs text-gray-500 hover:text-emerald-600"><i class="fas fa-arrow-left mr-1"></i> Back to home</a></div>
+ </div></div>`;
+}
+async function submitAuth(ev,type){
+ ev.preventDefault();
+ const form=ev.currentTarget,fd=new FormData(form),button=$('#authSubmit');
+ const payload={email:String(fd.get('email')||'').trim().toLowerCase(),password:String(fd.get('password')||'')};
+ if(type==='signup')payload.displayName=String(fd.get('displayName')||'').trim();
+ button.disabled=true;button.innerHTML='<i class="fas fa-spinner fa-spin"></i> Please wait…';
+ try{
+  const result=await api(type==='signup'?'/auth/signup':'/auth/login',{method:'POST',body:payload},null);
+  if(result.token){
+   token=result.token;safeSet(localStorage,'mh_token',token);safeRemove(localStorage,'mh_pending');pendingEmail='';
+   await loadMe();toast(type==='signup'?'Account created.':'Welcome back!');location.hash='#/dashboard';return;
   }
-  location.hash = '#/login'; return false;
-}
-function goTo(id) {
-  const scroll = () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-  if (location.hash && location.hash!== '#/') { location.hash = '#/'; setTimeout(scroll, 150); } else scroll();
-}
-const statusHtml = () => health === null? 'Checking system…' : health.ok? '<span class="text-emerald-500">●</span> API online' : '<span class="text-red-500">●</span> API unreachable';
-async function checkHealth() { try { health = await api('/health', {}, null); } catch { health = { ok: false }; } const el = $('#apiStatus'); if (el) el.innerHTML = statusHtml(); }
-function fmtUp(s) { if (!s) return '—'; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d? `${d}d ${h}h` : h? `${h}h ${m}m` : `${m}m`; }
-function fmtB(b) { return b > 1048576? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((b || 0) / 1024)) + ' KB'; }
-const badge = s => { const c = { live: 'emerald', running: 'emerald', starting: 'amber', stopped: 'zinc', suspended: 'red' }[s] || 'zinc'; return `<span class="rounded-full px-2 py-0.5 text-xs bg-${c}-500/15 text-${c}-500 border border-${c}-500/30">${esc(s)}</span>`; };
-
-/* ===================== shells ===================== */
-function headerHtml(mode) {
-  const themeBtn = `<button onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme" class="h-9 w-9 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 grid place-items-center"><i class="fas fa-adjust"></i></button>`;
-  const lk = 'hidden sm:block px-2 text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer text-sm';
-  let right = '', left = '';
-  if (mode === 'app') {
-    left = `<button onclick="toggleSidebar()" class="md:hidden h-9 w-9 grid place-items-center text-gray-600 dark:text-gray-300" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></button>`;
-    const nm = me?.displayName || me?.email || '?';
-    right = `${themeBtn}<div class="relative">
-      <button id="settingsBtn" onclick="toggleSettings(event)" aria-haspopup="true" class="flex items-center gap-2 rounded-full border border-gray-200 dark:border-zinc-700 pl-1 pr-3 py-1 hover:bg-gray-100 dark:hover:bg-zinc-800"><span class="h-8 w-8 rounded-full grad-bg text-white grid place-items-center text-sm font-bold">${esc(nm[0].toUpperCase())}</span><i class="fas fa-cog text-gray-500"></i></button>
-      <div id="settingsDropdown" class="hidden absolute right-0 top-full mt-2 w-64 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-2 z-50">
-        <div class="px-3 py-2 mb-1 border-b border-gray-200 dark:border-zinc-700"><div class="font-semibold text-sm truncate">${esc(nm)}</div><div class="text-xs text-gray-500 truncate">${esc(me?.email || '')}</div></div>
-        <a class="${ddItem}" href="#/profile"><i class="fas fa-user w-4"></i> My Profile</a>
-        <a class="${ddItem}" href="#/settings"><i class="fas fa-cog w-4"></i> Settings</a>
-        <a class="${ddItem}" href="#/billing"><i class="fas fa-credit-card w-4"></i> Billing &amp; Payments</a>
-        <button class="${ddItem}" onclick="toggleTheme()"><i class="fas fa-adjust w-4"></i> Switch Dark / Light</button>
-        <div class="my-1 border-t border-gray-200 dark:border-zinc-700"></div>
-        <button class="${ddItem}!text-red-600" onclick="logout()"><i class="fas fa-sign-out-alt w-4"></i> Logout</button>
-      </div></div>`;
-  } else if (mode === 'admin') {
-    right = `${themeBtn}${atoken? `<button class="${btn2}" onclick="adminLogout()">Admin logout</button>` : ''}<a class="${btn2}" href="#/">Home</a>`;
-  } else {
-    right = `<a class="${lk}" onclick="goTo('features')">Features</a><a class="${lk}" onclick="goTo('how')">How it works</a><a class="${lk}" onclick="goTo('pricing')">Pricing</a><a class="${lk}" onclick="goTo('faq')">FAQ</a>${themeBtn}
-      ${token? `<a class="${btn}" href="#/dashboard">Dashboard</a>` : `<a class="${btn2}" href="#/login">Login</a><a class="${btn}" href="#/signup">Sign Up</a>`}`;
+  if(result.requiresVerification||result.pendingVerification){
+   pendingEmail=payload.email;safeSet(localStorage,'mh_pending',pendingEmail);
+   toast(result.message||'Check your email for a verification code.');location.hash='#/verify';return;
   }
-  return `<header class="sticky top-0 z-40 backdrop-blur border-b border-gray-200 dark:border-zinc-800 bg-white/85 dark:bg-zinc-950/85">
-    <div class="px-4 h-16 flex items-center justify-between gap-2 ${mode === 'public'? 'max-w-6xl mx-auto' : ''}">
-      <div class="flex items-center gap-2">${left}<a href="#/" class="flex items-center gap-2 font-bold text-lg">${logo}<span>Mtaani<span class="grad-text">Host</span></span></a></div>
-      <div class="flex items-center gap-2">${right}</div></div></header>`;
+  toast(result.message||'Request completed, but no login token was returned.',true);
+ }catch(e){toast(e.message||'Authentication failed.',true)}
+ finally{if(button){button.disabled=false;button.innerHTML=`<i class="fas ${type==='signup'?'fa-user-plus':'fa-sign-in-alt'}"></i> ${type==='signup'?'Create account':'Sign in'}`}}
 }
-function footerHtml() {
-  const h4 = 'font-semibold text-gray-900 dark:text-gray-100 mb-3';
-  return `<footer class="border-t border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-10 text-sm text-gray-500">
-    <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
-      <div><h4 class="${h4}">MtaaniHost</h4><p>Deploy websites and bots in Kenya with ease.</p></div>
-      <div><h4 class="${h4}">How it works</h4><ul class="space-y-2"><li>1. Sign up with your email and password</li><li>2. Upload a ZIP or import from GitHub</li><li>3. Share your live link</li></ul></div>
-      <div><h4 class="${h4}">Pricing</h4><p>KES ${esc(cfg.price)} per month after a ${esc(cfg.trialDays)}-day free trial.</p></div>
-      <div><h4 class="${h4}">Support</h4><ul class="space-y-2"><li><a class="hover:text-emerald-600 cursor-pointer" onclick="goTo('faq')">FAQ</a></li><li><a class="hover:text-emerald-600" href="#/billing">Billing</a></li>${SUPPORT_WHATSAPP? `<li><a class="hover:text-emerald-600" href="https://wa.me/${esc(SUPPORT_WHATSAPP)}" target="_blank" rel="noopener">WhatsApp support</a></li>` : ''}<li><a class="hover:text-emerald-600" href="#/admin">Admin</a></li></ul></div>
-    </div>
-    <div class="mt-8 text-center text-xs">© ${new Date().getFullYear()} MtaaniHost · Nairobi, Kenya · <span id="apiStatus">${statusHtml()}</span></div></footer>`;
+function verifyPage(){
+ return `<div class="hero-bg min-h-[75vh] px-4 py-12 flex items-center justify-center"><div class="${card} w-full max-w-md p-6 sm:p-8"><div class="text-center mb-6"><div class="h-12 w-12 rounded-xl bg-emerald-500/10 text-emerald-600 grid place-items-center mx-auto text-xl"><i class="fas fa-envelope-open-text"></i></div><h1 class="text-2xl font-black mt-4">Verify your email</h1><p class="text-sm text-gray-500 mt-2">Enter the code sent to your email address.</p></div>
+ <form onsubmit="verifyEmail(event)" class="space-y-4"><div><label for="verifyEmail" class="block text-sm mb-1">Email</label><input id="verifyEmail" name="email" type="email" class="${inp}" required value="${esc(pendingEmail)}"></div><div><label for="verifyCode" class="block text-sm mb-1">Verification code</label><input id="verifyCode" name="code" class="${inp}" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required placeholder="Enter verification code"></div><button id="verifyBtn" class="${btn} w-full" type="submit">Verify email</button></form>
+ <button class="${btn2} w-full mt-3" onclick="resendVerification()">Resend code</button><p class="text-center text-sm text-gray-500 mt-5"><a href="#/login" class="text-emerald-600">Back to login</a></p></div></div>`;
 }
-const NAV = [
-  ['dashboard', 'fas fa-layer-group', 'Projects', '#/dashboard'],
-  ['deploy-website', 'fas fa-globe', 'Deploy Website', '#/deploy/website'],
-  ['deploy-bot', 'fas fa-robot', 'Deploy Bot', '#/deploy/bot'],
-  ['github', 'fab fa-github', 'GitHub Import', '#/github'],
-  ['billing', 'fas fa-credit-card', 'Billing', '#/billing'],
-  ['profile', 'fas fa-user', 'Profile', '#/profile'],
-  ['settings', 'fas fa-cog', 'Settings', '#/settings']
-];
-function appShell(active, inner) {
-  const items = NAV.map(n => `<a href="${n[3]}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${n[0] === active? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800'}"><i class="${n[1]} w-4 text-center"></i> ${n[2]}</a>`).join('');
-  $('#root').innerHTML = `${headerHtml('app')}
-    <div class="flex flex-1 min-h-0">
-      <aside id="sidebar" class="fixed md:static top-16 bottom-0 left-0 z-30 w-56 shrink-0 -translate-x-full md:translate-x-0 transition-transform bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 shadow-lg md:shadow-none"><nav class="p-3 space-y-1">${items}</nav></aside>
-      <main class="flex-1 min-w-0 p-4 sm:p-6 fadein">${inner}</main>
-    </div>${footerHtml()}`;
+async function verifyEmail(ev){
+ ev.preventDefault();const fd=new FormData(ev.currentTarget),email=String(fd.get('email')||'').trim().toLowerCase(),code=String(fd.get('code')||'').trim(),b=$('#verifyBtn');
+ b.disabled=true;b.textContent='Verifying…';
+ try{
+  const r=await api('/auth/verify-email',{method:'POST',body:{email,code}},null);
+  if(r.token){token=r.token;safeSet(localStorage,'mh_token',token);await loadMe();safeRemove(localStorage,'mh_pending');pendingEmail='';toast('Email verified!');location.hash='#/dashboard'}
+  else{toast(r.message||'Email verified. You can now sign in.');location.hash='#/login'}
+ }catch(e){toast(e.message,true)}
+ finally{b.disabled=false;b.textContent='Verify email'}
 }
-function publicShell(inner) { $('#root').innerHTML = `${headerHtml('public')}<main class="flex-1 fadein">${inner}</main>${footerHtml()}`; }
-function adminShell(inner) { $('#root').innerHTML = `${headerHtml('admin')}<main class="flex-1 p-4 sm:p-6 fadein">${inner}</main>${footerHtml()}`; }
-function toggleSidebar() { $('#sidebar')?.classList.toggle('-translate-x-full'); }
-function toggleSettings(ev) { ev?.stopPropagation(); $('#settingsDropdown')?.classList.toggle('hidden'); }
-document.addEventListener('click', e => {
-  const dd = $('#settingsDropdown');
-  if (dd &&!e.target.closest('#settingsDropdown') &&!e.target.closest('#settingsBtn')) dd.classList.add('hidden');
+async function resendVerification(){
+ const email=$('#verifyEmail')?.value.trim().toLowerCase()||pendingEmail;
+ if(!email){toast('Enter your email first.',true);return}
+ try{const r=await api('/auth/resend-verification',{method:'POST',body:{email}},null);toast(r.message||'If the account exists, a code will be sent.')}
+ catch(e){toast(e.message,true)}
+}
+function forgotPage(){
+ return `<div class="min-h-[70vh] flex items-center justify-center p-4"><div class="${card} p-7 w-full max-w-md"><h1 class="text-2xl font-black">Reset password</h1><p class="text-sm text-gray-500 mt-2 mb-5">Request a password reset email if the server supports it.</p><form onsubmit="forgotPassword(event)" class="space-y-4"><input class="${inp}" name="email" type="email" required placeholder="Your account email" value="${esc(pendingEmail)}"><button class="${btn} w-full">Send reset request</button></form><a class="block text-center text-sm text-emerald-600 mt-5" href="#/login">Back to login</a></div></div>`;
+}
+async function forgotPassword(ev){
+ ev.preventDefault();const email=new FormData(ev.currentTarget).get('email');
+ try{const r=await api('/auth/forgot-password',{method:'POST',body:{email:String(email).trim().toLowerCase()}},null);toast(r.message||'If supported, a reset email will be sent.')}
+ catch(e){toast(e.message,true)}
+}
+
+function dashboardPage(){
+ const projects=Array.isArray(me?.projects)?me.projects:[];
+ return `<div class="max-w-6xl mx-auto"><div class="flex flex-wrap items-center justify-between gap-4 mb-7"><div><p class="text-sm text-gray-500">Welcome back</p><h1 class="text-2xl sm:text-3xl font-black mt-1">${esc(me?.displayName||me?.email||'User')}</h1><p class="text-sm text-gray-500 mt-2">Manage your hosted projects.</p></div><div class="flex gap-2"><a href="#/deploy/website" class="${btn}"><i class="fas fa-plus"></i> New project</a></div></div>
+ <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+ <div class="${card} p-5"><div class="flex justify-between"><span class="text-sm text-gray-500">Total projects</span><i class="fas fa-layer-group text-emerald-500"></i></div><p class="text-3xl font-black mt-3">${projects.length}</p></div>
+ <div class="${card} p-5"><div class="flex justify-between"><span class="text-sm text-gray-500">Account status</span><i class="fas fa-user-check text-emerald-500"></i></div><p class="text-lg font-bold mt-3">${esc(me?.status||'Active')}</p></div>
+ <div class="${card} p-5"><div class="flex justify-between"><span class="text-sm text-gray-500">Subscription</span><i class="fas fa-credit-card text-violet-500"></i></div><p class="text-lg font-bold mt-3">${esc(me?.subscription?.status||me?.plan||'Free / trial')}</p><a href="#/billing" class="text-sm text-emerald-600 mt-2 inline-block">View billing →</a></div>
+ </div>
+ <div class="flex items-center justify-between gap-3 mb-4"><h2 class="text-lg font-bold">Your projects</h2><button class="${btn2}" onclick="refreshProjects()"><i class="fas fa-sync-alt"></i> Refresh</button></div>
+ <div id="projectList">${projectListHtml(projects)}</div>
+ </div>`;
+}
+function projectListHtml(projects){
+ if(!projects.length)return `<div class="${card} p-8 sm:p-12 text-center"><div class="h-14 w-14 rounded-2xl bg-emerald-500/10 text-emerald-600 grid place-items-center mx-auto text-xl"><i class="fas fa-box-open"></i></div><h3 class="font-bold text-lg mt-4">No projects yet</h3><p class="text-sm text-gray-500 mt-2 max-w-sm mx-auto">Deploy your first website or bot to start managing it here.</p><div class="flex flex-wrap gap-2 justify-center mt-5"><a href="#/deploy/website" class="${btn}">Deploy website</a><a href="#/deploy/bot" class="${btn2}">Deploy bot</a></div></div>`;
+ return `<div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">${projects.map(p=>`<div class="${card} lift p-5"><div class="flex items-start justify-between gap-2"><div class="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 grid place-items-center"><i class="fas ${p.type==='bot'?'fa-robot':'fa-globe'}"></i></div>${badge(p.status||'unknown')}</div><h3 class="font-bold mt-4 break-words">${esc(p.name||'Untitled project')}</h3><p class="text-xs text-gray-500 mt-1">${esc(p.type||'website')} · ${esc(p.runtime||'')}</p><p class="text-xs text-gray-500 mt-3 break-all">${esc(p.url||p.domain||'No public URL reported')}</p><div class="flex flex-wrap gap-2 mt-5"><button class="${btn}" onclick="openProject('${esc(p.id)}')">Manage</button><button class="${btn2}" onclick="projectAction('${esc(p.id)}','restart')"><i class="fas fa-redo"></i></button><button class="${btnDanger}" onclick="deleteProject('${esc(p.id)}')"><i class="fas fa-trash"></i></button></div></div>`).join('')}</div>`;
+}
+async function refreshProjects(){
+ try{await loadMe();const el=$('#projectList');if(el)el.innerHTML=projectListHtml(Array.isArray(me?.projects)?me.projects:[]);toast('Projects refreshed')}
+ catch(e){toast(e.message,true)}
+}
+async function openProject(id){
+ try{
+  const p=await api('/projects/'+encodeURIComponent(id));
+  projectDetailPage(p.project||p);
+ }catch(e){toast(e.message,true)}
+}
+function projectDetailPage(p){
+ const id=String(p.id||p._id||'');
+ appShell('dashboard',`<div class="max-w-5xl mx-auto"><button class="${btn2} mb-5" onclick="location.hash='#/dashboard'"><i class="fas fa-arrow-left"></i> Back to projects</button><div class="flex flex-wrap items-start justify-between gap-4 mb-6"><div><h1 class="text-2xl font-black break-words">${esc(p.name||'Project')}</h1><p class="text-sm text-gray-500 mt-2">${esc(p.type||'website')} · ${badge(p.status||'unknown')}</p></div><div class="flex flex-wrap gap-2"><button class="${btn}" onclick="projectAction('${esc(id)}','start')">Start</button><button class="${btn2}" onclick="projectAction('${esc(id)}','restart')">Restart</button><button class="${btnDanger}" onclick="projectAction('${esc(id)}','stop')">Stop</button></div></div>
+ <div class="grid md:grid-cols-2 gap-4"><div class="${card} p-5"><h2 class="font-bold mb-3">Project information</h2><p class="text-sm text-gray-500 mb-2">Status</p><p class="mb-4">${esc(p.status||'Unknown')}</p><p class="text-sm text-gray-500 mb-2">Public URL</p>${p.url||p.domain?`<a class="text-emerald-600 break-all" target="_blank" rel="noopener" href="${esc(p.url||p.domain)}">${esc(p.url||p.domain)}</a>`:'<p class="text-sm">No URL available</p>'}<p class="text-sm text-gray-500 mt-4 mb-2">Created</p><p class="text-sm">${esc(p.createdAt?new Date(p.createdAt).toLocaleString():'—')}</p></div><div class="${card} p-5"><h2 class="font-bold mb-3">Environment variables</h2><p class="text-xs text-gray-500 mb-3">Values are sent to your hosting server. Never enter credentials into a public or untrusted host.</p><form onsubmit="saveEnv(event,'${esc(id)}')" class="space-y-3"><textarea class="${inp} min-h-36" name="env" placeholder="KEY=value&#10;ANOTHER_KEY=value"></textarea><button class="${btn}">Save variables</button></form></div></div><div class="${card} p-5 mt-4"><div class="flex items-center justify-between gap-3"><h2 class="font-bold">Runtime logs</h2><button class="${btn2}" onclick="loadLogs('${esc(id)}')">Refresh logs</button></div><pre id="logs" class="mt-4 p-4 rounded-lg bg-zinc-950 text-emerald-300 text-xs overflow-auto max-h-96 whitespace-pre-wrap">Load logs to inspect output.</pre></div></div>`);
+ loadLogs(id);
+}
+async function projectAction(id,action){
+ if(!['start','stop','restart'].includes(action))return;
+ if(action==='stop'&&!confirm('Stop this project?'))return;
+ try{const r=await api('/projects/'+encodeURIComponent(id)+'/'+action,{method:'POST',body:{}});toast(r.message||`Project ${action} requested.`);await refreshProjects()}
+ catch(e){toast(e.message,true)}
+}
+async function deleteProject(id){
+ if(!confirm('Delete this project? This may remove deployed files and cannot always be undone.'))return;
+ try{const r=await api('/projects/'+encodeURIComponent(id),{method:'DELETE'});toast(r.message||'Delete requested.');await refreshProjects()}
+ catch(e){toast(e.message,true)}
+}
+async function saveEnv(ev,id){
+ ev.preventDefault();const envText=new FormData(ev.currentTarget).get('env');const env={};
+ String(envText||'').split(/\r?\n/).forEach(line=>{const i=line.indexOf('=');if(i>0)env[line.slice(0,i).trim()]=line.slice(i+1).trim()});
+ try{const r=await api('/projects/'+encodeURIComponent(id)+'/env',{method:'PUT',body:{env}});toast(r.message||'Environment variables saved.')}
+ catch(e){toast(e.message,true)}
+}
+async function loadLogs(id){
+ const el=$('#logs');if(!el)return;el.textContent='Loading logs…';
+ try{const r=await api('/projects/'+encodeURIComponent(id)+'/logs');el.textContent=typeof r.logs==='string'?r.logs:JSON.stringify(r.logs??r,null,2)}
+ catch(e){el.textContent='Could not load logs: '+e.message}
+}
+
+function deployPage(type){
+ const bot=type==='bot';
+ return `<div class="max-w-4xl mx-auto"><div class="mb-7"><a href="#/dashboard" class="text-sm text-emerald-600"><i class="fas fa-arrow-left mr-2"></i>Back to dashboard</a><h1 class="text-2xl sm:text-3xl font-black mt-4">Deploy ${bot?'a bot':'a website'}</h1><p class="text-sm text-gray-500 mt-2">Upload your project archive and configure deployment options.</p></div>
+ <div class="${card} p-5 sm:p-7"><form id="deployForm" onsubmit="submitDeploy(event,'${type}')" class="space-y-5">
+ <div><label class="block text-sm font-semibold mb-1">Project name</label><input class="${inp}" name="name" maxlength="80" required placeholder="${bot?'My WhatsApp Bot':'My Website'}"></div>
+ <div><label class="block text-sm font-semibold mb-1">Project ZIP file</label><input class="${inp}" name="file" type="file" accept=".zip,application/zip,application/x-zip-compressed" required><p class="text-xs text-gray-500 mt-2">Select a ZIP archive from your phone. Make sure your project files are inside it.</p></div>
+ <div><label class="block text-sm font-semibold mb-1">Runtime</label><select class="${inp}" name="runtime"><option value="auto">Auto detect</option>${bot?'<option value="node">Node.js</option><option value="python">Python</option>':'<option value="static">Static HTML</option><option value="node">Node.js</option><option value="python">Python</option>'}</select></div>
+ ${bot?`<div><label class="block text-sm font-semibold mb-1">Start command (optional)</label><input class="${inp}" name="startCommand" placeholder="npm start"></div>`:''}
+ <div><label class="block text-sm font-semibold mb-1">Environment variables (optional)</label><textarea class="${inp}" name="env" rows="4" placeholder="BOT_TOKEN=your-token&#10;PORT=3000"></textarea><p class="text-xs text-gray-500 mt-2">Keep API keys and passwords private. Do not share screenshots containing secrets.</p></div>
+ <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-700 dark:text-amber-300"><i class="fas fa-info-circle mr-2"></i>Deployment works only if the connected server supports ZIP uploads and the selected runtime.</div>
+ <button class="${btn} w-full !py-3" id="deployBtn" type="submit"><i class="fas fa-rocket"></i> Deploy project</button>
+ </form><div id="deployResult" class="mt-4"></div></div></div>`;
+}
+async function submitDeploy(ev,type){
+ ev.preventDefault();const form=ev.currentTarget,fd=new FormData(form),file=fd.get('file'),name=String(fd.get('name')||'').trim(),button=$('#deployBtn');
+ if(!(file instanceof File)||!file.name.toLowerCase().endsWith('.zip')){toast('Please choose a ZIP file.',true);return}
+ const body=new FormData();body.append('name',name);body.append('type',type);body.append('runtime',String(fd.get('runtime')||'auto'));body.append('file',file);
+ if(fd.get('startCommand'))body.append('startCommand',String(fd.get('startCommand')));
+ const env={};String(fd.get('env')||'').split(/\r?\n/).forEach(line=>{const i=line.indexOf('=');if(i>0)env[line.slice(0,i).trim()]=line.slice(i+1).trim()});
+ body.append('env',JSON.stringify(env));
+ button.disabled=true;button.innerHTML='<i class="fas fa-spinner fa-spin"></i> Uploading…';
+ try{
+  const r=await api('/projects/deploy',{method:'POST',body});
+  $('#deployResult').innerHTML=`<div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"><p class="font-semibold text-emerald-600"><i class="fas fa-check-circle mr-2"></i>${esc(r.message||'Deployment request submitted')}</p>${r.project?.url?`<a target="_blank" rel="noopener" class="text-sm underline break-all mt-2 inline-block" href="${esc(r.project.url)}">${esc(r.project.url)}</a>`:''}<a href="#/dashboard" class="text-sm text-emerald-600 underline block mt-3">Go to dashboard</a></div>`;
+  toast(r.message||'Deployment request submitted.');
+ }catch(e){toast(e.message,true);$('#deployResult').innerHTML=`<p class="text-sm text-red-500 mt-3">${esc(e.message)}</p>`}
+ finally{button.disabled=false;button.innerHTML='<i class="fas fa-rocket"></i> Deploy project'}
+}
+async function githubPage(){
+ appShell('github',`<div class="max-w-4xl mx-auto"><div class="mb-7"><h1 class="text-2xl sm:text-3xl font-black">GitHub import</h1><p class="text-sm text-gray-500 mt-2">Connect GitHub to choose a repository for deployment.</p></div><div class="${card} p-5 sm:p-7"><div class="flex items-center gap-4"><div class="h-12 w-12 rounded-xl bg-zinc-900 text-white grid place-items-center text-2xl"><i class="fab fa-github"></i></div><div class="flex-1"><h2 class="font-bold">GitHub account</h2><p class="text-xs text-gray-500 mt-1">Repository access requires server-side OAuth configuration.</p></div></div><div class="flex flex-wrap gap-3 mt-6"><button class="${btn}" onclick="connectGithub()"><i class="fab fa-github"></i> Connect GitHub</button><button class="${btn2}" onclick="loadGithubRepos()">Refresh repositories</button></div><div id="githubRepos" class="mt-6"><p class="text-sm text-gray-500">Connect your account to load repositories.</p></div></div></div>`);
+}
+async function connectGithub(){
+ try{const r=await api('/github/connect');if(r.url)location.href=r.url;else toast('GitHub OAuth URL was not returned by the server.',true)}
+ catch(e){toast(e.message,true)}
+}
+async function loadGithubRepos(){
+ const el=$('#githubRepos');if(!el)return;el.innerHTML='<p class="text-sm text-gray-500">Loading repositories…</p>';
+ try{
+  const r=await api('/github/repos');ghRepos=Array.isArray(r.repos)?r.repos:[];
+  if(!ghRepos.length){el.innerHTML='<p class="text-sm text-gray-500">No repositories found. Connect GitHub first.</p>';return}
+  el.innerHTML=`<div class="space-y-3">${ghRepos.map((repo,i)=>`<div class="rounded-xl border border-gray-200 dark:border-zinc-800 p-4 flex flex-wrap items-center gap-3"><div class="flex-1 min-w-0"><p class="font-semibold text-sm break-words">${esc(repo.full_name||repo.name)}</p><p class="text-xs text-gray-500 mt-1">${esc(repo.description||'No description')}</p></div><button class="${btn}" onclick="deployGithub(${i})">Deploy</button></div>`).join('')}</div>`;
+ }catch(e){el.innerHTML=`<p class="text-sm text-red-500">${esc(e.message)}</p>`}
+}
+async function deployGithub(i){
+ const repo=ghRepos[i];if(!repo)return;
+ const name=prompt('Project name',repo.name||'github-project');if(!name)return;
+ try{const r=await api('/github/deploy',{method:'POST',body:{repository:repo.full_name||repo.name,name, type:ghKind}});toast(r.message||'GitHub deployment requested.');location.hash='#/dashboard'}
+ catch(e){toast(e.message,true)}
+}
+
+function billingPage(){
+ return `<div class="max-w-5xl mx-auto"><div class="mb-7"><h1 class="text-2xl sm:text-3xl font-black">Billing & Payments</h1><p class="text-sm text-gray-500 mt-2">Manage your subscription and view payment status.</p></div>
+ <div class="grid md:grid-cols-2 gap-4"><div class="${card} p-6"><div class="flex items-center gap-3"><div class="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-600 grid place-items-center"><i class="fas fa-credit-card text-xl"></i></div><div><h2 class="font-bold">Current plan</h2><p class="text-xs text-gray-500">Your account subscription</p></div></div><p class="text-2xl font-black mt-6">KES ${esc(cfg.price)}<span class="text-sm font-normal text-gray-500"> / month</span></p><p class="text-sm text-gray-500 mt-2">Status: ${esc(me?.subscription?.status||me?.plan||'Not subscribed')}</p><button class="${btn} w-full mt-5" onclick="startPayment()">Subscribe / Renew</button><p class="text-xs text-gray-500 mt-3">Payment must be verified by the server before your account is upgraded.</p></div>
+ <div class="${card} p-6"><div class="flex items-center gap-3"><div class="h-11 w-11 rounded-xl bg-violet-500/10 text-violet-500 grid place-items-center"><i class="fas fa-receipt text-xl"></i></div><div><h2 class="font-bold">Payment history</h2><p class="text-xs text-gray-500">Transactions recorded by the service</p></div></div><div id="paymentHistory" class="mt-5"><p class="text-sm text-gray-500">Loading payments…</p></div><button class="${btn2} w-full mt-4" onclick="loadPayments()">Refresh history</button></div></div></div>`;
+}
+async function startPayment(){
+ if(!confirm(`Continue to payment for KES ${cfg.price}?`))return;
+ try{
+  const r=await api('/payments/initialize',{method:'POST',body:{email:me?.email}});
+  if(r.authorization_url)location.href=r.authorization_url;
+  else if(r.url)location.href=r.url;
+  else toast(r.message||'Payment link is not available.',true);
+ }catch(e){toast(e.message,true)}
+}
+async function loadPayments(){
+ const el=$('#paymentHistory');if(!el)return;el.innerHTML='<p class="text-sm text-gray-500">Loading payments…</p>';
+ try{
+  const r=await api('/payments/history');const items=Array.isArray(r.payments)?r.payments:[];
+  el.innerHTML=items.length?`<div class="space-y-3">${items.map(p=>`<div class="border-b border-gray-200 dark:border-zinc-800 pb-3"><div class="flex justify-between gap-2"><span class="font-semibold text-sm">KES ${esc(p.amount??'—')}</span>${badge(p.status||'unknown')}</div><p class="text-xs text-gray-500 mt-1">${esc(p.reference||p.id||'Transaction')} · ${esc(p.createdAt?new Date(p.createdAt).toLocaleDateString():'')}</p></div>`).join('')}</div>`:'<p class="text-sm text-gray-500">No payment records found.</p>';
+ }catch(e){el.innerHTML=`<p class="text-sm text-red-500">${esc(e.message)}</p>`}
+}
+function profilePage(){
+ return `<div class="max-w-3xl mx-auto"><div class="mb-7"><h1 class="text-2xl sm:text-3xl font-black">My profile</h1><p class="text-sm text-gray-500 mt-2">View and update your account details.</p></div><div class="${card} p-6"><div class="flex items-center gap-4 mb-7"><div class="h-14 w-14 rounded-full grad-bg text-white text-xl font-bold grid place-items-center">${esc((me?.displayName||me?.email||'U')[0].toUpperCase())}</div><div><h2 class="font-bold">${esc(me?.displayName||'User')}</h2><p class="text-sm text-gray-500">${esc(me?.email||'')}</p></div></div><form onsubmit="saveProfile(event)" class="space-y-4"><div><label class="block text-sm font-semibold mb-1">Display name</label><input class="${inp}" name="displayName" maxlength="80" required value="${esc(me?.displayName||'')}"></div><div><label class="block text-sm font-semibold mb-1">Email</label><input class="${inp}" value="${esc(me?.email||'')}" disabled></div><button class="${btn}">Save profile</button></form><div class="border-t border-gray-200 dark:border-zinc-800 mt-7 pt-6"><h3 class="font-bold text-red-600">Danger zone</h3><p class="text-sm text-gray-500 mt-2">Account deletion may permanently remove your account and projects.</p><button class="${btnDanger} mt-4" onclick="deleteAccount()">Delete my account</button></div></div></div>`;
+}
+async function saveProfile(ev){
+ ev.preventDefault();const displayName=new FormData(ev.currentTarget).get('displayName');
+ try{const r=await api('/me',{method:'PATCH',body:{displayName:String(displayName).trim()}});await loadMe();toast(r.message||'Profile updated.');location.hash='#/profile'}
+ catch(e){toast(e.message,true)}
+}
+async function deleteAccount(){
+ const phrase=prompt('Type DELETE to confirm account deletion.');
+ if(phrase!=='DELETE')return;
+ try{const r=await api('/me',{method:'DELETE',body:{confirm:'DELETE'}});toast(r.message||'Account deletion requested.');logout()}
+ catch(e){toast(e.message,true)}
+}
+function settingsPage(){
+ return `<div class="max-w-3xl mx-auto"><div class="mb-7"><h1 class="text-2xl sm:text-3xl font-black">Settings</h1><p class="text-sm text-gray-500 mt-2">Customize your dashboard.</p></div><div class="${card} p-6 space-y-6"><div class="flex items-center justify-between gap-4"><div><h2 class="font-semibold">Appearance</h2><p class="text-sm text-gray-500 mt-1">Switch between light and dark themes.</p></div><button class="${btn2}" onclick="toggleTheme()">Toggle theme</button></div><div class="border-t border-gray-200 dark:border-zinc-800 pt-5 flex items-center justify-between gap-4"><div><h2 class="font-semibold">Session</h2><p class="text-sm text-gray-500 mt-1">Sign out from this device.</p></div><button class="${btnDanger}" onclick="logout()">Log out</button></div><div class="border-t border-gray-200 dark:border-zinc-800 pt-5"><h2 class="font-semibold">Service connection</h2><p class="text-sm text-gray-500 mt-1">Current API: <span class="break-all">${esc(API_BASE||'Same origin')}</span></p><p class="text-sm mt-3" id="apiStatus">${statusHtml()}</p><button class="${btn2} mt-3" onclick="checkHealth()">Check connection</button></div></div></div>`;
+}
+async function loadPaymentsOnRoute(){await loadPayments()}
+function adminLoginPage(){
+ return `<div class="min-h-[70vh] flex items-center justify-center p-4"><div class="${card} w-full max-w-md p-7"><h1 class="text-2xl font-black">Admin access</h1><p class="text-sm text-gray-500 mt-2 mb-5">Sign in with an admin account configured on the server.</p><form onsubmit="adminLogin(event)" class="space-y-4"><input class="${inp}" name="email" type="email" required placeholder="Admin email"><input class="${inp}" name="password" type="password" required placeholder="Admin password"><button class="${btn} w-full">Sign in</button></form></div></div>`;
+}
+async function adminLogin(ev){
+ ev.preventDefault();const fd=new FormData(ev.currentTarget);
+ try{const r=await api('/admin/login',{method:'POST',body:{email:fd.get('email'),password:fd.get('password')}},null);atoken=r.token;if(!atoken)throw new Error('Server did not return an admin token.');safeSet(sessionStorage,'mh_admin',atoken);toast('Admin login successful.');location.hash='#/admin/dashboard'}
+ catch(e){toast(e.message,true)}
+}
+function adminLogout(){atoken=null;safeRemove(sessionStorage,'mh_admin');location.hash='#/admin'}
+async function adminDashboard(){
+ if(!atoken){adminShell(adminLoginPage());return}
+ adminShell(`<div class="max-w-6xl mx-auto"><h1 class="text-3xl font-black">Admin dashboard</h1><p class="text-sm text-gray-500 mt-2 mb-6">Server-reported account and service information.</p><div class="grid sm:grid-cols-2 gap-4"><div class="${card} p-5"><h2 class="font-bold">Service overview</h2><div id="adminStats" class="mt-4 text-sm text-gray-500">Loading…</div><button class="${btn2} mt-4" onclick="loadAdminStats()">Refresh</button></div><div class="${card} p-5"><h2 class="font-bold">Pricing configuration</h2><p class="text-sm text-gray-500 mt-2">Change pricing only if the backend supports the configuration route.</p><form onsubmit="saveAdminConfig(event)" class="space-y-3 mt-4"><input class="${inp}" name="price" type="number" min="0" required value="${esc(cfg.price)}" placeholder="Monthly price in KES"><input class="${inp}" name="trialDays" type="number" min="0" max="365" required value="${esc(cfg.trialDays)}" placeholder="Trial days"><button class="${btn}">Save configuration</button></form></div></div></div>`);
+ await loadAdminStats();
+}
+async function loadAdminStats(){
+ const el=$('#adminStats');if(!el)return;el.textContent='Loading…';
+ try{const r=await api('/admin/stats',{},atoken);el.innerHTML=Object.entries(r.stats||r).map(([k,v])=>`<div class="flex justify-between gap-3 py-2 border-b border-gray-200 dark:border-zinc-800"><span>${esc(k)}</span><strong>${esc(typeof v==='object'?JSON.stringify(v):v)}</strong></div>`).join('')}
+ catch(e){el.textContent=e.message}
+}
+async function saveAdminConfig(ev){
+ ev.preventDefault();const fd=new FormData(ev.currentTarget);
+ try{const r=await api('/admin/config',{method:'PATCH',body:{price:Number(fd.get('price')),trialDays:Number(fd.get('trialDays'))}},atoken);cfg={...cfg,...r.config};toast(r.message||'Configuration saved.')}
+ catch(e){toast(e.message,true)}
+}
+
+function route(){
+ const raw=location.hash.replace(/^#\/?/,'');
+ const parts=raw.split('/').filter(Boolean);
+ const page=parts[0]||'';
+ const sub=parts[1]||'';
+
+ if(pollT){clearInterval(pollT);pollT=null}
+ if(logTimer){clearInterval(logTimer);logTimer=null}
+
+ if(page==='login'){publicShell(authPage('login'));return}
+ if(page==='signup'){publicShell(authPage('signup'));return}
+ if(page==='verify'){publicShell(verifyPage());return}
+ if(page==='forgot'){publicShell(forgotPage());return}
+ if(page==='admin'){
+  if(sub==='dashboard'){adminDashboard();return}
+  adminShell(adminLoginPage());return
+ }
+ if(page==='github/callback'||(page==='github'&&location.search)){
+  githubCallback();return
+ }
+ if(page===''){
+  publicShell(landingPage());checkHealth();return
+ }
+
+ if(!token){
+  location.hash='#/login';return
+ }
+
+ if(page==='dashboard'){
+  if(!me){publicShell('<div class="p-12 text-center">Loading dashboard…</div>');loadMe().then(()=>route());return}
+  appShell('dashboard',dashboardPage());checkHealth();return
+ }
+ if(page==='deploy'&&(sub==='website'||sub==='bot')){
+  appShell('deploy-'+sub,deployPage(sub));return
+ }
+ if(page==='github'){
+  githubPage();return
+ }
+ if(page==='billing'){
+  if(!me){loadMe().then(()=>route());return}
+  appShell('billing',billingPage());loadPayments();return
+ }
+ if(page==='profile'){
+  if(!me){loadMe().then(()=>route());return}
+  appShell('profile',profilePage());return
+ }
+ if(page==='settings'){
+  appShell('settings',settingsPage());checkHealth();return
+ }
+ location.hash='#/dashboard';
+}
+async function githubCallback(){
+ try{
+  const params=new URLSearchParams(location.search);
+  const code=params.get('code'),state=params.get('state');
+  if(!code){toast('GitHub authorization code is missing.',true);location.hash='#/github';return}
+  const r=await api('/github/callback',{method:'POST',body:{code,state}});
+  toast(r.message||'GitHub connected.');
+  history.replaceState(null,'',location.pathname+'#/github');
+  location.hash='#/github';
+ }catch(e){toast(e.message,true);location.hash='#/github'}
+}
+window.addEventListener('hashchange',route);
+window.addEventListener('storage',e=>{
+ if(e.key==='mh_token'){token=safeGet(localStorage,'mh_token');loadMe().then(route)}
 });
-
-/* ===================== public pages ===================== */
-function landing() {
-  const T = cfg.trialDays, P = cfg.price;
-  const feats = [
-    ['🌐', 'Static website hosting', 'Upload a ZIP of your HTML, CSS and JavaScript, or paste a public GitHub link. Your site goes live on its own address in seconds, with HTTPS included.', 'emerald'],
-    ['🤖', 'Bots that never sleep', 'Run WhatsApp (Baileys), Telegram and Discord bots 24/7. We install your packages, start your bot and restart it automatically if it crashes.', 'violet'],
-    ['🔗', 'Your own free link', 'Every website gets a clean link like yourname.mtaanihost.dev. Share it on WhatsApp, Instagram or print it on your business card.', 'cyan'],
-    ['📊', 'Live logs and stats', 'See whether each project is online, how long your bot has been running, how many times it restarted, and read its logs in real time.', 'amber'],
-    ['🔐', 'Secret keys stay secret', 'Add bot tokens as environment variables. Values are hidden after you save them and are never shown to anyone else.', 'rose'],
-    ['💳', 'Pay the Kenyan way', 'Pay with M-Pesa or your card through Paystack. The moment your payment is confirmed, your projects come back online automatically.', 'emerald'],
-    ['⚡', 'Simple sign-up', 'Create an account with your email and password and start deploying straight away. No waiting for codes.', 'cyan'],
-    ['🛡️', 'Fair and controlled', 'Admins can pause any project that breaks the rules. Your projects are never deleted just because a payment is late. They are paused until you pay.', 'violet']
-  ];
-  const steps = [
-    ['1', 'Create your account', 'Sign up with your email and password and prove you are human. Your free trial starts immediately.'],
-    ['2', 'Upload and deploy', 'Choose Deploy Website or Deploy Bot, give it a name, upload your ZIP (or a GitHub link) and press Deploy.'],
-    ['3', 'Share it with the world', 'Copy your link, send it to customers and friends, and watch your project stats from your dashboard.']
-  ];
-  const uses = [
-    ['🎓', 'Students and learners', 'Host your portfolio, school project or first website without paying a fortune.'],
-    ['🏪', 'Small businesses', 'Put your shop, salon, church or event page online and let customers find you.'],
-    ['⚙️', 'Bot developers', 'Keep your WhatsApp and Telegram bots running day and night, even when your phone is off.'],
-    ['👥', 'Communities and teams', 'Run a Discord bot for your group, or a simple site for your team and chama.']
-  ];
-  const faqs = [
-    ['What can I deploy on MtaaniHost?', 'Static websites (HTML, CSS and JavaScript, uploaded as a ZIP or pulled from a public GitHub repository) and Node.js bots for WhatsApp (Baileys), Telegram and Discord.'],
-    ['How does the free trial work?', `When you create your account you get ${T} days free. You can deploy anything during the trial and no card is needed.`],
-    ['How much does it cost after the trial?', `KES ${P} per month, paid with M-Pesa or card through Paystack. Each payment adds 30 days to your account. If you pay early, the days are added on top of what you have left.`],
-    ['What happens if I stop paying?', 'Your websites show a "suspended" page and your bots are stopped, but nothing is deleted. As soon as you pay, everything comes back online automatically.'],
-    ['Does my bot need a special setup?', 'Your project must contain a package.json in its root. We run npm install, then npm start (or your main file). Add tokens as environment variables from the Env button on your project.'],
-    ['Is my account safe?', 'Passwords are stored encrypted and your secret keys are hidden once saved. Never share your password or bot tokens with anyone.']
-  ];
-  const col = { emerald: 'bg-emerald-500/15 text-emerald-500', violet: 'bg-violet-500/15 text-violet-500', cyan: 'bg-cyan-500/15 text-cyan-500', amber: 'bg-amber-500/15 text-amber-500', rose: 'bg-rose-500/15 text-rose-500' };
-  publicShell(`
-  <section class="hero-bg"><div class="max-w-5xl mx-auto px-4 pt-20 pb-24 text-center">
-    <span class="inline-block rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1 text-xs font-medium text-emerald-600 mb-6">🇰🇪 Built in Kenya · ${esc(T)} days free · Pay with M-Pesa</span>
-    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight">Deploy your website or bot <span class="grad-text">in minutes</span></h1>
-    <p class="mt-6 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Like Vercel and Render, but made for Kenya. Upload your files, get a live link, keep your bots running 24/7 and pay simply with M-Pesa. No dollars, no stress.</p>
-    <div class="mt-10 flex flex-wrap gap-3 justify-center"><a href="#/signup" class="${btn} glow!px-7!py-3 text-base">Deploy website or bot</a><a href="#/login" class="${btn2}!px-7!py-3 text-base">Login</a></div>
-    <p class="mt-4 text-xs text-gray-500">No card needed to start · Cancel any time</p>
-    <div class="mt-14 max-w-2xl mx-auto text-left rounded-2xl border border-zinc-800 bg-zinc-950 glow overflow-hidden">
-      <div class="flex gap-1.5 px-4 py-3 border-b border-zinc-800"><span class="h-3 w-3 rounded-full bg-red-500"></span><span class="h-3 w-3 rounded-full bg-amber-400"></span><span class="h-3 w-3 rounded-full bg-emerald-500"></span><span class="ml-3 text-xs text-zinc-500">deploy</span></div>
-      <pre class="p-5 text-xs sm:text-sm text-emerald-300 overflow-x-auto leading-relaxed">$ upload mybiz.zip
-✔ Extracted 24 files
-✔ Deployed to the edge network
-🌍 Live at https://mybiz.mtaanihost.dev</pre></div>
-  </div></section>
-  <section class="max-w-6xl mx-auto px-4 -mt-8 relative z-10"><div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-    ${[['60s', 'Average time to go live', 'text-emerald-500'], ['24/7', 'Bots that keep running', 'text-violet-500'], ['KES ' + P, 'Per month, all included', 'text-cyan-500'], ['M-Pesa', 'and cards via Paystack', 'text-amber-500']].map(s => `<div class="${card} p-5 text-center shadow-lg"><div class="text-2xl sm:text-3xl font-extrabold ${s[2]}">${esc(s[0])}</div><div class="text-xs text-gray-500 mt-1">${s[1]}</div></div>`).join('')}
-  </div></section>
-  <section id="features" class="max-w-6xl mx-auto px-4 py-24">
-    <div class="text-center mb-14"><p class="text-sm font-semibold text-emerald-600">FEATURES</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Everything you need to go online</h2><p class="mt-4 text-gray-500 max-w-2xl mx-auto">From your first web page to a bot serving thousands of chats, MtaaniHost gives you the tools without the complicated setup.</p></div>
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${feats.map(f => `<div class="${card} lift p-6"><div class="h-12 w-12 rounded-xl ${col[f[3]]} grid place-items-center text-2xl mb-4">${f[0]}</div><h3 class="font-semibold mb-2">${f[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${f[2]}</p></div>`).join('')}</div>
-  </section>
-  <section id="how" class="bg-white dark:bg-zinc-900/40 border-y border-gray-200 dark:border-zinc-800"><div class="max-w-6xl mx-auto px-4 py-24">
-    <div class="text-center mb-14"><p class="text-sm font-semibold text-violet-600">HOW IT WORKS</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Live in three simple steps</h2></div>
-    <div class="grid md:grid-cols-3 gap-6">${steps.map(s => `<div class="${card} p-8 text-center lift"><div class="mx-auto h-14 w-14 rounded-full grad-bg text-white text-xl font-extrabold grid place-items-center mb-5 glow">${s[0]}</div><h3 class="font-semibold text-lg mb-2">${s[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${s[2]}</p></div>`).join('')}</div>
-  </div></section>
-  <section class="max-w-6xl mx-auto px-4 py-24">
-    <div class="text-center mb-14"><p class="text-sm font-semibold text-cyan-600">WHO IT IS FOR</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Built for everyone online in Kenya</h2></div>
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">${uses.map(u => `<div class="${card} p-6 lift"><div class="text-3xl mb-3">${u[0]}</div><h3 class="font-semibold mb-1">${u[1]}</h3><p class="text-sm text-gray-500 leading-relaxed">${u[2]}</p></div>`).join('')}</div>
-  </section>
-  <section id="pricing" class="hero-bg"><div class="max-w-6xl mx-auto px-4 py-24">
-    <div class="text-center mb-14"><p class="text-sm font-semibold text-amber-600">PRICING</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">One simple price</h2><p class="mt-4 text-gray-500">Start free, then pay only when you are ready.</p></div>
-    <div class="grid sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
-      <div class="${card} p-8"><h3 class="font-semibold text-lg">Free trial</h3><p class="text-5xl font-extrabold mt-4">KES 0</p><p class="text-gray-500 text-sm mt-1">for ${esc(T)} days</p>
-        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Deploy websites and bots</li><li>✓ Free yourname.mtaanihost.dev link</li><li>✓ Live logs and stats</li><li>✓ No card required</li></ul><a href="#/signup" class="${btn2} w-full mt-8!py-3">Start free</a></div>
-      <div class="${card} p-8!border-emerald-500 relative glow"><span class="absolute -top-3 right-6 grad-bg text-white text-xs font-semibold rounded-full px-3 py-1">Most popular</span><h3 class="font-semibold text-lg">Monthly plan</h3><p class="text-5xl font-extrabold mt-4 grad-text">KES ${esc(P)}</p><p class="text-gray-500 text-sm mt-1">per month</p>
-        <ul class="mt-6 text-sm space-y-3 text-gray-600 dark:text-gray-400"><li>✓ Everything in the free trial</li><li>✓ Websites and bots online 24/7</li><li>✓ Pay with M-Pesa or card</li><li>✓ Back online automatically after you pay</li></ul><a href="#/signup" class="${btn} w-full mt-8!py-3">Get started</a></div>
-    </div>
-  </div></section>
-  <section id="faq" class="max-w-3xl mx-auto px-4 py-24">
-    <div class="text-center mb-12"><p class="text-sm font-semibold text-rose-600">FAQ</p><h2 class="text-3xl sm:text-4xl font-extrabold mt-2">Questions? We have answers</h2></div>
-    <div class="space-y-3">${faqs.map(f => `<details class="group ${card} p-5"><summary class="cursor-pointer list-none flex justify-between items-center gap-4 font-semibold">${f[0]}<span class="text-emerald-500 text-xl transition group-open:rotate-45">+</span></summary><p class="mt-3 text-sm text-gray-500 leading-relaxed">${f[1]}</p></details>`).join('')}</div>
-  </section>
-  <section class="max-w-5xl mx-auto px-4 pb-24"><div class="grad-bg rounded-3xl p-10 sm:p-14 text-center text-white glow">
-    <h2 class="text-3xl sm:text-4xl font-extrabold">Ready to put your project online?</h2>
-    <p class="mt-4 text-white/90 max-w-xl mx-auto">Create your free account today and have your website or bot live before you finish your tea.</p>
-    <a href="#/signup" class="inline-flex mt-8 rounded-lg bg-white text-gray-900 font-semibold px-8 py-3 hover:opacity-90">Create free account</a>
-  </div></section>`);
+async function boot(){
+ setTheme(safeGet(localStorage,'mh_theme')==='dark');
+ await loadCfg();
+ if(token)await loadMe();
+ route();
 }
-
-function loadTurnstile() {
-  return new Promise((ok, no) => {
-    const t0 = Date.now();
-    if (!document.querySelector('script[data-turnstile]')) {
-      const s = document.createElement('script'); s.dataset.turnstile = '1'; s.async = true;
-      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-      s.onerror = () => no(new Error('Could not load the human check'));
-      document.head.appendChild(s);
-    }
-    const iv = setInterval(() => {
-      if (window.turnstile) { clearInterval(iv); ok(); }
-      else if (Date.now() - t0 > 8000) { clearInterval(iv); no(new Error('Could not load the human check')); }
-    }, 60);
-  });
-}
-async function setupHuman() {
-  const box = $('#human'); if (!box) return;
-  humanTok = ''; cfToken = '';
-  if (cfg.human === 'turnstile' && cfg.turnstileSiteKey) {
-    box.innerHTML = '<div id="cft"></div>';
-    try {
-      await loadTurnstile();
-      window.turnstile.render('#cft', { sitekey: cfg.turnstileSiteKey, theme: document.documentElement.classList.contains('dark')? 'dark' : 'light', callback: t => { cfToken = t; }, 'expired-callback': () => { cfToken = ''; } });
-    } catch (e) { box.innerHTML = `<p class="text-xs text-red-600">${esc(e.message)}. Refresh the page.</p>`; }
-    return;
-  }
-  try {
-    const h = await api('/human', {}, null);
-    humanTok = h.token;
-    box.innerHTML = `<label class="text-sm text-gray-500">Verify you're human: what is <b>${esc(h.question)}</b>?</label>
-      <div class="flex gap-2 mt-1"><input class="${inp}" id="ha" inputmode="numeric" autocomplete="off" placeholder="Your answer" required><button type="button" class="${btn2}" id="hr" title="New question">↻</button></div>`;
-    $('#hr').onclick = setupHuman;
-  } catch (e) { box.innerHTML = `<p class="text-xs text-red-600">${esc(e.message)}</p>`; }
-}
-function authView(mode) {
-  const su = mode === 'signup', q = new URLSearchParams(location.hash.split('?')[1] || '');
-  publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 glow">
-    <div class="flex justify-center mb-4">${logo}</div><h1 class="text-xl font-bold text-center mb-1">${su? 'Create your account' : 'Welcome back'}</h1>
-    <p class="text-center text-sm text-gray-500 mb-6">${su? `Start your ${esc(cfg.trialDays)}-day free trial. No card needed.` : 'Log in to manage your projects.'}</p>
-    ${q.get('verified')? '<p class="mb-4 text-sm text-emerald-600 text-center">Email verified! You can log in now.</p>' : ''}
-    ${su && health && health.requireVerify && health.mail === 'none'? '<p class="mb-4 text-xs text-amber-600 text-center">⚠️ Email sending is not set up yet, so verification codes cannot be delivered. Please contact the admin.</p>' : ''}
-    <form id="f" class="space-y-3"><input class="${inp}" type="email" id="em" placeholder="Email (Gmail or any email)" required autocomplete="email"><input class="${inp}" type="password" id="pw" placeholder="Password ${su? '(at least 8 characters)' : ''}" required autocomplete="${su? 'new-password' : 'current-password'}">
-    <div id="human" class="space-y-1"><p class="text-xs text-gray-500">Loading human check…</p></div>
-    <button class="${btn} w-full!py-2.5" id="sb">${su? 'Sign Up' : 'Login'}</button></form>
-    <p class="text-center text-sm text-gray-500 mt-4">${su? 'Already have an account? <a class="underline" href="#/login">Login</a>' : 'Don\'t have an account? <a class="underline" href="#/signup">Sign Up</a>'}</p></div></div></div>`);
-  setupHuman();
-  $('#f').onsubmit = async e => {
-    e.preventDefault();
-    const email = $('#em').value.trim(), password = $('#pw').value;
-    const turnstileMode = cfg.human === 'turnstile' && cfg.turnstileSiteKey;
-    if (turnstileMode &&!cfToken) return toast('Please complete the human check first', true);
-    if (!turnstileMode &&!humanTok) return toast('The human check did not load. Press ↻ and try again.', true);
-    const body = { email, password, humanToken: humanTok, humanAnswer: $('#ha')? $('#ha').value : '', cfToken };
-    const b = $('#sb'); b.disabled = true;
-    try {
-      const r = await api(su? '/auth/signup' : '/auth/login', { method: 'POST', body }, null);
-      if (su &&!r.token) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; return; }
-      token = r.token; localStorage.setItem('mh_token', token); me = r.user; location.hash = '#/dashboard';
-    } catch (err) {
-      if (err.data && err.data.needVerify) { pendingEmail = email; localStorage.setItem('mh_pending', email); location.hash = '#/verify'; return; }
-      toast(err.message, true); b.disabled = false; setupHuman();
-    }
-  };
-}
-function verifyView() {
-  if (!pendingEmail) { location.hash = '#/signup'; return; }
-  publicShell(`<div class="hero-bg"><div class="max-w-sm mx-auto px-4 py-16"><div class="${card} p-8 text-center glow">
-    <div class="text-4xl mb-3">✉️</div><h1 class="text-xl font-bold mb-2">Verify your email</h1><p class="text-sm text-gray-500 mb-6">We sent a 6-digit code to<br><b>${esc(pendingEmail)}</b></p>
-    <form id="f" class="space-y-3"><input class="${inp} text-center text-2xl tracking-[.5em]" id="cd" maxlength="6" inputmode="numeric" placeholder="······" required><button class="${btn} w-full!py-2.5">Verify</button></form>
-    <button id="rs" class="text-sm text-gray-500 underline mt-4">Resend code</button></div></div></div>`);
-  $('#f').onsubmit = async e => { e.preventDefault(); try { await api('/auth/verify', { method: 'POST', body: { email: pendingEmail, code: $('#cd').value.trim() } }, null); location.hash = '#/login?verified=1'; } catch (err) { toast(err.message, true); } };
-  $('#rs').onclick = async () => { try { await api('/auth/resend', { method: 'POST', body: { email: pendingEmail } }, null); toast('A new code has been sent'); } catch (err) { toast(err.message, true); } };
-}
-
-/* ===================== projects ===================== */
-function banner() {
-  if (!me) return '';
-  if (me.status === 'trial') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3!border-emerald-500/50"><span class="text-sm">🎁 Free trial: <b>${me.daysLeft} days</b> left</span><a href="#/billing" class="${btn2}">Pay early</a></div>`;
-  if (me.status === 'expired') return `<div class="${card} p-4 flex flex-wrap items-center justify-between gap-3!border-red-500"><span class="text-sm text-red-600">⛔ Your trial has ended. Your projects are suspended.</span><a href="#/billing" class="${btn}">Pay Now</a></div>`;
-  if (me.status === 'paid') return `<div class="${card} p-4 text-sm">✅ You're paid up. ${me.daysLeft} days left.</div>`;
-  return '';
-}
-async function dashboardView() {
-  if (!(await requireAuth())) return;
-  appShell('dashboard', `<div class="max-w-6xl mx-auto"><h1 class="text-2xl font-extrabold mb-4">Welcome back, <span class="grad-text">${esc(me.displayName)}</span> 👋</h1><div class="mb-6">${banner()}</div><div id="plist"></div></div>`);
-  await renderProjects();
-  pollT = setInterval(() => { if (location.hash.startsWith('#/dashboard') &&!$('#modal>*')) renderProjects(); }, 6000);
-}
-function summaryHtml(l) {
-  const c = f => l.filter(f).length;
-  const box = (a, b, cl = '') => `<div class="${card} p-4 text-center"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1 ${cl}">${b}</div></div>`;
-  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${box('Projects', l.length)}${box('Online (live / running)', c(p => p.status === 'live' || p.status === 'running'), 'text-emerald-500')}${box('Stopped', c(p => p.status === 'stopped'))}${box('Suspended', c(p => p.status === 'suspended'), 'text-red-500')}</div>`;
-}
-function statLine(p) {
-  const s = p.stats || {}; let t;
-  if (p.type === 'bot') t = p.status === 'running'? `⏱ Uptime ${fmtUp(s.uptimeSec)} · Crashes ${s.crashes} · Auto-restarts ${s.autoRestarts}` : `Crashes ${s.crashes || 0}${s.lastExit? ` · Last exit code ${esc(s.lastExit.code)}` : ''}`;
-  else t = `${s.files || 0} files · ${fmtB(s.bytes)} · Deployed ${new Date(s.deployedAt || p.createdAt).toLocaleDateString()}`;
-  const w = p.suspendedBy === 'admin'? '<div class="text-xs text-red-600">⛔ Suspended by admin</div>' : p.suspendedBy === 'billing'? '<div class="text-xs text-red-600">⛔ Pay to bring it back online</div>' : '';
-  return `<div class="text-xs text-gray-500">${t}</div>${w}`;
-}
-async function renderProjects() {
-  const el = $('#plist'); if (!el) return;
-  let list; try { list = await api('/projects'); } catch (e) { if (e.status === 401) { logout(); return; } el.innerHTML = `<p class="text-center text-red-600">${esc(e.message)}</p>`; return; }
-  if (!list.length) { el.innerHTML = `<div class="${card} p-12 text-center"><div class="text-4xl mb-3">🚀</div><p class="text-gray-500 mb-4">You have no projects yet.</p><div class="flex gap-2 justify-center flex-wrap"><a class="${btn}" href="#/deploy/website">Deploy a website</a><a class="${btn2}" href="#/deploy/bot">Deploy a bot</a><a class="${btn2}" href="#/github">Import from GitHub</a></div></div>`; return; }
-  el.innerHTML = summaryHtml(list) + `<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${list.map(p => `<div class="${card} lift p-5 flex flex-col gap-3">
-    <div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-semibold truncate">${esc(p.name)}</div><div class="text-xs text-gray-500">${p.type === 'website'? '🌐 Website' : '🤖 ' + esc(p.botType)}</div></div>${badge(p.status)}</div>
-    ${p.url? `<a class="text-sm text-emerald-600 break-all hover:underline" target="_blank" rel="noopener" href="${esc(p.url)}">${esc(p.url)}</a>` : '<div class="text-sm text-gray-500">Bots have no URL — check the logs</div>'}
-    ${statLine(p)}
-    <div class="flex flex-wrap gap-2 mt-auto">
-      ${p.type === 'bot'? `<button class="${btn2}" onclick="showLogs('${p.id}')">Logs</button><button class="${btn2}" onclick="editEnv('${p.id}')">Env</button>${p.status === 'running' || p.status === 'starting'? `<button class="${btn2}" onclick="controlBot('${p.id}','restart')">Restart</button><button class="${btn2}" onclick="controlBot('${p.id}','stop')">Stop</button>` : `<button class="${btn2}" onclick="controlBot('${p.id}','start')">Start</button>`}` : ''}
-      <button class="${btnDanger}" onclick="deleteProject('${p.id}')">Delete</button></div></div>`).join('')}</div>`;
-}
-async function controlBot(id, a) { try { await api(`/projects/${id}/${a}`, { method: 'POST' }); toast('Done'); renderProjects(); } catch (e) { toast(e.message, true); } }
-async function deleteProject(id) { if (!confirm('Delete this project permanently?')) return; try { await api('/projects/' + id, { method: 'DELETE' }); toast('Project deleted'); renderProjects(); } catch (e) { toast(e.message, true); } }
-async function showLogs(id) {
-  const m = $('#modal'); let live = true;
-  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><div class="${card} w-full max-w-3xl p-4"><div class="flex justify-between mb-2"><b>Logs</b><button id="cl" class="${btn2}">Close</button></div><pre id="lg" class="bg-black text-green-400 text-xs p-3 rounded-lg h-96 overflow-auto whitespace-pre-wrap"></pre><p class="text-xs text-gray-500 mt-2">A WhatsApp pairing code or QR will show up here if your bot prints it to the console.</p></div></div>`;
-  $('#cl').onclick = () => { live = false; m.innerHTML = ''; };
-  const load = async () => { if (!live) return; try { const r = await api(`/projects/${id}/logs`); const el = $('#lg'); if (el) { const bottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20; el.textContent = r.logs || '(no logs yet)'; if (bottom) el.scrollTop = el.scrollHeight; } } catch {} setTimeout(load, 2500); };
-  load();
-}
-async function editEnv(id) {
-  let keys = [];
-  try { keys = (await api(`/projects/${id}/env`)).keys; } catch (e) { return toast(e.message, true); }
-  const m = $('#modal');
-  m.innerHTML = `<div class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4"><form id="fe" class="${card} w-full max-w-lg p-5 space-y-3">
-    <div class="flex justify-between"><b>Environment variables</b><button type="button" id="ce" class="${btn2}">Close</button></div>
-    <p class="text-xs text-gray-500">Current keys: ${keys.length? keys.map(esc).join(', ') : 'none'}. Values are hidden. Saving replaces ALL variables and restarts the bot.</p>
-    <textarea class="${inp} font-mono" rows="6" id="ev" placeholder="BOT_TOKEN=123:abc"></textarea>
-    <button class="${btn}">Save and restart</button></form></div>`;
-  $('#ce').onclick = () => { m.innerHTML = ''; };
-  $('#fe').onsubmit = async e => {
-    e.preventDefault();
-    try { await api(`/projects/${id}/env`, { method: 'PUT', body: { envVars: $('#ev').value } }); m.innerHTML = ''; toast('Saved. Your bot is restarting.'); renderProjects(); }
-    catch (err) { toast(err.message, true); }
-  };
-}
-
-/* ===================== DEPLOY + GITHUB OAUTH - FULL ===================== */
-async function deployView(mode) {
-  if (!(await requireAuth())) return;
-  const github = mode === 'github';
-  const kind = github? ghKind : mode;
-  const title = github? 'Import from GitHub' : kind === 'website'? 'Deploy Website' : 'Deploy Bot';
-  const label = 'text-sm text-gray-500';
-
-  if (github) {
-    const params = new URLSearchParams(window.location.search);
-    const justConnected = params.has('github_connected');
-    appShell('github', `<div class="max-w-3xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1>
-      <div class="grid grid-cols-2 gap-3 mb-6">
-        ${[['website', '🌐 Website', 'Static site (index.html in root)'], ['bot', '🤖 Bot', 'Node.js bot (package.json in root)']].map(k => `<button type="button" data-kind="${k[0]}" class="rounded-xl border p-4 text-center ${ghKind === k[0]? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-gray-300 dark:border-zinc-700 hover:border-emerald-500'}"><div class="font-semibold">${k[1]}</div><div class="text-xs text-gray-500 mt-1">${k[2]}</div></button>`).join('')}
-      </div>
-      ${justConnected? `<div class="${card} p-3 mb-4!border-emerald-500 text-sm text-emerald-600">✅ GitHub connected! Loading your repos...</div>` : ''}
-      <div id="ghBox" class="${card} p-6">
-        <div id="ghNotConnected" class="text-center">
-          <div class="text-5xl mb-3"><i class="fab fa-github"></i></div>
-          <h2 class="font-bold text-lg mb-2">Connect your GitHub</h2>
-          <p class="text-sm text-gray-500 mb-5">Click the button below, authorize MtaaniHost on GitHub, and you'll be returned here to see all your repos.</p>
-          <button id="ghConnectBtn" class="${btn}!px-8!py-3 text-base"><i class="fab fa-github"></i> Authorize GitHub</button>
-          <p class="text-xs text-gray-400 mt-3">We only request repo access to list and clone repos you choose.</p>
-        </div>
-        <div id="ghConnected" class="hidden">
-          <div class="flex justify-between items-center mb-4"><h3 class="font-bold">Your GitHub Repositories</h3><button id="ghRefresh" class="${btn2}"><i class="fas fa-sync"></i> Refresh</button></div>
-          <input class="${inp} mb-3" id="ghSearch" placeholder="Search repos...">
-          <div id="ghList" class="space-y-2 max-h-[500px] overflow-auto"></div>
-        </div>
-      </div>
-    </div>`);
-
-    document.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { ghKind = b.dataset.kind; deployView('github'); });
-    $('#ghConnectBtn').onclick = () => {
-      window.location.href = API_BASE + '/api/github/login?token=' + encodeURIComponent(token);
-    };
-    $('#ghRefresh').onclick = () => checkGitHubRepos(true);
-    $('#ghSearch').oninput = (e) => filterRepos(e.target.value);
-
-    // Check if already connected
-    checkGitHubRepos(justConnected);
-    if (justConnected) { history.replaceState({}, '', location.pathname + '#/github'); }
-    return;
-  }
-
-  // Website / Bot normal deploy - FULL ORIGINAL
-  appShell('deploy-' + kind, `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">${title}</h1><div id="dp">
-    <form id="f" class="${card} p-6 space-y-4">
-      <div><label class="${label}">${kind === 'bot'? 'Bot' : 'Project'} name</label><input class="${inp} mt-1" id="n" maxlength="40" required></div>
-      ${kind === 'bot'? `<div><label class="${label}">Bot type</label><select class="${inp} mt-1" id="t"><option value="baileys">WhatsApp (Baileys)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>` : ''}
-      <div><label class="${label}">GitHub URL (optional)</label><input class="${inp} mt-1" id="g" type="url" placeholder="https://github.com/user/repo"></div>
-      <div><label class="${label}">${kind === 'bot'? 'OR upload a ZIP (must contain package.json)' : 'OR upload a ZIP (must contain index.html)'}</label><input class="${inp} mt-1" type="file" id="z" accept=".zip"></div>
-      ${kind === 'bot'? `<div><label class="${label}">Environment variables (optional, one per line: KEY=value)</label><textarea class="${inp} mt-1 font-mono" rows="4" id="e" placeholder="BOT_TOKEN=123:abc"></textarea></div>` : ''}
-      <button class="${btn} w-full!py-2.5" id="sb">${kind === 'bot'? 'Deploy Bot →' : 'Deploy Website →'}</button>
-    </form></div></div>`);
-
-  $('#f').onsubmit = async e => {
-    e.preventDefault();
-    const gh = ($('#g').value || '').trim(), file = $('#z') && $('#z').files[0];
-    if (!gh &&!file) return toast('Upload a ZIP or enter a GitHub URL', true);
-    let name = ($('#n').value || '').trim() || gh.split('/').filter(Boolean).pop().replace(/\.git$/, '') || 'my-project';
-    const fd = new FormData(); fd.append('name', name); fd.append('githubUrl', gh);
-    if (file) fd.append('file', file);
-    if (kind === 'bot') { fd.append('botType', $('#t').value); fd.append('envVars', $('#e').value); }
-    const b = $('#sb'); b.disabled = true; b.textContent = 'Deploying…';
-    try {
-      const p = await api(kind === 'bot'? '/projects/bot' : '/projects/website', { method: 'POST', body: fd });
-      $('#dp').innerHTML = `<div class="${card} p-8 text-center glow"><div class="text-5xl mb-3">✅</div><h2 class="text-xl font-bold mb-2">Project deployed!</h2>
-        ${p.url? `<p class="text-sm break-all mb-5"><a class="text-emerald-600 hover:underline" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></p><a class="${btn}" href="${esc(p.url)}" target="_blank" rel="noopener">Open site</a>` : '<p class="text-sm text-gray-500 mb-5">Your bot is starting. Open Logs on your dashboard to follow the progress.</p>'}
-        <a class="${btn2} ml-2" href="#/dashboard">Go to projects</a></div>`;
-    } catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; b.disabled = false; b.textContent = kind === 'bot'? 'Deploy Bot →' : 'Deploy Website →'; }
-  };
-}
-
-async function checkGitHubRepos(force) {
-  const notConn = $('#ghNotConnected'), conn = $('#ghConnected'), listEl = $('#ghList');
-  try {
-    const repos = await api('/github/repos');
-    ghRepos = repos;
-    notConn.classList.add('hidden');
-    conn.classList.remove('hidden');
-    if (!repos.length) { listEl.innerHTML = '<p class="text-sm text-gray-500 text-center py-8">No repositories found in your GitHub account.</p>'; return; }
-    renderRepoList(repos);
-  } catch (e) {
-    if (force) toast(e.message, true);
-    notConn.classList.remove('hidden');
-    conn.classList.add('hidden');
-  }
-}
-function renderRepoList(repos) {
-  const listEl = $('#ghList');
-  listEl.innerHTML = repos.map(r => `<div class="repo-item flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-zinc-700 hover:border-emerald-500 transition" data-name="${esc(r.full_name.toLowerCase())}">
-    <div class="min-w-0"><div class="font-semibold truncate">${esc(r.full_name)} ${r.private? '🔒' : ''}</div><div class="text-xs text-gray-500">Updated ${new Date(r.updated_at).toLocaleDateString()} · ${esc(r.name)}</div></div>
-    <button class="${btn}" onclick="importGhRepo('${esc(r.clone_url)}','${esc(r.name)}')"><i class="fas fa-download"></i> Import</button>
-  </div>`).join('');
-}
-function filterRepos(q) {
-  const v = q.toLowerCase();
-  document.querySelectorAll('.repo-item').forEach(el => {
-    el.style.display = el.dataset.name.includes(v)? '' : 'none';
-  });
-}
-async function importGhRepo(clone_url, defaultName) {
-  const finalName = prompt('Confirm project name:', defaultName) || defaultName;
-  if (!finalName) return;
-  const envVars = ghKind === 'bot'? prompt('Env vars (optional, e.g. BOT_TOKEN=xxx):', '') || '' : '';
-  const fd = new FormData();
-  fd.append('name', finalName);
-  fd.append('githubUrl', clone_url);
-  if (ghKind === 'bot') { fd.append('botType', 'baileys'); fd.append('envVars', envVars); }
-  try {
-    toast('Importing ' + defaultName + ' as ' + ghKind + '... This may take 30s');
-    const p = await api(ghKind === 'bot'? '/projects/bot' : '/projects/website', { method: 'POST', body: fd });
-    toast('✅ ' + defaultName + ' imported!');
-    if (p.url) { window.open(p.url, '_blank'); }
-    location.hash = '#/dashboard';
-  } catch (err) { toast(err.message, true); if (err.status === 402) location.hash = '#/billing'; }
-}
-
-/* ===================== billing / profile / settings ===================== */
-async function billingView() {
-  if (!(await requireAuth())) return;
-  const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  const exp = me.paidUntil || me.trialEndsAt;
-  const row = (a, b) => `<div class="flex justify-between"><span class="text-gray-500">${a}</span><span class="font-semibold">${b}</span></div>`;
-  appShell('billing', `<div class="max-w-xl mx-auto"><h1 class="text-2xl font-extrabold mb-6">Billing</h1>
-    ${q.get('paid') === '1'? `<div class="${card} p-4 mb-4!border-emerald-500 text-sm">✅ Payment received! Your projects are coming back online.</div>` : q.get('paid') === '0'? `<div class="${card} p-4 mb-4!border-red-500 text-sm">Payment not confirmed yet. If you have paid, refresh in a minute.</div>` : ''}
-    <div class="${card} p-6 space-y-4">${row('Status', badge(me.status === 'paid'? 'live' : me.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(me.status)}<`))}${row('Days left', me.daysLeft)}${row('Expires', exp? new Date(exp).toLocaleDateString() : '-')}${row('Price', `KES ${esc(me.price)} / month`)}
-      <button id="pay" class="${btn} w-full!py-3 glow">Pay KES ${esc(me.price)} (M-Pesa / Card)</button>
-      <p class="text-xs text-gray-500">Secure payment via Paystack. When you pay, 30 days are added on top of the days you have left.</p></div></div>`);
-  $('#pay').onclick = async e => { e.target.disabled = true; try { const r = await api('/billing/pay', { method: 'POST' }); location.href = r.url; } catch (err) { toast(err.message, true); e.target.disabled = false; } };
-}
-async function profileView() {
-  if (!(await requireAuth())) return;
-  let p; try { p = await api('/profile'); } catch (e) { toast(e.message, true); return; }
-  const row = (a, b) => `<div class="flex justify-between gap-4 py-3 border-t border-gray-200 dark:border-zinc-800 first:border-0"><span class="text-gray-500">${a}</span><span class="text-right break-all">${b}</span></div>`;
-  appShell('profile', `<div class="max-w-xl mx-auto">
-    <div class="flex items-center gap-4 mb-8"><div class="h-16 w-16 rounded-full grad-bg text-white grid place-items-center text-2xl font-bold">${esc((p.displayName || p.email)[0].toUpperCase())}</div>
-      <div><h1 class="text-2xl font-extrabold">${esc(p.displayName)}</h1><p class="text-sm text-gray-500">${esc(p.email)}</p></div></div>
-    <div class="${card} px-6 py-2">${row('Plan', badge(p.status === 'paid'? 'live' : p.status === 'trial'? 'starting' : 'suspended').replace(/>[^<]+</, `>${esc(p.status)}<`))}${row('Days left', p.daysLeft)}${row('Member since', new Date(p.memberSince).toLocaleDateString())}${row('Projects', `${p.projects} (${p.websites} websites, ${p.bots} bots)`)}</div>
-    <div class="mt-6 flex gap-2"><a class="${btn}" href="#/settings">Edit settings</a><a class="${btn2}" href="#/billing">Billing</a></div></div>`);
-}
-async function settingsView() {
-  if (!(await requireAuth())) return;
-  let p; try { p = await api('/profile'); } catch (e) { toast(e.message, true); return; }
-  const dark = document.documentElement.classList.contains('dark');
-  const soon = ['Notifications', 'Language', 'API keys', 'Custom domains', 'Backups', 'Two-factor authentication', 'Team members'];
-  appShell('settings', `<div class="max-w-xl mx-auto space-y-6"><h1 class="text-2xl font-extrabold">Settings</h1>
-    <form id="fn" class="${card} p-6 space-y-3"><h2 class="font-semibold">Profile</h2>
-      <label class="text-sm text-gray-500">Display name</label><input class="${inp}" id="dn" maxlength="40" value="${esc(p.displayName)}" required>
-      <label class="text-sm text-gray-500">Email</label><input class="${inp} opacity-60" value="${esc(p.email)}" disabled>
-      <button class="${btn}">Save</button></form>
-    <form id="fp" class="${card} p-6 space-y-3"><h2 class="font-semibold">Change password</h2>
-      <input class="${inp}" type="password" id="cp" placeholder="Current password" required autocomplete="current-password">
-      <input class="${inp}" type="password" id="np" placeholder="New password (at least 8 characters)" minlength="8" required autocomplete="new-password">
-      <input class="${inp}" type="password" id="np2" placeholder="Confirm new password" required autocomplete="new-password">
-      <button class="${btn}">Update password</button></form>
-    <div class="${card} p-6 space-y-3"><h2 class="font-semibold">Appearance</h2>
-      <div class="flex gap-2"><button id="tl" class="${btn2} ${dark? '' : '!border-emerald-500!text-emerald-600'}">☀️ Light</button><button id="td" class="${btn2} ${dark? '!border-emerald-500!text-emerald-600' : ''}">🌙 Dark</button></div></div>
-    <div class="${card} p-6"><h2 class="font-semibold mb-3">Coming soon</h2><div class="flex flex-wrap gap-2">${soon.map(s => `<span class="rounded-full border border-gray-300 dark:border-zinc-700 px-3 py-1 text-xs text-gray-500">${s}</span>`).join('')}</div><p class="text-xs text-gray-500 mt-3">These features are planned but not available yet.</p></div>
-    <form id="fd" class="${card} p-6 space-y-3!border-red-400/60"><h2 class="font-semibold text-red-600">Delete account</h2>
-      <p class="text-sm text-gray-500">This permanently deletes your account and all your projects, and stops your bots. It cannot be undone.</p>
-      <input class="${inp}" type="password" id="dp" placeholder="Confirm with your password" required>
-      <button class="${btnDanger}">Delete my account</button></form></div>`);
-  $('#fn').onsubmit = async e => { e.preventDefault(); try { await api('/profile', { method: 'PUT', body: { displayName: $('#dn').value } }); toast('Profile saved'); await loadMe(); } catch (err) { toast(err.message, true); } };
-  $('#fp').onsubmit = async e => {
-    e.preventDefault();
-    if ($('#np').value!== $('#np2').value) return toast('New passwords do not match', true);
-    try { await api('/settings/password', { method: 'POST', body: { currentPassword: $('#cp').value, newPassword: $('#np').value } }); toast('Password updated'); e.target.reset(); }
-    catch (err) { toast(err.message, true); }
-  };
-  $('#tl').onclick = () => { setTheme(false); settingsView(); };
-  $('#td').onclick = () => { setTheme(true); settingsView(); };
-  $('#fd').onsubmit = async e => {
-    e.preventDefault();
-    if (!confirm('Delete your account permanently?')) return;
-    try { await api('/account', { method: 'DELETE', body: { password: $('#dp').value } }); toast('Account deleted'); logout(); }
-    catch (err) { toast(err.message, true); }
-  };
-}
-
-/* ===================== admin ===================== */
-function adminLogout() { atoken = null; sessionStorage.removeItem('mh_admin'); adminView(); }
-async function adminView() {
-  if (!atoken) {
-    adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-bold text-center mb-6">Admin Login</h1>${health && health.adminConfigured === false? '<p class="mb-4 text-sm text-red-600">⚠️ ADMIN_PASSWORD is not set, so the server made a temporary admin password. Open Render → your service → Logs and search for “ADMIN PASSWORD”. To choose your own, add ADMIN_PASSWORD under Environment and redeploy.</p>' : ''}<form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Login</button></form></div></div>`);
-    $('#f').onsubmit = async e => { e.preventDefault(); try { const r = await api('/admin/login', { method: 'POST', body: { password: $('#pw').value } }, null); atoken = r.token; sessionStorage.setItem('mh_admin', atoken); adminView(); } catch (err) { toast(err.message, true); } };
-    return;
-  }
-  let d;
-  try { d = await api('/admin/overview', {}, atoken); }
-  catch (e) {
-    if (e.status === 401) { atoken = null; sessionStorage.removeItem('mh_admin'); toast('Admin session expired. Please log in again.', true); return adminView(); }
-    adminShell(`<div class="max-w-md mx-auto py-16 text-center"><h1 class="text-xl font-bold mb-2">Could not load the admin panel</h1><p class="text-sm text-red-600 mb-4">${esc(e.message)}</p><button class="${btn}" onclick="adminView()">Try again</button></div>`);
-    return;
-  }
-  let st = { price: cfg.price, trialDays: cfg.trialDays }; try { st = await api('/admin/settings', {}, atoken); } catch {}
-  await checkHealth();
-  const s = d.stats, stat = (a, b) => `<div class="${card} p-4"><div class="text-xs text-gray-500">${a}</div><div class="text-2xl font-extrabold mt-1">${b}</div></div>`;
-  const th = 'text-left text-xs text-gray-500 font-normal py-2 pr-4', td = 'py-2 pr-4 text-sm';
-  const storeWarn = health && health.onRender &&!health.persistent? `<div class="${card} p-4!border-amber-500 text-sm text-amber-600">⚠️ Data is not on a persistent disk. Accounts and projects disappear whenever the server restarts or redeploys. Add a Render Disk and set DATA_DIR.</div>` : '';
-  const mailWarn = health && health.requireVerify && health.mail === 'none'? `<div class="${card} p-4!border-red-500 text-sm text-red-600">⚠️ Email is not configured, so verification codes cannot be sent. Set BREVO_API_KEY + MAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD on a paid Render plan).</div>` : '';
-  adminShell(`<div class="max-w-6xl mx-auto space-y-8">
-    <h1 class="text-2xl font-extrabold">Admin Panel</h1>${mailWarn}${storeWarn}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Unpaid (expired)', s.expired)}${stat('Blocked', s.blocked)}${stat('Projects', s.projects)}${stat('Live sites', s.liveSites)}${stat('Bots running', s.runningBots)}${stat('Revenue', 'KES ' + s.revenue)}${stat('Email delivery', esc(health? health.mail : '?'))}</div>
-    <section class="${card} p-6"><h2 class="font-semibold mb-1">Pricing and free trial</h2><p class="text-sm text-gray-500 mb-4">Changes apply to new payments and new sign-ups. Time that users already paid for is not affected.</p>
-      <form id="fs" class="grid sm:grid-cols-3 gap-3 items-end">
-        <div><label class="text-xs text-gray-500">Monthly price (KES)</label><input class="${inp} mt-1" type="number" min="10" max="100000" id="sp" value="${esc(st.price)}" required></div>
-        <div><label class="text-xs text-gray-500">Free trial (days)</label><input class="${inp} mt-1" type="number" min="0" max="60" id="sd" value="${esc(st.trialDays)}" required></div>
-        <button class="${btn}">Save</button></form></section>
-    <section><h2 class="font-semibold mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days left</th><th class="${th}">Projects</th><th class="${th}"></th></tr>
-    ${d.users.map(u => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}"><div class="flex gap-2">${u.status === 'unverified'? `<button class="${btn2}" onclick="adm('/users/${u.id}/verify',{})">Verify</button>` : ''}<button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
-    <section><h2 class="font-semibold mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}"></th></tr>
-    ${d.projects.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${esc(p.name)}</td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.type)}</td><td class="${td}">${esc(p.status)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy!== 'admin'}})">${p.suspendedBy === 'admin'? 'Resume' : 'Suspend'}</button><button class="${btnDanger}" onclick="if(confirm('Delete this project?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
-    <section><h2 class="font-semibold mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
-    ${d.payments.map(p => `<tr class="border-t border-gray-200 dark:border-zinc-800"><td class="${td}">${new Date(p.at).toLocaleString()}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${esc(p.amount)}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('') || `<tr><td class="${td} text-gray-500" colspan="4">No payments yet</td></tr>`}</table></div></section></div>`);
-  $('#fs').onsubmit = async e => {
-    e.preventDefault();
-    try { const r = await api('/admin/settings', { method: 'PUT', body: { price: $('#sp').value, trialDays: $('#sd').value } }, atoken); cfg = {...cfg,...r }; toast('Pricing saved'); }
-    catch (err) { toast(err.message, true); }
-  };
-}
-async function adm(path, body, method) { try { await api('/admin' + path, { method: method || 'POST', body }, atoken); toast('Done'); adminView(); } catch (e) { toast(e.message, true); } }
-
-/* ===================== router ===================== */
-function route() {
-  clearInterval(pollT); $('#modal').innerHTML = '';
-  const h = (location.hash || '#/').split('?')[0];
-  window.scrollTo(0, 0);
-  if (token && (h === '#/login' || h === '#/signup')) { location.hash = '#/dashboard'; return; }
-  const R = {
-    '#/': landing, '#/login': () => authView('login'), '#/signup': () => authView('signup'), '#/verify': verifyView,
-    '#/dashboard': dashboardView, '#/deploy/website': () => deployView('website'), '#/deploy/bot': () => deployView('bot'), '#/github': () => deployView('github'),
-    '#/billing': billingView, '#/profile': profileView, '#/settings': settingsView, '#/admin': adminView
-  };
-  (R[h] || landing)();
-}
-addEventListener('hashchange', route);
-Promise.all([loadCfg(), checkHealth()]).finally(route);
-setInterval(checkHealth, 60000);
-</script>
-</body>
-</html>
+boot();
