@@ -35,6 +35,7 @@ let token = localStorage.getItem('mh_token'), atoken = sessionStorage.getItem('m
 let me = null, health = null, pollT = null, logCtl = null, humanTok = '', cfToken = '';
 let cfg = { price: 70, trialDays: 14, storageGB: 10, human: 'math', github: false, baseDomain: null };
 let pendingEmail = localStorage.getItem('mh_pending') || '';
+
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inp = 'w-full rounded-md border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-zinc-400';
@@ -315,6 +316,7 @@ function cmdFields(c, type) {
 const typeSelect = type => `<select class="${inp}" id="c_type"><option value="static" ${type === 'static' ? 'selected' : ''}>Static website (HTML, React, Vue…)</option><option value="web" ${type === 'web' ? 'selected' : ''}>Web service (Node.js, Express, Next.js)</option><option value="worker" ${type === 'worker' ? 'selected' : ''}>Background worker / bot (no website)</option></select>`;
 const bindType = () => $('#c_type').onchange = e => { const st = e.target.value === 'static'; $('#w_start').classList.toggle('hidden', st); $('#w_out').classList.toggle('hidden', !st); };
 function readCmds() { const t = $('#c_type').value; return { kind: t === 'static' ? 'static' : 'service', exposeWeb: t === 'web', installCmd: $('#c_install').value.trim(), buildCmd: $('#c_build').value.trim(), startCmd: t === 'static' ? '' : $('#c_start').value.trim(), outputDir: t === 'static' ? $('#c_out').value.trim() : '' }; }
+
 async function configureView() {
   if (!(await requireAuth())) return;
   const q = parseHash().q, repo = q.get('repo') || '';
@@ -416,6 +418,7 @@ async function projectView() {
     $('#del').onclick = async () => { if (!confirm(`Delete "${p.name}" permanently?`)) return; try { await api('/projects/' + id, { method: 'DELETE' }); toast('Project deleted'); location.hash = '#/dashboard'; } catch (e) { toast(e.message, true); } };
   }
 }
+
 /* ===================== billing + settings ===================== */
 async function billingView() {
   if (!(await requireAuth())) return;
@@ -442,42 +445,15 @@ async function settingsView() {
   $('#tl').onclick = () => { setTheme(false); settingsView(); }; $('#td').onclick = () => { setTheme(true); settingsView(); };
   $('#fd').onsubmit = async e => { e.preventDefault(); if (!confirm('Delete your account permanently?')) return; try { await api('/account', { method: 'DELETE', body: { password: $('#dp').value } }); toast('Account deleted'); logout(); } catch (err) { toast(err.message, true); } };
 }
+
 /* ===================== admin ===================== */
+function adminLogout() { atoken = null; sessionStorage.removeItem('mh_admin'); adminView(); }
 async function adminView() {
   if (!atoken) {
     adminShell(`<div class="max-w-sm mx-auto py-16"><div class="${card} p-8"><h1 class="text-xl font-semibold text-center mb-6">Admin log in</h1>${health && health.adminConfigured === false ? '<p class="mb-4 text-sm text-amber-500">ADMIN_PASSWORD is not set, so the server made a temporary password. Open Render → your service → Logs and search for “ADMIN PASSWORD”.</p>' : ''}<form id="f" class="space-y-3"><input class="${inp}" type="password" id="pw" placeholder="Admin password" required><button class="${btn} w-full">Log in</button></form></div></div>`);
     $('#f').onsubmit = async e => { e.preventDefault(); try { atoken = (await api('/admin/login', { method: 'POST', body: { password: $('#pw').value } }, null)).token; sessionStorage.setItem('mh_admin', atoken); adminView(); } catch (err) { toast(err.message, true); } };
     return;
   }
-  let d;
-  try { d = await api('/admin/overview', {}, atoken); }
-  catch (e) {
-    if (e.status === 401) { atoken = null; sessionStorage.removeItem('mh_admin'); toast('Admin session expired. Please log in again.', true); return adminView(); }
-    adminShell(`<div class="max-w-md mx-auto py-16 text-center"><h1 class="text-xl font-semibold mb-2">Could not load the admin panel</h1><p class="text-sm text-red-500 mb-4">${esc(e.message)}</p><button class="${btn}" onclick="adminView()">Try again</button></div>`); return;
-  }
-  await checkHealth();
-  const s = d.stats, st = d.settings, stat = (a, b) => `<div class="${card} p-4"><div class="text-xs text-zinc-500">${a}</div><div class="text-xl font-semibold mt-1">${b}</div></div>`;
-  const th = 'text-left text-xs text-zinc-500 font-normal py-2 pr-4', td = 'py-2 pr-4 text-sm';
-  const warn = [];
-  if (health && !health.persistentDb) warn.push('The database is a local file. Accounts and projects are lost whenever the server restarts. Set MONGODB_URI.');
-  if (health && !health.githubConfigured) warn.push('GitHub login is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.');
-  if (health && !health.baseDomain) warn.push('BASE_DOMAIN is not set, so sites use /s/name addresses instead of name.yourdomain.');
-  if (health && health.requireVerify && health.mail === 'none') warn.push('Email verification is required but email sending is not configured.');
-  if (health && health.githubConfigured) warn.push('GitHub OAuth callback URL (must match EXACTLY in your GitHub OAuth App): ' + health.githubCallback);
-  if (health && !health.baseUrlSet) warn.push('BASE_URL is not set. The address is detected automatically, but set BASE_URL to your public https address to be safe.');
-  adminShell(`<div class="space-y-8"><h1 class="text-2xl font-semibold">Admin</h1>${warn.map(w => `<div class="${card} px-4 py-3 text-sm text-amber-500 !border-amber-500/50 break-all">⚠ ${esc(w)}</div>`).join('')}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">${stat('Users', s.users)}${stat('Free trial', s.trial)}${stat('Paid', s.paid)}${stat('Expired', s.expired)}${stat('Projects', `${s.live} live / ${s.projects}`)}${stat('Storage used', fmtB(s.usedBytes))}${stat('Blocked', s.blocked)}${stat('Revenue', 'KES ' + s.revenue)}</div>
-    <section class="${card} p-6"><h2 class="font-medium mb-1">Price, trial and storage</h2><p class="text-sm text-zinc-500 mb-4">Changes apply to new payments and sign-ups. Time people already paid for is not affected. Per-user storage can be edited in the table below.</p>
-      <form id="fs" class="grid sm:grid-cols-4 gap-3 items-end"><div><label class="${lbl}">Monthly price (KES)</label><input class="${inp}" type="number" min="10" id="sp" value="${esc(st.price)}" required></div><div><label class="${lbl}">Free trial (days)</label><input class="${inp}" type="number" min="0" max="90" id="sd" value="${esc(st.trialDays)}" required></div><div><label class="${lbl}">Default storage (GB)</label><input class="${inp}" type="number" min="0.1" step="any" id="sg" value="${esc(st.storageGB)}" required></div><button class="${btn}">Save</button>
-        <label class="flex items-center gap-2 text-sm sm:col-span-4"><input type="checkbox" id="sv" ${st.requireVerify ? 'checked' : ''}> Require email verification <span class="text-xs text-zinc-500">(turn on only when email sending works, otherwise nobody can sign up)</span></label></form></section>
-    <section><h2 class="font-medium mb-3">Users</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Email</th><th class="${th}">Status</th><th class="${th}">Days</th><th class="${th}">Projects</th><th class="${th}">Storage</th><th class="${th}"></th></tr>
-    ${d.users.map(u => `<tr class="border-t border-zinc-200 dark:border-zinc-800"><td class="${td}">${esc(u.email)}${u.github ? ` <span class="text-xs text-zinc-500"><i class="fab fa-github"></i> ${esc(u.github)}</span>` : ''}</td><td class="${td}">${esc(u.status)}</td><td class="${td}">${u.daysLeft}</td><td class="${td}">${u.projects}</td><td class="${td}">${fmtB(u.usedBytes)} / ${fmtB(u.quotaBytes)}</td><td class="${td}"><div class="flex gap-2 flex-wrap">${u.status === 'unverified' ? `<button class="${btn2}" onclick="adm('/users/${u.id}/verify',{})">Verify</button>` : ''}<button class="${btn2}" onclick="editStorage('${u.id}')">Storage</button><button class="${btn2}" onclick="adm('/users/${u.id}/block',{blocked:${!u.blocked}})">${u.blocked ? 'Unblock' : 'Block'}</button><button class="${btn2}" onclick="adm('/users/${u.id}/extend',{days:30})">+30d</button></div></td></tr>`).join('')}</table></div></section>
-    <section><h2 class="font-medium mb-3">Projects</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Name</th><th class="${th}">Owner</th><th class="${th}">Type</th><th class="${th}">Status</th><th class="${th}">Size</th><th class="${th}"></th></tr>
-    ${d.projects.map(p => `<tr class="border-t border-zinc-200 dark:border-zinc-800"><td class="${td}"><a class="hover:underline text-emerald-500" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a></td><td class="${td}">${esc(p.owner)}</td><td class="${td}">${esc(p.kind)}</td><td class="${td}">${pill(p.status)}</td><td class="${td}">${fmtB(p.sizeBytes)}</td><td class="${td}"><div class="flex gap-2"><button class="${btn2}" onclick="adm('/projects/${p.id}/suspend',{suspended:${p.suspendedBy !== 'admin'}})">${p.suspendedBy === 'admin' ? 'Turn on' : 'Turn off'}</button><button class="${btnDanger}" onclick="if(confirm('Delete this project permanently?'))adm('/projects/${p.id}',null,'DELETE')">Delete</button></div></td></tr>`).join('')}</table></div></section>
-    <section><h2 class="font-medium mb-3">Payments</h2><div class="${card} p-4 overflow-x-auto"><table class="w-full"><tr><th class="${th}">Date</th><th class="${th}">Email</th><th class="${th}">Amount</th><th class="${th}">Channel</th></tr>
-    ${d.payments.map(p => `<tr class="border-t border-zinc-200 dark:border-zinc-800"><td class="${td}">${new Date(p.at).toLocaleString()}</td><td class="${td}">${esc(p.email)}</td><td class="${td}">KES ${esc(p.amount)}</td><td class="${td}">${esc(p.channel)}</td></tr>`).join('') || `<tr><td class="${td} text-zinc-500" colspan="4">No payments yet</td></tr>`}</table></div></section></div>`);
-  $('#fs').onsubmit = async e => { e.preventDefault(); try { const r = await api('/admin/settings', { method: 'PUT', body: { price: $('#sp').value, trialDays: $('#sd').value, storageGB: $('#sg').value, requireVerify: $('#sv').checked } }, atoken); cfg = { ...cfg, ...r }; toast('Saved'); } catch (err) { toast(err.message, true); } };
-}
   let d;
   try { d = await api('/admin/overview', {}, atoken); }
   catch (e) {
@@ -506,6 +482,7 @@ async function adminView() {
 }
 async function adm(path, body, method) { try { await api('/admin' + path, { method: method || 'POST', body }, atoken); toast('Done'); adminView(); } catch (e) { toast(e.message, true); } }
 function editStorage(id) { const v = prompt('Storage for this user in GB (leave empty to use the default):'); if (v === null) return; adm(`/users/${id}/storage`, { gb: v.trim() === '' ? null : Number(v) }); }
+
 /* ===================== router ===================== */
 function route() {
   stopAll(); $('#modal').innerHTML = '';
