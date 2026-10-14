@@ -35,7 +35,6 @@ let token = localStorage.getItem('mh_token'), atoken = sessionStorage.getItem('m
 let me = null, health = null, pollT = null, logCtl = null, humanTok = '', cfToken = '';
 let cfg = { price: 70, trialDays: 14, storageGB: 10, human: 'math', github: false, baseDomain: null };
 let pendingEmail = localStorage.getItem('mh_pending') || '';
-
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inp = 'w-full rounded-md border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-zinc-400';
@@ -316,7 +315,6 @@ function cmdFields(c, type) {
 const typeSelect = type => `<select class="${inp}" id="c_type"><option value="static" ${type === 'static' ? 'selected' : ''}>Static website (HTML, React, Vue…)</option><option value="web" ${type === 'web' ? 'selected' : ''}>Web service (Node.js, Express, Next.js)</option><option value="worker" ${type === 'worker' ? 'selected' : ''}>Background worker / bot (no website)</option></select>`;
 const bindType = () => $('#c_type').onchange = e => { const st = e.target.value === 'static'; $('#w_start').classList.toggle('hidden', st); $('#w_out').classList.toggle('hidden', !st); };
 function readCmds() { const t = $('#c_type').value; return { kind: t === 'static' ? 'static' : 'service', exposeWeb: t === 'web', installCmd: $('#c_install').value.trim(), buildCmd: $('#c_build').value.trim(), startCmd: t === 'static' ? '' : $('#c_start').value.trim(), outputDir: t === 'static' ? $('#c_out').value.trim() : '' }; }
-
 async function configureView() {
   if (!(await requireAuth())) return;
   const q = parseHash().q, repo = q.get('repo') || '';
@@ -418,7 +416,6 @@ async function projectView() {
     $('#del').onclick = async () => { if (!confirm(`Delete "${p.name}" permanently?`)) return; try { await api('/projects/' + id, { method: 'DELETE' }); toast('Project deleted'); location.hash = '#/dashboard'; } catch (e) { toast(e.message, true); } };
   }
 }
-
 /* ===================== billing + settings ===================== */
 async function billingView() {
   if (!(await requireAuth())) return;
@@ -445,7 +442,6 @@ async function settingsView() {
   $('#tl').onclick = () => { setTheme(false); settingsView(); }; $('#td').onclick = () => { setTheme(true); settingsView(); };
   $('#fd').onsubmit = async e => { e.preventDefault(); if (!confirm('Delete your account permanently?')) return; try { await api('/account', { method: 'DELETE', body: { password: $('#dp').value } }); toast('Account deleted'); logout(); } catch (err) { toast(err.message, true); } };
 }
-
 /* ===================== admin ===================== */
 function adminLogout() { atoken = null; sessionStorage.removeItem('mh_admin'); adminView(); }
 async function adminView() {
@@ -482,7 +478,6 @@ async function adminView() {
 }
 async function adm(path, body, method) { try { await api('/admin' + path, { method: method || 'POST', body }, atoken); toast('Done'); adminView(); } catch (e) { toast(e.message, true); } }
 function editStorage(id) { const v = prompt('Storage for this user in GB (leave empty to use the default):'); if (v === null) return; adm(`/users/${id}/storage`, { gb: v.trim() === '' ? null : Number(v) }); }
-
 /* ===================== router ===================== */
 function route() {
   stopAll(); $('#modal').innerHTML = '';
@@ -496,4 +491,4 @@ Promise.all([loadCfg(), checkHealth()]).finally(route);
 setInterval(checkHealth, 60000);
 </script>
 </body>
-  </html>
+</html>
