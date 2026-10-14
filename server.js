@@ -12,6 +12,8 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) { console.error('Set JWT_SECRET in the environment'); process.exit(1); }
 const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+// Public address of this server. If BASE_URL is not set it is detected from the request, so OAuth/Paystack callbacks never point at localhost.
+const baseOf = req => process.env.BASE_URL ? BASE_URL : `${req.protocol}://${req.get('host')}`;
 const BASE_DOMAIN = (process.env.BASE_DOMAIN || '').toLowerCase().replace(/^\./, '');
 const ADMIN_ENV = (process.env.ADMIN_PASSWORD || '').trim();
 const ADMIN_PASSWORD = ADMIN_ENV || crypto.randomBytes(9).toString('base64url'); // temporary one is printed in the logs if you forget to set it
@@ -84,8 +86,9 @@ const MAIL_FROM = (process.env.MAIL_FROM || MAIL_USER).trim();
 const BREVO_KEY = (process.env.BREVO_API_KEY || '').trim();
 const smtp = MAIL_USER && MAIL_PASS ? nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: MAIL_USER, pass: MAIL_PASS }, connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000 }) : null;
 const mailMode = BREVO_KEY ? 'brevo' : smtp ? 'smtp' : 'none';
-// Real-email verification is ON automatically when email sending is configured. Force with REQUIRE_EMAIL_VERIFY=1 or 0.
-const REQUIRE_VERIFY = process.env.REQUIRE_EMAIL_VERIFY ? process.env.REQUIRE_EMAIL_VERIFY === '1' : mailMode !== 'none';
+// Real-email verification: default is ON when email sending is configured. Force with REQUIRE_EMAIL_VERIFY=1 or 0.
+const ENV_VERIFY = process.env.REQUIRE_EMAIL_VERIFY ? process.env.REQUIRE_EMAIL_VERIFY === '1' : mailMode !== 'none';
+const requireVerify = () => db.settings.requireVerify === undefined ? ENV_VERIFY : !!db.settings.requireVerify; // the admin can switch it in the admin panel
 async function sendEmail(to, subject, html) {
   if (BREVO_KEY) {
     if (!MAIL_FROM) throw new Error('MAIL_FROM is not set');
@@ -129,8 +132,8 @@ function stateRead(s) {
   if (!p || !sig || !safeEq(sig, hmac('oauth.' + p))) return null;
   try { const o = JSON.parse(Buffer.from(p, 'base64url').toString()); return o.exp > now() ? o : null; } catch { return null; }
 }
-const ghAuthUrl = (mode, userId) => 'https://github.com/login/oauth/authorize?' + new URLSearchParams({
-  client_id: GH_ID, redirect_uri: `${BASE_URL}/api/github/callback`, allow_signup: 'true',
+const ghAuthUrl = (req, mode, userId) => 'https://github.com/login/oauth/authorize?' + new URLSearchParams({
+  client_id: GH_ID, redirect_uri: `${baseOf(req)}/api/github/callback`, allow_signup: 'true',
   scope: mode === 'import' ? 'repo read:user user:email' : 'read:user user:email', state: stateSign({ mode, uid: userId || null, exp: now() + 10 * 60000, n: uid() })
 });
 
@@ -201,7 +204,7 @@ app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res)
 app.use(express.json({ limit: '200kb' }));
 
 /* ---------- public config ---------- */
-app.get('/api/health', (req, res) => res.json({ ok: true, mail: mailMode, requireVerify: REQUIRE_VERIFY, adminConfigured: !!ADMIN_ENV, githubConfigured: !!(GH_ID && GH_SECRET), storage: E.storeMode(), persistentDb: !!process.env.MONGODB_URI, baseDomain: BASE_DOMAIN || null }));
+app.get('/api/health', (req, res) => res.json({ ok: true, mail: mailMode, requireVerify: requireVerify(), baseUrlSet: !!process.env.BASE_URL, githubCallback: `${baseOf(req)}/api/github/callback`, adminConfigured: !!ADMIN_ENV, githubConfigured: !!(GH_ID && GH_SECRET), storage: E.storeMode(), persistentDb: !!process.env.MONGODB_URI, baseDomain: BASE_DOMAIN || null }));
 app.get('/api/config', (req, res) => res.json({ price: E.getPrice(), trialDays: E.getTrialDays(), storageGB: E.getStorageGB(), currency: 'KES', human: TURNSTILE_ON ? 'turnstile' : 'math', turnstileSiteKey: TURNSTILE_ON ? TURNSTILE_SITE_KEY : '', github: !!(GH_ID && GH_SECRET), baseDomain: BASE_DOMAIN || null }));
 app.get('/api/human', limiter(60, 15 * 60000), (req, res) => {
   if (TURNSTILE_ON) return res.json({ type: 'turnstile' });
@@ -236,7 +239,7 @@ app.post('/api/auth/signup', authLimit, async (req, res) => {
   const code = String(crypto.randomInt(100000, 1000000)), passHash = await bcrypt.hash(password, 10);
   if (!u) { u = { id: uid(), email, verified: false, trialEndsAt: 0, paidUntil: 0, blocked: false, createdAt: now() }; db.users.push(u); }
   Object.assign(u, { passHash, code, codeExp: now() + 15 * 60000, codeTries: 0 });
-  if (!REQUIRE_VERIFY) { activate(u); save(); return res.json({ ok: true, verified: true, token: tokenFor(u), user: publicUser(u) }); }
+  if (!requireVerify()) { activate(u); save(); return res.json({ ok: true, verified: true, token: tokenFor(u), user: publicUser(u) }); }
   save();
   try { await sendCode(email, code); } catch (e) { console.error('mail', e.message); throw new HttpError(500, 'Could not send the verification email. Please try again later.'); }
   res.json({ ok: true });
@@ -260,7 +263,7 @@ app.post('/api/auth/login', authLimit, async (req, res) => {
   if (!(await verifyHuman(req))) return res.status(400).json(HUMAN_FAIL);
   const u = db.users.find(x => x.email === String(req.body.email || '').trim().toLowerCase());
   if (!u || !u.passHash || !(await bcrypt.compare(String(req.body.password || ''), u.passHash))) throw new HttpError(401, u && !u.passHash ? 'This account uses GitHub. Press "Continue with GitHub".' : 'Incorrect email or password');
-  if (!u.verified && !REQUIRE_VERIFY) { activate(u); save(); }
+  if (!u.verified && !requireVerify()) { activate(u); save(); }
   if (!u.verified) return res.status(403).json({ error: 'Please verify your email first', needVerify: true });
   if (u.blocked) throw new HttpError(403, 'Your account has been blocked. Please contact the admin.');
   res.json({ token: tokenFor(u), user: publicUser(u) });
@@ -271,16 +274,16 @@ app.get('/api/me', auth, (req, res) => res.json(publicUser(req.user)));
 const needGh = () => { if (!GH_ID || !GH_SECRET) throw new HttpError(503, 'GitHub login is not configured on the server (set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET).'); };
 app.get('/api/auth/github', (req, res) => {
   if (!GH_ID || !GH_SECRET) return res.redirect('/#/login?error=' + encodeURIComponent('GitHub login is not configured yet.'));
-  res.redirect(ghAuthUrl('login'));
+  res.redirect(ghAuthUrl(req, 'login'));
 });
-app.post('/api/github/connect', auth, (req, res) => { needGh(); res.json({ url: ghAuthUrl('import', req.user.id) }); });
+app.post('/api/github/connect', auth, (req, res) => { needGh(); res.json({ url: ghAuthUrl(req, 'import', req.user.id) }); });
 app.post('/api/github/disconnect', auth, (req, res) => { req.user.ghToken = null; save(); res.json({ ok: true }); });
 app.get('/api/github/callback', async (req, res) => {
   const st = stateRead(req.query.state), fail = msg => res.redirect('/#/login?error=' + encodeURIComponent(msg));
   if (!st || !req.query.code) return fail('GitHub sign-in expired. Please try again.');
   try {
     needGh();
-    const tr = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ client_id: GH_ID, client_secret: GH_SECRET, code: req.query.code, redirect_uri: `${BASE_URL}/api/github/callback` }) });
+    const tr = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ client_id: GH_ID, client_secret: GH_SECRET, code: req.query.code, redirect_uri: `${baseOf(req)}/api/github/callback` }) });
     const access = (await tr.json()).access_token;
     if (!access) return fail('GitHub did not accept the sign-in. Please try again.');
     const me = await ghApi(access, '/user');
@@ -480,7 +483,7 @@ app.post('/api/billing/pay', auth, async (req, res) => {
   db.pending[reference] = { userId: req.user.id, amount, at: now() }; save();
   let j;
   try {
-    const r = await fetch('https://api.paystack.co/transaction/initialize', { method: 'POST', headers: { Authorization: 'Bearer ' + PSK, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: req.user.email, amount, currency: 'KES', reference, callback_url: `${BASE_URL}/billing/return`, metadata: { userId: req.user.id } }) });
+    const r = await fetch('https://api.paystack.co/transaction/initialize', { method: 'POST', headers: { Authorization: 'Bearer ' + PSK, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: req.user.email, amount, currency: 'KES', reference, callback_url: `${baseOf(req)}/billing/return`, metadata: { userId: req.user.id } }) });
     j = await r.json();
   } catch { throw new HttpError(502, 'Could not reach Paystack'); }
   if (!j.status) throw new HttpError(502, j.message || 'Paystack error');
@@ -502,7 +505,7 @@ app.get('/api/admin/overview', adminAuth, (req, res) => {
   const projects = db.projects.map(p => ({ ...projectView(p), owner: (db.users.find(u => u.id === p.userId) || {}).email }));
   const c = s => users.filter(u => u.status === s).length;
   res.json({
-    settings: { price: E.getPrice(), trialDays: E.getTrialDays(), storageGB: E.getStorageGB() },
+    settings: { price: E.getPrice(), trialDays: E.getTrialDays(), storageGB: E.getStorageGB(), requireVerify: requireVerify() },
     stats: { users: users.length, trial: c('trial'), paid: c('paid'), expired: c('expired'), blocked: c('blocked'), projects: projects.length, live: projects.filter(p => p.status === 'live').length, usedBytes: users.reduce((s, u) => s + u.usedBytes, 0), revenue: db.payments.reduce((s, p) => s + p.amount, 0) },
     users, projects, payments: [...db.payments].reverse().slice(0, 200)
   });
@@ -512,7 +515,9 @@ app.put('/api/admin/settings', adminAuth, (req, res) => {
   if (!Number.isFinite(price) || price < 10 || price > 100000) throw bad('Price must be between KES 10 and 100000');
   if (!Number.isFinite(trialDays) || trialDays < 0 || trialDays > 90) throw bad('Trial days must be between 0 and 90');
   if (!Number.isFinite(storageGB) || storageGB < 0.1 || storageGB > 100000) throw bad('Storage must be between 0.1 and 100000 GB');
-  Object.assign(db.settings, { price, trialDays, storageGB }); save(); res.json({ price, trialDays, storageGB });
+  Object.assign(db.settings, { price, trialDays, storageGB });
+  if (req.body.requireVerify !== undefined) db.settings.requireVerify = !!req.body.requireVerify;
+  save(); res.json({ price, trialDays, storageGB, requireVerify: requireVerify() });
 });
 const userById = req => { const u = db.users.find(x => x.id === req.params.id); if (!u) throw new HttpError(404, 'User not found'); return u; };
 app.post('/api/admin/users/:id/block', adminAuth, (req, res) => {
@@ -551,12 +556,11 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error('ERROR', req.method, req.path, err && err.message);
   res.status(500).json({ error: 'Server error. Please try again.' });
 });
-
 /* ---------- start ---------- */
 (async () => {
   try { await init(); } catch (e) { console.error('Could not connect to the database:', e.message); process.exit(1); }
   console.log('Database: ' + (process.env.MONGODB_URI ? 'MongoDB' : 'local JSON file (NOT persistent on Render free - set MONGODB_URI)'));
-  console.log('Mail: ' + mailMode + ' | email verification: ' + (REQUIRE_VERIFY ? 'REQUIRED' : 'off') + ' | human check: ' + (TURNSTILE_ON ? 'Turnstile' : 'math') + ' | GitHub OAuth: ' + (GH_ID && GH_SECRET ? 'configured' : 'NOT configured') + ' | static storage: ' + E.storeMode());
+  console.log('Mail: ' + mailMode + ' | email verification: ' + (requireVerify() ? 'REQUIRED' : 'off') + ' | human check: ' + (TURNSTILE_ON ? 'Turnstile' : 'math') + ' | GitHub OAuth: ' + (GH_ID && GH_SECRET ? 'configured' : 'NOT configured') + ' | static storage: ' + E.storeMode());
   if (ADMIN_ENV) console.log('Admin password: set via ADMIN_PASSWORD'); else console.warn('ADMIN PASSWORD (temporary, changes on every restart): ' + ADMIN_PASSWORD + '  <- set ADMIN_PASSWORD to choose your own');
   const server = app.listen(PORT, () => { console.log('MtaaniHost v2 listening on ' + PORT); E.boot(); });
   setInterval(E.enforce, 60000).unref();
