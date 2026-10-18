@@ -204,7 +204,7 @@ app.post('/api/paystack/webhook', express.raw({ type: '*/*' }), async (req, res)
 app.use(express.json({ limit: '200kb' }));
 
 /* ---------- public config ---------- */
-app.get('/api/health', (req, res) => res.json({ ok: true, mail: mailMode, requireVerify: requireVerify(), baseUrlSet: !!process.env.BASE_URL, githubCallback: `${baseOf(req)}/api/github/callback`, adminConfigured: !!ADMIN_ENV, githubConfigured: !!(GH_ID && GH_SECRET), storage: E.storeMode(), persistentDb: !!process.env.MONGODB_URI, baseDomain: BASE_DOMAIN || null }));
+app.get('/api/health', (req, res) => res.json({ ok: true, mail: mailMode, requireVerify: requireVerify(), baseUrlSet: !!process.env.BASE_URL, githubCallback: `${baseOf(req)}/api/github/callback`, adminConfigured: !!ADMIN_ENV || !!db.settings.adminHash, githubConfigured: !!(GH_ID && GH_SECRET), storage: E.storeMode(), persistentDb: !!process.env.MONGODB_URI, baseDomain: BASE_DOMAIN || null }));
 app.get('/api/config', (req, res) => res.json({ price: E.getPrice(), trialDays: E.getTrialDays(), storageGB: E.getStorageGB(), currency: 'KES', human: TURNSTILE_ON ? 'turnstile' : 'math', turnstileSiteKey: TURNSTILE_ON ? TURNSTILE_SITE_KEY : '', github: !!(GH_ID && GH_SECRET), baseDomain: BASE_DOMAIN || null }));
 app.get('/api/human', limiter(60, 15 * 60000), (req, res) => {
   if (TURNSTILE_ON) return res.json({ type: 'turnstile' });
@@ -496,8 +496,25 @@ app.get('/billing/return', async (req, res) => {
 });
 
 /* ---------- admin ---------- */
-app.post('/api/admin/login', limiter(10, 15 * 60000), (req, res) => {
-  if (!safeEq(String(req.body.password || '').trim(), ADMIN_PASSWORD)) throw new HttpError(401, 'Incorrect password');
+// The admin password can come from three places: ADMIN_PASSWORD (environment), the temporary one printed in the logs,
+// or one chosen in the admin page with the server key (stored hashed in the database).
+async function adminOk(pw) {
+  pw = String(pw || '').trim();
+  if (!pw) return false;
+  if (db.settings.adminHash && await bcrypt.compare(pw, db.settings.adminHash)) return true;
+  if (!ADMIN_ENV && db.settings.adminHash) return false; // a password was chosen in the setup form: the temporary one is retired
+  return safeEq(pw, ADMIN_PASSWORD);
+}
+app.post('/api/admin/login', limiter(10, 15 * 60000), async (req, res) => {
+  if (!(await adminOk(req.body.password))) throw new HttpError(401, 'Incorrect password');
+  res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) });
+});
+// First time, or forgot the password: prove you own the server with its JWT_SECRET and choose a new admin password.
+app.post('/api/admin/setup', limiter(5, 15 * 60000), async (req, res) => {
+  const key = String(req.body.setupKey || '').trim(), pw = String(req.body.password || '');
+  if (!safeEq(key, JWT_SECRET)) throw new HttpError(401, 'That server key is not correct. Use the value of JWT_SECRET from your Render environment.');
+  if (pw.length < 8) throw bad('The admin password must be at least 8 characters');
+  db.settings.adminHash = await bcrypt.hash(pw, 10); save();
   res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) });
 });
 app.get('/api/admin/overview', adminAuth, (req, res) => {
@@ -547,6 +564,7 @@ app.delete('/api/admin/projects/:id', adminAuth, async (req, res) => {
 });
 
 /* ---------- frontend + errors ---------- */
+app.get('/admin', (req, res) => res.redirect('/#/admin')); // short address for the admin panel
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use((req, res) => res.status(404).send('Not found'));
@@ -556,6 +574,7 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error('ERROR', req.method, req.path, err && err.message);
   res.status(500).json({ error: 'Server error. Please try again.' });
 });
+
 /* ---------- start ---------- */
 (async () => {
   try { await init(); } catch (e) { console.error('Could not connect to the database:', e.message); process.exit(1); }
